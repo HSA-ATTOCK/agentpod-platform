@@ -43,7 +43,11 @@ function toolset({ web = false, files = true, bash = true } = {}) {
   };
 }
 
+/** Only final deliverables go here: everything in this folder is offered to the user for download. */
 const OUTPUTS = "/mnt/session/outputs/";
+/** Shared scratch space for notes, drafts and build scripts (all agents share one workspace). */
+const WORK = "/tmp/baba-work/";
+const FILE_RULE = `Only finished deliverables the user asked for go in ${OUTPUTS} (the user can download everything there). Put research notes, drafts, data extracts and build scripts in ${WORK} (create it with mkdir -p) and never copy them into ${OUTPUTS}.`;
 
 /** Rules for any web research, shared by Baba and the Research Analyst. */
 const RESEARCH_RULES = [
@@ -84,7 +88,8 @@ export const specialists = [
       RESEARCH_RULES,
       "",
       TEST ? "Keep every task small: at most 3 searches and 2 page reads." : "For a large research task you may use up to about 10 searches and 8 page reads.",
-      `If you are asked for a file, write it to ${OUTPUTS} and report the path.`,
+      `Save your research notes as a Markdown file in ${WORK} and report the path, unless the user directly asked for that file as a deliverable.`,
+      FILE_RULE,
     ].join("\n"),
     tools: [toolset({ web: true })],
   },
@@ -99,7 +104,8 @@ export const specialists = [
       "Write clear, professional, well-structured documents for business readers. Match the requested audience and tone.",
       "Use only the facts you are given; do not invent numbers, quotes or claims. Mark anything that needs the user's input as [TO CONFIRM].",
       "Keep the source links you are given: cite them next to the facts and include a 'Sources' section, plus the date the information was checked and any caveats.",
-      `Save every file you create in ${OUTPUTS} (use python-docx, python-pptx, openpyxl or reportlab via bash as needed) and report the file paths.`,
+      `Create files with python-docx, python-pptx, openpyxl or reportlab via bash. Keep build scripts and drafts in ${WORK}; save only the finished document in ${OUTPUTS}, and report its path.`,
+      FILE_RULE,
     ].join("\n"),
     tools: [toolset({ web: false })],
   },
@@ -113,7 +119,8 @@ export const specialists = [
       "You are Baba's Data Analyst.",
       "Use Python (pandas, matplotlib, openpyxl) via bash to analyse data accurately. Check your numbers before reporting them.",
       "Report the key findings in plain language, with the exact figures, and explain any assumptions.",
-      `Save charts, cleaned data and spreadsheets in ${OUTPUTS} and report the file paths.`,
+      `Save the charts and spreadsheets the user asked for in ${OUTPUTS}; keep scripts and intermediate data in ${WORK}. Report the file paths.`,
+      FILE_RULE,
     ].join("\n"),
     tools: [toolset({ web: false })],
   },
@@ -139,7 +146,8 @@ export const baba = {
     "- Check specialists' work before using it. Fix or send back anything that is wrong, unsourced or incomplete.",
     "",
     "Delivering results:",
-    `- Files for the user must be saved in ${OUTPUTS}. Mention each file by name in your reply.`,
+    `- ${FILE_RULE} When delegating, tell specialists where to read and write files using these two folders.`,
+    "- Mention each deliverable by file name in your reply. Don't mention internal notes or scripts unless the user asks.",
     "- Reply in clear, well-formatted Markdown: a short summary first, then the details. Use tables where they help.",
     "- Be honest: never invent facts, numbers, sources or actions. Say what you could not do and why.",
     "- You cannot send emails, post messages or change anything in the user's other systems yet; prepare drafts instead and say so.",
