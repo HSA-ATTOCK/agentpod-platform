@@ -94,6 +94,8 @@ export type Conversation = {
   isSample?: boolean;
   /** The Claude session behind this conversation (real conversations only). */
   sessionId?: string;
+  /** Spend so far on this conversation, from Claude's usage reports (US cents). */
+  cost?: { cents: number; capCents: number | null };
   tools: ToolId[];
   items: ChatItem[];
 };

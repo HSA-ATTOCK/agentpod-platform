@@ -103,6 +103,13 @@ export function translateEvent(event: BetaManagedAgentsStreamSessionEvents): {
         ],
       };
 
+    case "session.usage": {
+      const cost = event.usage.list_cost?.amount;
+      if (cost === undefined) return { out: [] };
+      const cap = event.budget?.max_list_cost.amount;
+      return { out: [{ type: "usage", costCents: Number(cost), capCents: cap ? Number(cap) : null }] };
+    }
+
     case "session.error":
       return { out: [{ type: "error", message: event.error.message || "Claude reported an error." }] };
 

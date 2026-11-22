@@ -161,6 +161,12 @@ export function AskBaba() {
             return { ...c, items: [...c.items, ...added] };
           });
           break;
+        case "usage":
+          updateConversation(conversationId, (c) => ({
+            ...c,
+            cost: { cents: event.costCents, capCents: event.capCents },
+          }));
+          break;
         case "error":
           appendItems(conversationId, [{ id: crypto.randomUUID(), type: "error", text: event.message }]);
           break;
