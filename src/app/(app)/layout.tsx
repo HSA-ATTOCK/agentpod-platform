@@ -17,10 +17,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       <div className="flex flex-1 flex-col lg:pl-64">
         <AppTopbar />
-        {/* Bottom padding keeps content clear of the mobile tab bar */}
-        <main className="w-full max-w-7xl flex-1 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))] lg:p-8 lg:pb-12">
-          {children}
-        </main>
+        {/* Each page group renders its own <main> (padded pages vs. full-height chat) */}
+        {children}
       </div>
 
       <AppTabBar />

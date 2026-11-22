@@ -12,6 +12,7 @@ export const routes = {
   verifyEmail: "/verify-email",
 
   // App (authenticated)
+  ask: "/ask",
   dashboard: "/dashboard",
   agents: "/agents",
   workflows: "/workflows",
