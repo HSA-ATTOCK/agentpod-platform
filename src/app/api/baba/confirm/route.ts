@@ -1,24 +1,27 @@
-import { babaUnavailable, errorMessage, getClaude } from "@/lib/baba/server";
+import { babaGate, loadConversation, notFound } from "@/lib/baba/conversations";
+import { errorMessage, getClaude } from "@/lib/baba/server";
 
 /**
  * POST /api/baba/confirm — the user's answer to an approval card.
- * Body: { sessionId, toolUseId, allow }
+ * Body: { conversationId, toolUseId, allow }
  */
 export async function POST(request: Request) {
-  const unavailable = babaUnavailable();
-  if (unavailable) return unavailable;
+  const gate = await babaGate({ write: true });
+  if (!gate.ok) return gate.response;
 
-  const { sessionId, toolUseId, allow } = (await request.json().catch(() => ({}))) as {
-    sessionId?: string;
+  const { conversationId, toolUseId, allow } = (await request.json().catch(() => ({}))) as {
+    conversationId?: string;
     toolUseId?: string;
     allow?: boolean;
   };
-  if (!sessionId || !toolUseId || typeof allow !== "boolean") {
-    return Response.json({ error: "Missing sessionId, toolUseId or allow." }, { status: 400 });
+  if (typeof toolUseId !== "string" || !toolUseId || typeof allow !== "boolean") {
+    return Response.json({ error: "Missing toolUseId or allow." }, { status: 400 });
   }
+  const conversation = await loadConversation(gate.ctx, conversationId);
+  if (!conversation?.claude_session_id) return notFound();
 
   try {
-    await getClaude().beta.sessions.events.send(sessionId, {
+    await getClaude().beta.sessions.events.send(conversation.claude_session_id, {
       events: [{ type: "user.tool_confirmation", tool_use_id: toolUseId, result: allow ? "allow" : "deny" }],
     });
     return Response.json({ ok: true });

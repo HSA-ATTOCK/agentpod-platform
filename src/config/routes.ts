@@ -10,6 +10,9 @@ export const routes = {
   signUp: "/sign-up",
   forgotPassword: "/forgot-password",
   verifyEmail: "/verify-email",
+  resetPassword: "/reset-password",
+  authCallback: "/auth/callback",
+  signOut: "/auth/sign-out",
 
   // App (authenticated)
   ask: "/ask",

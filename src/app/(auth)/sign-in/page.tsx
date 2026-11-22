@@ -1,5 +1,7 @@
 import { ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { AuthCallbackError } from "@/components/auth/auth-callback-error";
 import { AuthFooterLink } from "@/components/auth/auth-footer-link";
 import { AuthHeading } from "@/components/auth/auth-heading";
 import { AuthSplitLayout } from "@/components/auth/auth-split-layout";
@@ -21,6 +23,9 @@ export default function SignInPage() {
         title="Sign in to your account"
         subtitle="Welcome back. Enter your details below."
       />
+      <Suspense fallback={null}>
+        <AuthCallbackError />
+      </Suspense>
       <SignInForm />
       <AuthFooterLink text="Don't have an account?" href={routes.signUp} linkLabel="Sign up" />
     </AuthSplitLayout>

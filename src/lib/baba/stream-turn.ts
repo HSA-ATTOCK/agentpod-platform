@@ -26,6 +26,11 @@ type TurnOptions = {
    * in the current turn (since the last user message), then continue live.
    */
   catchUp?: boolean;
+  /** Records the turn in the database (cost, agents, files, how it ended). */
+  track?: {
+    event: (event: BabaStreamEvent) => void;
+    finish: (reason: Finished["reason"]) => Promise<void>;
+  };
 };
 
 type Finished = BabaStreamEvent & { type: "done" };
@@ -35,7 +40,7 @@ type Finished = BabaStreamEvent & { type: "done" };
  * opens Claude's event stream, starts the work, forwards translated events until
  * the turn ends, then reports any output files.
  */
-export function streamTurn({ request, logName, prepare, kickoff, catchUp }: TurnOptions): Response {
+export function streamTurn({ request, logName, prepare, kickoff, catchUp, track }: TurnOptions): Response {
   const claude = getClaude();
   const encoder = new TextEncoder();
 
@@ -43,6 +48,7 @@ export function streamTurn({ request, logName, prepare, kickoff, catchUp }: Turn
     async start(controller) {
       let closed = false;
       const emit = (event: BabaStreamEvent) => {
+        if (event.type !== "ping") track?.event(event);
         if (closed) return;
         try {
           controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
@@ -107,12 +113,14 @@ export function streamTurn({ request, logName, prepare, kickoff, catchUp }: Turn
             if (finished.reason === "budget_reached") break; // don't wait on a paused task
             await new Promise((resolve) => setTimeout(resolve, 1500));
           }
+          await track?.finish(finished.reason).catch((error) => console.error(`[${logName}] track`, error));
           emit(finished);
         }
       } catch (error) {
         if (!request.signal.aborted) {
           console.error(`[${logName}]`, error);
           emit({ type: "error", message: errorMessage(error) });
+          await track?.finish("failed").catch((e) => console.error(`[${logName}] track`, e));
           emit({ type: "done", reason: "failed" });
         }
       } finally {

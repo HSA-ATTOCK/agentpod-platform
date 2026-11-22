@@ -1,0 +1,159 @@
+import "server-only";
+import { getAppContext, type AppContext } from "@/lib/data/context";
+import { fileKindFromName } from "./client";
+import type { BabaStreamEvent } from "./protocol";
+import { babaUnavailable } from "./server";
+
+export type ConversationRow = {
+  id: string;
+  workspace_id: string;
+  claude_session_id: string | null;
+  cost_cents: number;
+  paused: boolean;
+};
+
+type Gate = { ok: true; ctx: AppContext } | { ok: false; response: Response };
+
+/**
+ * Checks Baba is set up and the caller is signed in.
+ * `write` also requires a role that may start or steer work (not a Viewer).
+ */
+export async function babaGate({ write }: { write: boolean }): Promise<Gate> {
+  const unavailable = babaUnavailable();
+  if (unavailable) return { ok: false, response: unavailable };
+
+  const ctx = await getAppContext();
+  if (!ctx) return { ok: false, response: Response.json({ error: "Please sign in again." }, { status: 401 }) };
+  if (write && ctx.workspace.role === "viewer") {
+    return {
+      ok: false,
+      response: Response.json({ error: "Viewers can't give Baba tasks. Ask an admin for Member access." }, { status: 403 }),
+    };
+  }
+  return { ok: true, ctx };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Loads a conversation the signed-in user can see (RLS hides everyone else's).
+ * This is what ties a browser request to a Claude session: the browser never
+ * names a session itself, so it can't reach another business's work.
+ */
+export async function loadConversation(ctx: AppContext, conversationId: unknown) {
+  if (typeof conversationId !== "string" || !UUID.test(conversationId)) return null;
+  const { data } = await ctx.supabase
+    .from("conversations")
+    .select("id, workspace_id, claude_session_id, cost_cents, paused")
+    .eq("id", conversationId)
+    .maybeSingle();
+  return data satisfies ConversationRow | null;
+}
+
+export function notFound() {
+  return Response.json({ error: "Conversation not found." }, { status: 404 });
+}
+
+const STATUS_FOR: Record<Extract<BabaStreamEvent, { type: "done" }>["reason"], "succeeded" | "failed" | "paused"> = {
+  end_turn: "succeeded",
+  budget_reached: "paused",
+  refusal: "failed",
+  failed: "failed",
+  terminated: "failed",
+};
+
+/**
+ * Records a turn in the database as it streams: spend, which agents helped,
+ * the files Baba created, and how the task ended (for the Activity and Projects pages).
+ */
+export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId?: string) {
+  const { supabase } = ctx;
+  let costCents: number | undefined;
+  let capCents: number | null | undefined;
+  let lastError: string | undefined;
+  const agents = new Set<string>();
+
+  async function currentTaskId() {
+    if (taskId) return taskId;
+    const { data } = await supabase
+      .from("tasks")
+      .select("id")
+      .eq("conversation_id", conversation.id)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    taskId = data?.id;
+    return taskId;
+  }
+
+  async function saveFiles(files: Extract<BabaStreamEvent, { type: "files" }>["files"]) {
+    const task = await currentTaskId();
+    const { error } = await supabase.from("files").upsert(
+      files.map((f) => ({
+        workspace_id: conversation.workspace_id,
+        conversation_id: conversation.id,
+        task_id: task ?? null,
+        claude_file_id: f.id,
+        name: f.name,
+        kind: fileKindFromName(f.name),
+        size_bytes: f.sizeBytes,
+      })),
+      { onConflict: "workspace_id,claude_file_id", ignoreDuplicates: true },
+    );
+    if (error) console.error("[baba/track] files", error.message);
+  }
+
+  return {
+    event(event: BabaStreamEvent) {
+      if (event.type === "usage") {
+        costCents = event.costCents;
+        capCents = event.capCents;
+      } else if (event.type === "step" && event.agent) {
+        agents.add(event.agent);
+      } else if (event.type === "error") {
+        lastError = event.message;
+      } else if (event.type === "files") {
+        void saveFiles(event.files);
+      }
+    },
+
+    async finish(reason: Extract<BabaStreamEvent, { type: "done" }>["reason"]) {
+      const status = STATUS_FOR[reason];
+      const task = await currentTaskId();
+      const spent = costCents !== undefined ? Math.max(0, Math.round(costCents)) : undefined;
+
+      const conversationUpdate = supabase
+        .from("conversations")
+        .update({
+          paused: status === "paused",
+          ...(spent !== undefined ? { cost_cents: spent } : {}),
+          ...(capCents ? { cap_cents: Math.round(capCents) } : {}),
+        })
+        .eq("id", conversation.id);
+
+      let taskUpdate: PromiseLike<unknown> = Promise.resolve();
+      if (task) {
+        const { data: existing } = await supabase.from("tasks").select("cost_cents, agents").eq("id", task).maybeSingle();
+        // The session's spend is cumulative; this turn added (now − what the conversation had before)
+        const added = spent !== undefined ? Math.max(0, spent - conversation.cost_cents) : 0;
+        taskUpdate = supabase
+          .from("tasks")
+          .update({
+            status,
+            cost_cents: (existing?.cost_cents ?? 0) + added,
+            agents: [...new Set([...(existing?.agents ?? []), ...agents])],
+            error: status === "failed" ? (lastError ?? "The task didn't finish.") : null,
+            finished_at: status === "paused" ? null : new Date().toISOString(),
+            ...(capCents ? { cap_cents: Math.round(capCents) } : {}),
+          })
+          .eq("id", task);
+      }
+
+      const [conv, tsk] = await Promise.all([conversationUpdate, taskUpdate]);
+      for (const result of [conv, tsk] as { error?: { message: string } | null }[]) {
+        if (result?.error) console.error("[baba/track]", result.error.message);
+      }
+      if (spent !== undefined) conversation.cost_cents = spent;
+    },
+  };
+}

@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { signUpWithPassword, type AuthResult } from "@/lib/auth/placeholder";
+import { routes } from "@/config/routes";
+import { signUpWithPassword, type AuthResult } from "@/lib/auth/client";
 import { isValidEmail, meetsPasswordRules } from "@/lib/validation";
 import { AuthDivider } from "./auth-divider";
 import { GoogleButton } from "./google-button";
@@ -71,7 +72,16 @@ export function SignUpForm() {
     }
 
     setLoading(true);
-    setResult(await signUpWithPassword(fields.fullName, fields.email, fields.password));
+    const response = await signUpWithPassword(fields.fullName, fields.email, fields.password);
+    if (response.ok) {
+      window.location.assign(
+        response.needsVerification
+          ? `${routes.verifyEmail}?email=${encodeURIComponent(fields.email.trim())}`
+          : routes.ask,
+      );
+      return;
+    }
+    setResult(response);
     setLoading(false);
   }
 
@@ -81,7 +91,7 @@ export function SignUpForm() {
       <AuthDivider label="or sign up with work email" />
 
       <form noValidate onSubmit={handleSubmit} className="space-y-4">
-        {result && !result.ok && <Alert variant="info">{result.error}</Alert>}
+        {result && !result.ok && <Alert variant="error">{result.error}</Alert>}
 
         <Input
           id="fullName"

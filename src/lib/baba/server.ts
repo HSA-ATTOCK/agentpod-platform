@@ -29,13 +29,14 @@ export function babaConfig() {
 
 /**
  * Returns an error Response if Baba can't be used right now, otherwise null.
- * There is no login yet, so in production these routes stay OFF unless
- * BABA_ALLOW_PUBLIC=true — otherwise anyone could spend your API credit.
+ * Every route also requires a signed-in user (see conversations.ts). On a production
+ * deployment Baba stays OFF unless BABA_ALLOW_PUBLIC=true, because anyone who signs up
+ * would be spending your API credit (there's no billing yet).
  */
 export function babaUnavailable(): Response | null {
   if (process.env.NODE_ENV === "production" && process.env.BABA_ALLOW_PUBLIC !== "true") {
     return Response.json(
-      { error: "Baba is disabled on this deployment until login is added." },
+      { error: "Baba is switched off on this deployment. Set BABA_ALLOW_PUBLIC=true to let signed-in users use it." },
       { status: 403 },
     );
   }

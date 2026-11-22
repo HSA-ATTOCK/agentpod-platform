@@ -119,14 +119,29 @@ Limits we design around:
 
 ## Data storage
 
-**Not decided yet.** The database (and with it the authentication provider) will be
-chosen later. Until then:
-- the UI runs on typed sample data in `src/lib/sample-data.ts`
-- auth forms use honest placeholders in `src/lib/auth/placeholder.ts`
-- the types in `src/types/index.ts` describe the data shape any database must store
+**Supabase** (Postgres + Supabase Auth). Schema lives in `supabase/migrations/`;
+generated types in `src/types/database.ts` (regenerate after every migration).
 
-Whatever we choose must give strict per-business isolation: one business can never
-see another's conversations, files, agents, integrations or history.
+- **Workspaces = businesses.** Every signed-up user gets a profile and their own
+  workspace (as Owner) from the `on_auth_user_created` trigger. Roles: owner, admin,
+  member, viewer (`workspace_members`).
+- **Isolation is enforced by Row Level Security** on every table, using the helper
+  functions `private.is_workspace_member` / `private.has_workspace_role` (kept in a
+  schema the API doesn't expose). One business can never read or write another's data,
+  even with a hand-crafted request. Verified with a two-account test in the database.
+- **Tables:** profiles, workspaces, workspace_members, workspace_invites, conversations
+  (linked to a Claude session), conversation_items (each chat item as JSON), tasks
+  (one per request → Activity), files (what Baba created → Projects), workflows,
+  integrations, notification_preferences.
+- **Access:** the app only uses the publishable key plus the signed-in user's session,
+  so RLS always applies. There is no service-role key in the app.
+- **Ask Baba:** the browser creates the conversation row and saves chat items; the API
+  routes look up the Claude session from the conversation (the browser never sends a
+  session id) and record each task's cost, agents, files and outcome.
+- `src/proxy.ts` refreshes the session and keeps signed-out visitors out of the app.
+
+Still on sample data: Dashboard, Agents, Workflows, Integrations, Activity, Projects,
+Settings and Profile pages (next step: read/write them from these tables).
 
 ## Phases
 
@@ -142,8 +157,9 @@ see another's conversations, files, agents, integrations or history.
 4. **Full agent team, schedules, memory** — Website Builder, Mobile App Builder,
    designer, QA and the other specialists; preview hosting for generated sites;
    scheduled jobs; business knowledge.
-5. **Database, accounts & workspaces** — choose the database and auth provider;
-   sign-up/sign-in, saved conversations, teams, per-business isolation.
+5. **Database, accounts & workspaces** — Supabase ✅ schema + RLS, sign-up/sign-in
+   (email + Google), saved conversations, task/file records. Next: the other pages on
+   real data, team invites.
 6. **SaaS & production** — billing, usage limits, permissions, monitoring, security.
 
-The order of phases 2–5 can change once the database is chosen.
+The order of the remaining phases can still change.

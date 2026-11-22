@@ -22,8 +22,8 @@ export type BabaStreamEvent =
   | { type: "ping" }
   | { type: "done"; reason: "end_turn" | "budget_reached" | "refusal" | "failed" | "terminated" };
 
-export type BabaChatRequest = {
-  /** Existing Claude session for this conversation, if any. */
-  sessionId?: string;
-  text: string;
-};
+/**
+ * Body of POST /api/baba/chat. The browser creates the conversation row first
+ * (so its messages can be saved); the server looks up its Claude session itself.
+ */
+export type BabaChatRequest = { conversationId: string; text: string };

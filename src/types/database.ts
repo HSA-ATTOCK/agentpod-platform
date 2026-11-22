@@ -1,0 +1,542 @@
+// Generated from the Supabase database (Supabase MCP `generate_typescript_types`).
+// Regenerate after every migration instead of editing by hand.
+
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.18"
+  }
+  public: {
+    Tables: {
+      conversation_items: {
+        Row: {
+          client_id: string
+          conversation_id: string
+          created_at: string
+          data: Json
+          id: string
+          position: number
+          type: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          client_id: string
+          conversation_id: string
+          created_at?: string
+          data: Json
+          id?: string
+          position?: never
+          type: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          client_id?: string
+          conversation_id?: string
+          created_at?: string
+          data?: Json
+          id?: string
+          position?: never
+          type?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_items_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_items_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          cap_cents: number | null
+          claude_session_id: string | null
+          cost_cents: number
+          created_at: string
+          created_by: string | null
+          id: string
+          paused: boolean
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          cap_cents?: number | null
+          claude_session_id?: string | null
+          cost_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          paused?: boolean
+          title?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          cap_cents?: number | null
+          claude_session_id?: string | null
+          cost_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          paused?: boolean
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      files: {
+        Row: {
+          claude_file_id: string
+          conversation_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          size_bytes: number
+          task_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          claude_file_id: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          name: string
+          size_bytes?: number
+          task_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          claude_file_id?: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          size_bytes?: number
+          task_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "files_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "files_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "files_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integrations: {
+        Row: {
+          connected_by: string | null
+          created_at: string
+          id: string
+          provider: string
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          connected_by?: string | null
+          created_at?: string
+          id?: string
+          provider: string
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          connected_by?: string | null
+          created_at?: string
+          id?: string
+          provider?: string
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integrations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_preferences: {
+        Row: {
+          prefs: Json
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          prefs?: Json
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          prefs?: Json
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          job_title: string | null
+          language: string
+          phone: string | null
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          full_name?: string
+          id: string
+          job_title?: string | null
+          language?: string
+          phone?: string | null
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          job_title?: string | null
+          language?: string
+          phone?: string | null
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          agents: string[]
+          cap_cents: number | null
+          conversation_id: string | null
+          cost_cents: number
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          request: string
+          started_at: string
+          status: Database["public"]["Enums"]["task_status"]
+          workflow_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          agents?: string[]
+          cap_cents?: number | null
+          conversation_id?: string | null
+          cost_cents?: number
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          request: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["task_status"]
+          workflow_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          agents?: string[]
+          cap_cents?: number | null
+          conversation_id?: string | null
+          cost_cents?: number
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          request?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["task_status"]
+          workflow_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_workflow_fk"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflows: {
+        Row: {
+          cap_usd: number
+          created_at: string
+          created_by: string | null
+          day_of_week: number | null
+          enabled: boolean
+          frequency: string
+          id: string
+          instruction: string
+          name: string
+          time_of_day: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          cap_usd?: number
+          created_at?: string
+          created_by?: string | null
+          day_of_week?: number | null
+          enabled?: boolean
+          frequency?: string
+          id?: string
+          instruction: string
+          name: string
+          time_of_day?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          cap_usd?: number
+          created_at?: string
+          created_by?: string | null
+          day_of_week?: number | null
+          enabled?: boolean
+          frequency?: string
+          id?: string
+          instruction?: string
+          name?: string
+          time_of_day?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflows_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_invites: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          role: Database["public"]["Enums"]["workspace_role"]
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["workspace_role"]
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["workspace_role"]
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_invites_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_members: {
+        Row: {
+          created_at: string
+          role: Database["public"]["Enums"]["workspace_role"]
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          role?: Database["public"]["Enums"]["workspace_role"]
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          role?: Database["public"]["Enums"]["workspace_role"]
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          company_size: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          industry: string | null
+          logo_url: string | null
+          monthly_limit_usd: number
+          name: string
+          quality: string
+          slug: string
+          task_cap_usd: number
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          company_size?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          industry?: string | null
+          logo_url?: string | null
+          monthly_limit_usd?: number
+          name: string
+          quality?: string
+          slug: string
+          task_cap_usd?: number
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          company_size?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          industry?: string | null
+          logo_url?: string | null
+          monthly_limit_usd?: number
+          name?: string
+          quality?: string
+          slug?: string
+          task_cap_usd?: number
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      task_status: "running" | "succeeded" | "failed" | "paused"
+      workspace_role: "owner" | "admin" | "member" | "viewer"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type PublicSchema = Database["public"]
+
+export type Tables<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Row"]
+export type TablesInsert<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Insert"]
+export type TablesUpdate<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Update"]
+export type Enums<T extends keyof PublicSchema["Enums"]> = PublicSchema["Enums"][T]

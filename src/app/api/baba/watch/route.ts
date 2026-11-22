@@ -1,25 +1,30 @@
-import { babaUnavailable } from "@/lib/baba/server";
+import { babaGate, loadConversation, notFound, trackTurn } from "@/lib/baba/conversations";
 import { streamTurn } from "@/lib/baba/stream-turn";
 
 export const maxDuration = 300;
 
 /**
  * POST /api/baba/watch — reconnect to a task after the connection dropped.
- * Body: { sessionId }
+ * Body: { conversationId }
  * Replays what Baba did since the last message, then keeps streaming live.
  * Starts no new work and costs nothing extra.
  */
 export async function POST(request: Request) {
-  const unavailable = babaUnavailable();
-  if (unavailable) return unavailable;
+  const gate = await babaGate({ write: false });
+  if (!gate.ok) return gate.response;
+  const { ctx } = gate;
 
-  const { sessionId } = (await request.json().catch(() => ({}))) as { sessionId?: string };
-  if (!sessionId) return Response.json({ error: "Missing sessionId." }, { status: 400 });
+  const { conversationId } = (await request.json().catch(() => ({}))) as { conversationId?: string };
+  const conversation = await loadConversation(ctx, conversationId);
+  if (!conversation?.claude_session_id) return notFound();
+  const sessionId = conversation.claude_session_id;
 
   return streamTurn({
     request,
     logName: "baba/watch",
     catchUp: true,
+    // Viewers may watch, but only people who can write record the result
+    track: ctx.workspace.role === "viewer" ? undefined : trackTurn(ctx, conversation),
     async prepare() {
       return sessionId;
     },
