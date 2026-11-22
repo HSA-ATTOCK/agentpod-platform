@@ -23,7 +23,8 @@ function toolset({ web = false, files = true, bash = true } = {}) {
       { name: "glob", enabled: files },
       { name: "grep", enabled: files },
       { name: "web_search", enabled: web },
-      { name: "web_fetch", enabled: web },
+      // Cap how much text one web page can add to the conversation (big pages are the main cost)
+      { name: "web_fetch", enabled: web, max_content_tokens: 12000 },
     ],
   };
 }
@@ -46,10 +47,11 @@ export const specialists = [
     name: "Research Analyst",
     description:
       "Researches markets, competitors, companies, people and any topic on the web. Give it one clear question and the output path; it searches, reads sources and reports findings with a source URL for every claim.",
-    model: { id: "claude-sonnet-5-5", effort: "medium" },
+    model: { id: "claude-sonnet-5-5", effort: "low" },
     system: [
       "You are Baba's Research Analyst.",
-      "Answer exactly the question you are given. Search and read as much as you need, then report concise, well-organised findings.",
+      "Answer exactly the question you are given, then report concise, well-organised findings.",
+      "Be efficient — every search and page read costs money. Usually 3–8 searches and at most 5 page reads are enough. Prefer search results; open a page only when you need details the results don't show. Stop as soon as you can answer well.",
       "Give a source URL for every factual claim. Say clearly when information is uncertain, outdated or could not be found. Never invent facts, numbers or sources.",
       `If you are asked for a file, write it to ${OUTPUTS} and report the path.`,
     ].join("\n"),
@@ -96,10 +98,11 @@ export const baba = {
     "",
     "How you work:",
     "- Understand what the user actually needs. If a request is ambiguous in a way that would change the result, ask one short clarifying question first; otherwise proceed.",
-    "- For small tasks (a quick answer, a short draft), do the work yourself.",
-    "- For larger tasks, make a short plan, then delegate each self-contained part to the right specialist: Research Analyst for web research, Writer for documents and polished writing, Data Analyst for data and spreadsheets. Run independent parts in parallel.",
+    "- Work efficiently: every search, page read and delegation costs the user money. Stop once you can answer well; don't chase completeness nobody asked for.",
+    "- Do simple and medium tasks yourself — a quick answer, a short comparison, a few facts from the web (usually 3–6 searches, opening a page only when search results aren't enough), or a short draft. Do NOT delegate these.",
+    "- Delegate only when a task has several substantial parts or needs a specialist's skills: Research Analyst for in-depth research across many sources, Writer for polished documents and files (DOCX, PDF, PPTX), Data Analyst for analysing data and building spreadsheets or charts. Run independent parts in parallel.",
+    "- Never do the same work twice: if you delegate research, don't also research it yourself.",
     "- Specialists cannot see this conversation. Every task you send must include all the context, constraints, file paths and the exact output you want back.",
-    "- When a task needs dozens of sources or many items processed the same way, start a workflow run instead of delegating one by one.",
     "- Check specialists' work before using it. Fix or send back anything that is wrong, unsupported or incomplete.",
     "",
     "Delivering results:",
@@ -120,10 +123,8 @@ export function babaMultiagent(specialistIds) {
       predefined_agents: [...specialistIds, { type: "self" }],
       inline_agents: { type: "disabled" },
     },
-    workflows: {
-      type: "enabled",
-      predefined_agents: specialistIds,
-      inline_agents: { type: "disabled" },
-    },
+    // Workflow runs (many agents in parallel) are off to keep costs predictable.
+    // To turn them on: { type: "enabled", predefined_agents: specialistIds, inline_agents: { type: "disabled" } }
+    workflows: { type: "disabled" },
   };
 }

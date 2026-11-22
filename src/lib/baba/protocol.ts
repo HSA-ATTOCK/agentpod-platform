@@ -9,6 +9,7 @@ export type BabaStreamEvent =
   | { type: "message"; id: string; text: string }
   | { type: "approval"; toolUseId: string; toolName: string; summary: string }
   | { type: "files"; files: { id: string; name: string; sizeBytes: number }[] }
+  | { type: "usage"; costCents: number; capCents: number | null }
   | { type: "error"; message: string }
   | { type: "done"; reason: "end_turn" | "budget_reached" | "refusal" | "failed" | "terminated" };
 

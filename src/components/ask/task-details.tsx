@@ -4,6 +4,10 @@ import { fileKindMeta, getTaskDetails, toolMeta } from "@/lib/chat-meta";
 import type { Conversation } from "@/types/chat";
 import { StepStatusIcon } from "./step-status-icon";
 
+function formatUsd(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
@@ -16,7 +20,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 /** What Baba is doing for the current task: plan, files, sources, tools. */
 export function TaskDetails({ conversation }: { conversation: Conversation | null }) {
   const { steps, files, sources, tools } = getTaskDetails(conversation);
-  const isEmpty = steps.length + files.length + sources.length + tools.length === 0;
+  const cost = conversation?.cost;
+  const isEmpty = steps.length + files.length + sources.length + tools.length === 0 && !cost;
 
   if (isEmpty) {
     return (
@@ -36,6 +41,31 @@ export function TaskDetails({ conversation }: { conversation: Conversation | nul
 
   return (
     <div className="space-y-6 p-4">
+      {cost && (
+        <Section title="Cost so far">
+          <p className="text-sm text-foreground">
+            <span className="text-lg font-semibold">{formatUsd(cost.cents)}</span>
+            {cost.capCents !== null && <span className="text-muted"> of {formatUsd(cost.capCents)} cap</span>}
+          </p>
+          {cost.capCents !== null && (
+            <div
+              role="progressbar"
+              aria-label="Spending cap used"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.min(100, Math.round((cost.cents / cost.capCents) * 100))}
+              className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-raised"
+            >
+              <div
+                className={cost.cents >= cost.capCents ? "h-full bg-danger" : "h-full bg-accent"}
+                style={{ width: `${Math.min(100, (cost.cents / cost.capCents) * 100)}%` }}
+              />
+            </div>
+          )}
+          <p className="mt-1.5 text-[11px] text-subtle">At list prices, updated while Baba works.</p>
+        </Section>
+      )}
+
       {steps.length > 0 && (
         <Section title={`Plan (${done}/${steps.length})`}>
           <ol className="space-y-2.5">
