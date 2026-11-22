@@ -1,10 +1,11 @@
-import { Circle, CircleCheck, LoaderCircle } from "lucide-react";
+import { Circle, CircleCheck, CircleX, LoaderCircle } from "lucide-react";
 import type { TaskStepStatus } from "@/types/chat";
 
 const labels: Record<TaskStepStatus, string> = {
   done: "Done",
   running: "In progress",
   pending: "Waiting",
+  failed: "Failed",
 };
 
 /** Green check / blue spinner / grey circle, with a hidden text label. */
@@ -15,6 +16,7 @@ export function StepStatusIcon({ status, size = "md" }: { status: TaskStepStatus
       {status === "done" && <CircleCheck aria-hidden="true" className={`${iconSize} shrink-0 text-success`} />}
       {status === "running" && <LoaderCircle aria-hidden="true" className={`${iconSize} shrink-0 animate-spin text-info`} />}
       {status === "pending" && <Circle aria-hidden="true" className={`${iconSize} shrink-0 text-subtle`} />}
+      {status === "failed" && <CircleX aria-hidden="true" className={`${iconSize} shrink-0 text-danger`} />}
       <span className="sr-only">{labels[status]}: </span>
     </>
   );

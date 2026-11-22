@@ -12,7 +12,7 @@ export type ChatAttachment = {
   sizeLabel?: string;
 };
 
-export type TaskStepStatus = "done" | "running" | "pending";
+export type TaskStepStatus = "done" | "running" | "pending" | "failed";
 
 export type TaskStep = {
   id: string;
