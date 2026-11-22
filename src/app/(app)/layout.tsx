@@ -7,7 +7,7 @@ import { sampleUser, sampleWorkspace } from "@/lib/sample-data";
 
 /**
  * Shared frame for every logged-in page.
- * NOTE: routes are not protected yet — that comes with Supabase auth in Phase 2.
+ * NOTE: routes are not protected yet — that comes once the auth provider is chosen.
  */
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (

@@ -2,15 +2,15 @@
  * PHASE 1 PLACEHOLDERS — these do NOT sign anyone in.
  *
  * They exist so the auth forms can show real loading, error and success states
- * before Supabase is connected. In Phase 2, replace each function with the
- * matching Supabase Auth call and keep the same AuthResult return shape.
+ * before a real auth provider is chosen. Later, replace each function with the
+ * provider's matching call and keep the same AuthResult return shape.
  */
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
 const NOT_CONNECTED: AuthResult = {
   ok: false,
-  error: "Authentication isn't connected yet. It will be enabled in the next phase.",
+  error: "Authentication isn't connected yet. It will be enabled in a later phase.",
 };
 
 function wait(ms: number) {

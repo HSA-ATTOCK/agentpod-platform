@@ -9,7 +9,8 @@ An AI agent platform that helps businesses automate workflows, reduce manual wor
 - Next.js 16 (App Router) · React 19 · TypeScript
 - Tailwind CSS v4 (design tokens in `src/app/globals.css`)
 - lucide-react icons · Geist font
-- Later: Supabase (auth + Postgres), Claude API (server-side only), Vercel
+- Later: Claude API (server-side only, see `docs/ARCHITECTURE.md`), Vercel
+- Database and auth provider: not decided yet
 
 ## Getting started
 
@@ -53,9 +54,11 @@ docs/prompts/          Frontend generation prompts for each milestone
 
 ## Roadmap
 
-1. **Frontend foundation** — landing, auth UI, app layout, dashboard, agents, workflows, integrations, activity, settings
-2. **Authentication & workspaces** — Supabase auth (email + Google), profiles, workspaces, protected routes
-3. **AI agent foundation** — Claude API (server-side), agent configuration, task storage
-4. **Tools & integrations** — tool calling, workflow execution, logs
-5. **Business automation** — templates, approvals, scheduling, team collaboration
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full plan. In short:
+
+1. **Frontend** — landing, auth UI, app layout, dashboard, Ask Baba chat, remaining pages
+2. **Connect Claude** — Ask Baba chat with streaming, web research, file creation
+3. **Integrations & approvals** — Gmail, Slack, CRM…, approval for sensitive actions
+4. **Helpers, schedules, memory** — specialist agents, scheduled jobs, business knowledge
+5. **Database, accounts & workspaces** — database and auth provider (to be chosen)
 6. **SaaS & production** — billing, usage limits, permissions, monitoring

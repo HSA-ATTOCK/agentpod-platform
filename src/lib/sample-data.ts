@@ -1,4 +1,4 @@
-// SAMPLE DATA — Phase 1 only. Replaced by Supabase queries in Phase 2.
+// SAMPLE DATA — Phase 1 only. Replaced by real data once the database is chosen.
 import type {
   ActivityEvent,
   Agent,
