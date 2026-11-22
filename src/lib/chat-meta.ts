@@ -31,6 +31,7 @@ export function itemToPlainText(item: ChatItem): string {
   switch (item.type) {
     case "user":
     case "text":
+    case "markdown":
     case "error":
       return item.text;
     case "progress":

@@ -133,8 +133,10 @@ see another's conversations, files, agents, integrations or history.
 1. **Frontend** — landing, auth pages, app layout, dashboard ✅;
    **Ask Baba chat screen** (next); Agents, Workflows, Integrations, Activity,
    Settings, Profile pages.
-2. **Connect Claude** — Ask Baba chat with streaming, plus a first team: Baba, Research
-   Analyst, Writer and Data Analyst (server-side, no database needed for a first version).
+2. **Connect Claude** ✅ (first version) — Ask Baba streams real work from Baba plus
+   Research Analyst, Writer and Data Analyst. Agent definitions live in `baba/team.mjs`
+   and are synced with `npm run baba:setup`; the server routes are in `src/app/api/baba/`.
+   Not yet: file uploads, resuming a stream after a dropped connection, saved history.
 3. **Integrations & approvals** — connect Gmail, Slack, CRM, etc.; approval cards
    for sensitive actions.
 4. **Full agent team, schedules, memory** — Website Builder, Mobile App Builder,

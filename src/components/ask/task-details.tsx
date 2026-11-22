@@ -65,14 +65,25 @@ export function TaskDetails({ conversation }: { conversation: Conversation | nul
                     <meta.icon aria-hidden="true" className="size-4 shrink-0 text-accent" />
                     <span className="truncate text-sm text-foreground">{file.name}</span>
                   </span>
-                  <button
-                    type="button"
-                    disabled
-                    aria-label={`Download ${file.name} (not available yet)`}
-                    className="flex size-8 shrink-0 items-center justify-center rounded-lg text-subtle disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Download aria-hidden="true" className="size-4" />
-                  </button>
+                  {file.downloadUrl ? (
+                    <a
+                      href={file.downloadUrl}
+                      download={file.name}
+                      aria-label={`Download ${file.name}`}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
+                    >
+                      <Download aria-hidden="true" className="size-4" />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      aria-label={`Download ${file.name} (sample file)`}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-subtle disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Download aria-hidden="true" className="size-4" />
+                    </button>
+                  )}
                 </li>
               );
             })}

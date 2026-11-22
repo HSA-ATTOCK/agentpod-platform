@@ -16,21 +16,28 @@ import {
   ThinkingIndicator,
   UserMessage,
 } from "./chat-items";
+import { MarkdownReply } from "./markdown-reply";
 import { MessageActions } from "./message-actions";
+import { ToolApprovalCard } from "./tool-approval-card";
 
 type MessageListProps = {
   items: ChatItem[];
   working: boolean;
   onUpdateItem: (itemId: string, patch: Partial<ChatItem>) => void;
+  onToolDecision: (itemId: string, toolUseId: string, allow: boolean) => Promise<void>;
   onRetry: () => void;
 };
 
 // Item types that get Copy / Retry / Helpful buttons underneath
-const WITH_ACTIONS = new Set<ChatItem["type"]>(["progress", "answer", "text"]);
+const WITH_ACTIONS = new Set<ChatItem["type"]>(["progress", "answer", "text", "markdown"]);
 // Item types that sit under the previous Baba message without their own avatar
 const NO_AVATAR = new Set<ChatItem["type"]>(["sources", "file"]);
 
-function renderItem(item: ChatItem, onUpdateItem: MessageListProps["onUpdateItem"]): ReactNode {
+function renderItem(
+  item: ChatItem,
+  onUpdateItem: MessageListProps["onUpdateItem"],
+  onToolDecision: MessageListProps["onToolDecision"],
+): ReactNode {
   switch (item.type) {
     case "progress":
       return <ProgressBlock item={item} />;
@@ -46,13 +53,19 @@ function renderItem(item: ChatItem, onUpdateItem: MessageListProps["onUpdateItem
       return <ErrorMessage item={item} />;
     case "text":
       return <TextReply item={item} />;
+    case "markdown":
+      return <MarkdownReply text={item.text} />;
+    case "tool_approval":
+      return (
+        <ToolApprovalCard item={item} onDecide={(allow) => onToolDecision(item.id, item.toolUseId, allow)} />
+      );
     case "user":
       return null;
   }
 }
 
 /** Scrollable list of chat items with a "Jump to latest" button. */
-export function MessageList({ items, working, onUpdateItem, onRetry }: MessageListProps) {
+export function MessageList({ items, working, onUpdateItem, onToolDecision, onRetry }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const nearBottomRef = useRef(true);
   const [showJump, setShowJump] = useState(false);
@@ -97,7 +110,7 @@ export function MessageList({ items, working, onUpdateItem, onRetry }: MessageLi
             const showAvatar = !NO_AVATAR.has(item.type) || previous?.type === "user";
             return (
               <BabaRow key={item.id} showAvatar={showAvatar} className="group">
-                {renderItem(item, onUpdateItem)}
+                {renderItem(item, onUpdateItem, onToolDecision)}
                 {WITH_ACTIONS.has(item.type) && (
                   <MessageActions copyText={itemToPlainText(item)} onRetry={onRetry} />
                 )}

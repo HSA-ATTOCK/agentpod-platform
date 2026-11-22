@@ -1,0 +1,82 @@
+/**
+ * Browser-side helpers for talking to our /api/baba routes.
+ * (The Anthropic API key stays on the server; the browser never sees it.)
+ */
+import type { BabaChatRequest, BabaStreamEvent } from "./protocol";
+
+async function readError(response: Response) {
+  try {
+    const data = (await response.json()) as { error?: string };
+    return data.error ?? `Request failed (${response.status}).`;
+  } catch {
+    return `Request failed (${response.status}).`;
+  }
+}
+
+/** Sends a message to Baba and calls onEvent for every progress event until the turn ends. */
+export async function streamBaba(
+  request: BabaChatRequest,
+  { signal, onEvent }: { signal: AbortSignal; onEvent: (event: BabaStreamEvent) => void },
+) {
+  const response = await fetch("/api/baba/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+    signal,
+  });
+  if (!response.ok || !response.body) throw new Error(await readError(response));
+
+  // Newline-delimited JSON: one event per line
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.trim()) onEvent(JSON.parse(line) as BabaStreamEvent);
+    }
+  }
+  if (buffer.trim()) onEvent(JSON.parse(buffer) as BabaStreamEvent);
+}
+
+/** Stop button: asks Baba to stop working on the current task. */
+export async function interruptBaba(sessionId: string) {
+  await fetch("/api/baba/interrupt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
+}
+
+/** Approve or deny a tool call Baba paused on. */
+export async function confirmBabaTool(sessionId: string, toolUseId: string, allow: boolean) {
+  const response = await fetch("/api/baba/confirm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, toolUseId, allow }),
+  });
+  if (!response.ok) throw new Error(await readError(response));
+}
+
+export function fileDownloadUrl(fileId: string, sessionId: string) {
+  return `/api/baba/files/${encodeURIComponent(fileId)}?session=${encodeURIComponent(sessionId)}`;
+}
+
+/** Guesses the file kind from its extension, for the icon. */
+export function fileKindFromName(name: string) {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  if (["xlsx", "xls", "csv"].includes(ext)) return "spreadsheet" as const;
+  if (["docx", "doc", "pdf", "md", "txt"].includes(ext)) return "document" as const;
+  if (["pptx", "ppt"].includes(ext)) return "presentation" as const;
+  return "other" as const;
+}
+
+export function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
