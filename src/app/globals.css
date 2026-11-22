@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+/*
+ * AgentPod design tokens
+ * ----------------------
+ * Dark-first. Every color used in the UI should come from these tokens,
+ * so use Tailwind classes like `bg-surface`, `text-muted`, `border-border`
+ * and `bg-accent` instead of raw hex values or default palette colors.
+ */
+:root {
+  /* Backgrounds, from deepest to most raised */
+  --background: #0a0a0b;
+  --surface: #111113;
+  --surface-raised: #18181b;
+  --surface-hover: #1f1f23;
+
+  /* Borders */
+  --border: #27272a;
+  --border-strong: #3f3f46;
+
+  /* Text */
+  --foreground: #fafafa;
+  --muted: #a1a1aa;
+  --subtle: #71717a;
+
+  /* Brand accent: neon lime */
+  --accent: #a3e635;
+  --accent-hover: #bef264;
+  --accent-foreground: #0a0a0b;
+  --accent-soft: rgb(163 230 53 / 0.12);
+
+  /* Status colors (agent / workflow / execution states) */
+  --success: #4ade80;
+  --success-soft: rgb(74 222 128 / 0.12);
+  --warning: #fbbf24;
+  --warning-soft: rgb(251 191 36 / 0.12);
+  --danger: #f87171;
+  --danger-soft: rgb(248 113 113 / 0.12);
+  --info: #60a5fa;
+  --info-soft: rgb(96 165 250 / 0.12);
+
+  /* Focus ring */
+  --ring: #a3e635;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --radius-card: 1rem;
+  --radius-control: 0.625rem;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
