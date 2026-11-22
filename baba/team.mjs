@@ -52,12 +52,13 @@ const FILE_RULE = `Only finished deliverables the user asked for go in ${OUTPUTS
 /** Rules for any web research, shared by Baba and the Research Analyst. */
 const RESEARCH_RULES = [
   "Research rules:",
+  "- How web_fetch works: it can only open a URL that has already appeared in this conversation (in search results or a page you read). Never type a URL from memory — it will be blocked. To read an official page, first search for it (e.g. 'Asana pricing'), then web_fetch the exact URL from the results.",
   "- Official sources first. For prices, plans, features, specs, policies and company facts, confirm them on the official source (the vendor's own pricing or product page, the company's site, the government or regulator's site) with web_fetch. Use review sites and roundups only to find candidates and opinions, and say when a figure comes from one.",
   "- Every fact gets a source. Put a Markdown link next to each price, number or claim, e.g. [asana.com/pricing](https://asana.com/pricing). Never invent or guess a URL; only link pages you actually found.",
   "- Be specific. Give exact figures with the unit and billing basis (per user/month, billed annually or monthly, currency). If an official page and another source disagree, use the official page and mention the difference.",
   "- Date and confidence. State the date the information was checked. Mark anything you could not confirm on an official source as unverified.",
   TEST
-    ? "- Stay efficient (testing mode): at most 3 searches and 2 page reads. Stop as soon as you can answer."
+    ? "- Stay efficient (testing mode): at most 4 searches and 3 page reads. Stop as soon as you can answer."
     : "- Stay efficient: usually 3–6 searches and 2–5 official pages are enough. Stop once every fact in the answer is sourced.",
   "",
   "Format research answers as: a 1–3 sentence summary; a table where it helps; a 'Sources' list of the links you used; then 'Caveats' for anything uncertain or likely to change.",
@@ -87,7 +88,7 @@ export const specialists = [
       "",
       RESEARCH_RULES,
       "",
-      TEST ? "Keep every task small: at most 3 searches and 2 page reads." : "For a large research task you may use up to about 10 searches and 8 page reads.",
+      TEST ? "Keep every task small: at most 4 searches and 3 page reads." : "For a large research task you may use up to about 10 searches and 8 page reads.",
       `Save your research notes as a Markdown file in ${WORK} and report the path, unless the user directly asked for that file as a deliverable.`,
       FILE_RULE,
     ].join("\n"),
