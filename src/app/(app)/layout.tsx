@@ -1,0 +1,29 @@
+import type { ReactNode } from "react";
+import { AppMobileHeader } from "@/components/layout/app-mobile-header";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { AppTabBar } from "@/components/layout/app-tab-bar";
+import { AppTopbar } from "@/components/layout/app-topbar";
+import { sampleUser, sampleWorkspace } from "@/lib/sample-data";
+
+/**
+ * Shared frame for every logged-in page.
+ * NOTE: routes are not protected yet — that comes with Supabase auth in Phase 2.
+ */
+export default function AppLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-1 flex-col">
+      <AppSidebar workspace={sampleWorkspace} user={sampleUser} />
+      <AppMobileHeader workspace={sampleWorkspace} user={sampleUser} />
+
+      <div className="flex flex-1 flex-col lg:pl-64">
+        <AppTopbar />
+        {/* Bottom padding keeps content clear of the mobile tab bar */}
+        <main className="w-full max-w-7xl flex-1 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))] lg:p-8 lg:pb-12">
+          {children}
+        </main>
+      </div>
+
+      <AppTabBar />
+    </div>
+  );
+}
