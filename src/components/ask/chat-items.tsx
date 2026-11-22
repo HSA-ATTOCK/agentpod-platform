@@ -40,6 +40,7 @@ export function ProgressBlock({ item }: { item: ItemOf<"progress"> }) {
   const [showDetails, setShowDetails] = useState(false);
   const detailsId = useId();
   const done = item.steps.filter((s) => s.status === "done").length;
+  const hasDetails = item.steps.some((s) => s.detail);
 
   return (
     <div className="rounded-card border border-border bg-surface p-4">
@@ -50,16 +51,18 @@ export function ProgressBlock({ item }: { item: ItemOf<"progress"> }) {
             {done} of {item.steps.length} done
           </Badge>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowDetails((v) => !v)}
-          aria-expanded={showDetails}
-          aria-controls={detailsId}
-          className="flex items-center gap-1 rounded-md px-1 py-1 text-xs text-muted transition-colors hover:text-foreground"
-        >
-          {showDetails ? "Hide details" : "Show details"}
-          <ChevronDown aria-hidden="true" className={cn("size-4 transition-transform", showDetails && "rotate-180")} />
-        </button>
+        {hasDetails && (
+          <button
+            type="button"
+            onClick={() => setShowDetails((v) => !v)}
+            aria-expanded={showDetails}
+            aria-controls={detailsId}
+            className="flex items-center gap-1 rounded-md px-1 py-1 text-xs text-muted transition-colors hover:text-foreground"
+          >
+            {showDetails ? "Hide details" : "Show details"}
+            <ChevronDown aria-hidden="true" className={cn("size-4 transition-transform", showDetails && "rotate-180")} />
+          </button>
+        )}
       </div>
       <ol id={detailsId} className="space-y-2.5">
         {item.steps.map((step) => (
@@ -77,7 +80,9 @@ export function ProgressBlock({ item }: { item: ItemOf<"progress"> }) {
                 )}
               </span>
             </div>
-            {showDetails && step.detail && <p className="mt-1 pl-7 text-xs text-muted">{step.detail}</p>}
+            {showDetails && step.detail && (
+              <p className="mt-1 whitespace-pre-line break-words pl-7 text-xs text-muted">{step.detail}</p>
+            )}
           </li>
         ))}
       </ol>

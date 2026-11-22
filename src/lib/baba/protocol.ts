@@ -5,7 +5,14 @@
  */
 export type BabaStreamEvent =
   | { type: "session"; sessionId: string }
-  | { type: "step"; id: string; label: string; agent?: string; status: "running" | "done" }
+  | {
+      type: "step";
+      id: string;
+      label: string;
+      detail?: string;
+      agent?: string;
+      status: "running" | "done" | "failed";
+    }
   | { type: "message"; id: string; text: string }
   | { type: "approval"; toolUseId: string; toolName: string; summary: string }
   | { type: "files"; files: { id: string; name: string; sizeBytes: number }[] }

@@ -84,7 +84,7 @@ export function AskBaba() {
   /** Adds or updates a step in this turn's progress block. */
   function upsertStep(conversationId: string, progressId: string, event: Extract<BabaStreamEvent, { type: "step" }>) {
     updateConversation(conversationId, (c) => {
-      const step = { id: event.id, label: event.label, agent: event.agent, status: event.status };
+      const step = { id: event.id, label: event.label, detail: event.detail, agent: event.agent, status: event.status };
       const exists = c.items.some((i) => i.id === progressId);
       const items: ChatItem[] = exists
         ? c.items.map((i) => {
@@ -103,7 +103,11 @@ export function AskBaba() {
       ...c,
       items: c.items.map((i) =>
         i.id === progressId && i.type === "progress"
-          ? { ...i, title: "Done", steps: i.steps.map((st) => ({ ...st, status: "done" as const })) }
+          ? {
+              ...i,
+              title: "Done",
+              steps: i.steps.map((st) => (st.status === "failed" ? st : { ...st, status: "done" as const })),
+            }
           : i,
       ),
     }));

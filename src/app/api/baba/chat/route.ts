@@ -1,6 +1,6 @@
 import type { BabaChatRequest, BabaStreamEvent } from "@/lib/baba/protocol";
 import { babaConfig, babaUnavailable, errorMessage, getClaude, sessionBudgetCents } from "@/lib/baba/server";
-import { translateEvent } from "@/lib/baba/translate";
+import { createTranslator } from "@/lib/baba/translate";
 
 // Long tasks stream for a while. (Vercel caps this by plan; the chat can be resumed later.)
 export const maxDuration = 300;
@@ -53,9 +53,10 @@ export async function POST(request: Request) {
         });
 
         // 3. Forward translated events until the turn is over
+        const translate = createTranslator();
         let finished: BabaStreamEvent | undefined;
         for await (const event of events) {
-          const result = translateEvent(event);
+          const result = translate(event);
           result.out.forEach(emit);
           if (result.finished) {
             finished = result.finished;
