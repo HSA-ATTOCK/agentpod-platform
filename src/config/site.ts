@@ -1,6 +1,6 @@
 export const siteConfig = {
-  name: "AgentPod",
+  name: "Baba",
   tagline: "AI agents for your business",
   description:
-    "AgentPod helps businesses automate workflows, reduce manual work, and manage intelligent AI agents from one workspace.",
+    "Baba helps businesses automate workflows, reduce manual work, and manage intelligent AI agents from one workspace.",
 } as const;

@@ -49,7 +49,7 @@ export function ProductPreview() {
   return (
     <div
       role="img"
-      aria-label="Preview of an AgentPod workspace showing three agents and a lead follow-up workflow waiting for approval"
+      aria-label="Preview of a Baba workspace showing three agents and a lead follow-up workflow waiting for approval"
       className="relative rounded-card border border-border bg-surface p-4 shadow-2xl shadow-accent/5 sm:p-6"
     >
       <div aria-hidden="true">

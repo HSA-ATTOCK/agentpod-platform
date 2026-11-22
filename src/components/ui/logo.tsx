@@ -11,7 +11,7 @@ type LogoProps = {
   className?: string;
 };
 
-/** AgentPod mark + wordmark, linking home. */
+/** Baba mark + wordmark, linking home. */
 export function Logo({ size = "md", href = routes.home, className }: LogoProps) {
   const small = size === "sm";
   return (

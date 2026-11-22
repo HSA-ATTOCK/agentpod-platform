@@ -1,7 +1,7 @@
-Design and build the first screens for a web app called AgentPod. Give me the result as HTML pages.
+Design and build the first screens for a web app called Baba. Give me the result as HTML pages.
 
 ABOUT THE PRODUCT
-AgentPod is a platform where businesses create AI agents that do their work for them: researching leads, answering customer questions, processing documents, planning marketing, and doing research. Businesses can also chain agents into workflows, connect tools like Gmail and Slack, and review everything the agents did. It is a serious business product for small and medium companies, and it should look like a premium modern SaaS dashboard. It must NOT look like a simple chatbot website.
+Baba is a platform where businesses create AI agents that do their work for them: researching leads, answering customer questions, processing documents, planning marketing, and doing research. Businesses can also chain agents into workflows, connect tools like Gmail and Slack, and review everything the agents did. It is a serious business product for small and medium companies, and it should look like a premium modern SaaS dashboard. It must NOT look like a simple chatbot website.
 
 LOOK AND FEEL
 - Dark design: near-black page background, charcoal cards, thin subtle borders, rounded corners.
@@ -28,7 +28,7 @@ TECHNICAL RULES FOR THE HTML
 THE PAGES I NEED
 
 1. Landing page (the public homepage)
-- Top bar: AgentPod logo (a simple icon in a lime-tinted rounded square plus the word "AgentPod"), links to Features, Use cases and How it works, a "Sign in" button and a lime "Get started" button. On phones these go into a menu that opens from a menu button.
+- Top bar: Baba logo (a simple icon in a lime-tinted rounded square plus the word "Baba"), links to Features, Use cases and How it works, a "Sign in" button and a lime "Get started" button. On phones these go into a menu that opens from a menu button.
 - Big hero section: a headline like "Put AI agents to work across your business", a short subheading, a lime "Start free" button and a "See how it works" button. Next to it, a preview of the app built in HTML (not an image). It shows a small workspace panel with a few agents and their status badges, and a workflow chain: New lead → Research → Qualify → Draft follow-up → Approve → Send.
 - Features: six cards. Custom AI agents, Multi-step workflows, Business integrations, Human approval for sensitive actions, Activity and audit history, Team workspaces.
 - Use cases: Sales and lead generation, Customer support, Business operations, Marketing, Research and analysis. Each has three short example tasks.

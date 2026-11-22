@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * AgentPod design tokens
+ * Baba design tokens
  * ----------------------
  * Dark-first. Every color used in the UI should come from these tokens,
  * so use Tailwind classes like `bg-surface`, `text-muted`, `border-border`
