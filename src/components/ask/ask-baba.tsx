@@ -3,7 +3,15 @@
 import { X } from "lucide-react";
 import { useRef, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
-import { sendToBaba } from "@/lib/baba/placeholder";
+import {
+  confirmBabaTool,
+  fileDownloadUrl,
+  fileKindFromName,
+  formatBytes,
+  interruptBaba,
+  streamBaba,
+} from "@/lib/baba/client";
+import type { BabaStreamEvent } from "@/lib/baba/protocol";
 import { sampleConversations } from "@/lib/sample-chat";
 import type { ChatAttachment, ChatItem, Conversation } from "@/types/chat";
 import { ChatHeader } from "./chat-header";
@@ -23,8 +31,8 @@ function titleFrom(text: string, attachments: ChatAttachment[]) {
 
 /**
  * The Ask Baba screen. Holds the conversations and the chat state on the client.
- * Phase 1: conversations live in memory only (no database yet) and replies come
- * from the placeholder in lib/baba/placeholder.ts.
+ * Messages go to our /api/baba routes, which talk to Claude Managed Agents.
+ * Conversations live in memory only for now (no database yet), so they reset on reload.
  */
 export function AskBaba() {
   const [conversations, setConversations] = useState<Conversation[]>(sampleConversations);
@@ -37,6 +45,7 @@ export function AskBaba() {
   const [conversationsSheetOpen, setConversationsSheetOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
+  const runningSessionRef = useRef<string | undefined>(undefined);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
@@ -60,27 +69,121 @@ export function AskBaba() {
   }
 
   function stop() {
-    abortRef.current?.abort();
+    const controller = abortRef.current;
+    if (controller) {
+      // Tell Claude to stop the task, then stop listening
+      if (runningSessionRef.current) void interruptBaba(runningSessionRef.current);
+      controller.abort();
+    }
     abortRef.current = null;
     setWorking(false);
   }
 
   // ---- Talking to Baba ----
 
-  async function runBaba(conversationId: string, text: string, attachments: ChatAttachment[]) {
+  /** Adds or updates a step in this turn's progress block. */
+  function upsertStep(conversationId: string, progressId: string, event: Extract<BabaStreamEvent, { type: "step" }>) {
+    updateConversation(conversationId, (c) => {
+      const step = { id: event.id, label: event.label, agent: event.agent, status: event.status };
+      const exists = c.items.some((i) => i.id === progressId);
+      const items: ChatItem[] = exists
+        ? c.items.map((i) => {
+            if (i.id !== progressId || i.type !== "progress") return i;
+            const has = i.steps.some((st) => st.id === step.id);
+            return { ...i, steps: has ? i.steps.map((st) => (st.id === step.id ? step : st)) : [...i.steps, step] };
+          })
+        : [...c.items, { id: progressId, type: "progress", title: "Working on it", steps: [step] }];
+      return { ...c, items };
+    });
+  }
+
+  /** Marks this turn's progress block as finished. */
+  function finishProgress(conversationId: string, progressId: string) {
+    updateConversation(conversationId, (c) => ({
+      ...c,
+      items: c.items.map((i) =>
+        i.id === progressId && i.type === "progress"
+          ? { ...i, title: "Done", steps: i.steps.map((st) => ({ ...st, status: "done" as const })) }
+          : i,
+      ),
+    }));
+  }
+
+  async function runBaba(conversationId: string, text: string, sessionId?: string) {
     const controller = new AbortController();
     abortRef.current = controller;
+    runningSessionRef.current = sessionId;
     setWorking(true);
+    const progressId = crypto.randomUUID();
+    let currentSessionId = sessionId;
+
+    function handle(event: BabaStreamEvent) {
+      switch (event.type) {
+        case "session":
+          currentSessionId = event.sessionId;
+          runningSessionRef.current = event.sessionId;
+          updateConversation(conversationId, (c) => ({ ...c, sessionId: event.sessionId }));
+          break;
+        case "step":
+          upsertStep(conversationId, progressId, event);
+          break;
+        case "message":
+          appendItems(conversationId, [{ id: event.id, type: "markdown", text: event.text }]);
+          break;
+        case "approval":
+          appendItems(conversationId, [
+            {
+              id: crypto.randomUUID(),
+              type: "tool_approval",
+              toolUseId: event.toolUseId,
+              toolName: event.toolName,
+              summary: event.summary,
+              status: "pending",
+            },
+          ]);
+          break;
+        case "files":
+          updateConversation(conversationId, (c) => {
+            const known = new Set(c.items.flatMap((i) => (i.type === "file" ? [i.file.id] : [])));
+            const added: ChatItem[] = event.files
+              .filter((f) => !known.has(f.id))
+              .map((f) => ({
+                id: `file-${f.id}`,
+                type: "file",
+                file: {
+                  id: f.id,
+                  name: f.name,
+                  kind: fileKindFromName(f.name),
+                  sizeLabel: formatBytes(f.sizeBytes),
+                  downloadUrl: currentSessionId ? fileDownloadUrl(f.id, currentSessionId) : undefined,
+                },
+              }));
+            return { ...c, items: [...c.items, ...added] };
+          });
+          break;
+        case "error":
+          appendItems(conversationId, [{ id: crypto.randomUUID(), type: "error", text: event.message }]);
+          break;
+        case "done":
+          finishProgress(conversationId, progressId);
+          break;
+      }
+    }
+
     try {
-      const reply = await sendToBaba({ conversationId, text, attachments }, controller.signal);
-      appendItems(conversationId, reply);
+      await streamBaba({ sessionId, text }, { signal: controller.signal, onEvent: handle });
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
         appendItems(conversationId, [
-          { id: crypto.randomUUID(), type: "error", text: "Something went wrong. Please try again." },
+          {
+            id: crypto.randomUUID(),
+            type: "error",
+            text: error instanceof Error ? error.message : "Something went wrong. Please try again.",
+          },
         ]);
       }
     } finally {
+      finishProgress(conversationId, progressId);
       if (abortRef.current === controller) {
         abortRef.current = null;
         setWorking(false);
@@ -90,6 +193,18 @@ export function AskBaba() {
 
   function send(text: string, attachments: ChatAttachment[]) {
     const userItem: ChatItem = { id: crypto.randomUUID(), type: "user", text, attachments };
+    const notes: ChatItem[] =
+      attachments.length > 0
+        ? [
+            {
+              id: crypto.randomUUID(),
+              type: "error",
+              text: text
+                ? "Attached files can't be sent to Baba yet, so only your message text was sent."
+                : "Attached files can't be sent to Baba yet. Please describe the task in text.",
+            },
+          ]
+        : [];
     let conversationId = activeId;
 
     if (!conversationId) {
@@ -99,22 +214,28 @@ export function AskBaba() {
         title: titleFrom(text, attachments),
         updatedAt: new Date().toISOString(),
         tools: [],
-        items: [userItem],
+        items: [userItem, ...notes],
       };
       setConversations((prev) => [conversation, ...prev]);
       setActiveId(conversationId);
     } else {
-      appendItems(conversationId, [userItem]);
+      appendItems(conversationId, [userItem, ...notes]);
     }
 
     setDraft("");
-    void runBaba(conversationId, text, attachments);
+    if (text) void runBaba(conversationId, text, active?.sessionId);
+  }
+
+  async function decideTool(itemId: string, toolUseId: string, allow: boolean) {
+    if (!active?.sessionId) throw new Error("This conversation isn't connected to Baba.");
+    await confirmBabaTool(active.sessionId, toolUseId, allow);
+    updateItem(itemId, { status: allow ? "approved" : "rejected" });
   }
 
   function retry() {
     if (!active || working) return;
     const lastUser = [...active.items].reverse().find((i) => i.type === "user");
-    if (lastUser?.type === "user") void runBaba(active.id, lastUser.text, lastUser.attachments);
+    if (lastUser?.type === "user" && lastUser.text) void runBaba(active.id, lastUser.text, active.sessionId);
   }
 
   // ---- Navigation between conversations ----
@@ -200,6 +321,7 @@ export function AskBaba() {
               items={active.items}
               working={working}
               onUpdateItem={updateItem}
+              onToolDecision={decideTool}
               onRetry={retry}
             />
             <div className="shrink-0 px-4 pb-3 pt-1 lg:px-8">

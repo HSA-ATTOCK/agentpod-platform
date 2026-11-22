@@ -38,6 +38,8 @@ export type ChatFile = {
   name: string;
   kind: ChatFileKind;
   sizeLabel: string;
+  /** Set for real files Baba created; sample files have none. */
+  downloadUrl?: string;
 };
 
 /** Formatted pieces of a written answer. */
@@ -68,8 +70,20 @@ export type ChatItem =
       /** Shown once the approval is approved or rejected. */
       resultText?: string;
     }
+  | {
+      id: string;
+      type: "tool_approval";
+      /** Claude's id for the paused tool call. */
+      toolUseId: string;
+      toolName: string;
+      /** What the tool would be called with (shortened JSON). */
+      summary: string;
+      status: ApprovalStatus;
+    }
   | { id: string; type: "error"; text: string; action?: { label: string; href: string } }
-  | { id: string; type: "text"; text: string };
+  | { id: string; type: "text"; text: string }
+  /** A reply from Baba written in Markdown. */
+  | { id: string; type: "markdown"; text: string };
 
 export type Conversation = {
   id: string;
@@ -78,6 +92,8 @@ export type Conversation = {
   updatedAt: string;
   /** True for the built-in example conversations. */
   isSample?: boolean;
+  /** The Claude session behind this conversation (real conversations only). */
+  sessionId?: string;
   tools: ToolId[];
   items: ChatItem[];
 };

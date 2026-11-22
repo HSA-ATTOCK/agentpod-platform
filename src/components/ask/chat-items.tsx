@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, CircleAlert, FileText } from "lucide-react";
+import { ChevronDown, CircleAlert, Download, FileText } from "lucide-react";
 import { useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -199,16 +199,22 @@ export function FileCard({ item }: { item: ItemOf<"file"> }) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" disabled className="h-9 rounded-control border border-border bg-surface px-3 text-xs font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-50">
-            Preview
-          </button>
+        {item.file.downloadUrl ? (
+          <a
+            href={item.file.downloadUrl}
+            download={item.file.name}
+            className="inline-flex h-9 items-center gap-1.5 rounded-control bg-accent px-3 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent-hover"
+          >
+            <Download aria-hidden="true" className="size-4" />
+            Download
+          </a>
+        ) : (
           <button type="button" disabled className="h-9 rounded-control bg-accent px-3 text-xs font-semibold text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50">
             Download
           </button>
-        </div>
+        )}
       </div>
-      <p className="mt-2 text-[11px] text-subtle">Sample file. Downloads will work once Baba is connected.</p>
+      {!item.file.downloadUrl && <p className="mt-2 text-[11px] text-subtle">Sample file — not downloadable.</p>}
     </div>
   );
 }
