@@ -29,7 +29,7 @@ assembles the final result. Specialists can work in parallel and share one works
 
 | Agent | What it does | Model (starting point) |
 |---|---|---|
-| **Baba (main agent)** | Understands the request, plans, delegates, reviews quality, asks for approvals, delivers the result | Claude Opus 5.5 |
+| **Baba (main agent)** | Understands the request, plans, delegates, reviews quality, asks for approvals, delivers the result | Claude Sonnet 5.5 |
 | **Website Builder** | Builds complete websites (Next.js / React / Tailwind): pages, components, content, SEO basics; runs the build and fixes errors | Claude Opus 5.5 |
 | **Mobile App Builder** | Builds mobile apps (React Native / Expo) for iOS and Android, with a web preview | Claude Opus 5.5 |
 | **UI/UX Designer** | Brand, layout, design system and copy for websites and apps, before building starts | Claude Sonnet 5.5 |
@@ -102,7 +102,7 @@ Limits we design around:
 
 - **Claude API**, called **only from the server**. The Anthropic API key never
   reaches the browser.
-- **Default model:** Claude Opus 5.5 (`claude-opus-5-5`).
+- **Default model:** Claude Sonnet 5.5 (`claude-sonnet-5-5`) for Baba and the current specialists, chosen for cost. Claude Opus 5.5 remains an option for agents that need more depth (e.g. the future Website and Mobile App Builders).
 - **Recommended approach: Claude Managed Agents** (beta). Anthropic runs the agent
   loop and gives each conversation its own sandbox. It provides:
   - web search, code execution and file creation
