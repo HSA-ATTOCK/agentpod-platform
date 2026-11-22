@@ -13,15 +13,23 @@ async function readError(response: Response) {
   }
 }
 
+export type StreamOptions = { signal: AbortSignal; onEvent: (event: BabaStreamEvent) => void };
+
 /** Sends a message to Baba and calls onEvent for every progress event until the turn ends. */
-export async function streamBaba(
-  request: BabaChatRequest,
-  { signal, onEvent }: { signal: AbortSignal; onEvent: (event: BabaStreamEvent) => void },
-) {
-  const response = await fetch("/api/baba/chat", {
+export function streamBaba(request: BabaChatRequest, options: StreamOptions) {
+  return postAndStream("/api/baba/chat", request, options);
+}
+
+/** "Continue" after the spending cap: raises the cap and streams the rest of the same task. */
+export function resumeBaba(sessionId: string, options: StreamOptions) {
+  return postAndStream("/api/baba/resume", { sessionId }, options);
+}
+
+async function postAndStream(url: string, payload: unknown, { signal, onEvent }: StreamOptions) {
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
+    body: JSON.stringify(payload),
     signal,
   });
   if (!response.ok || !response.body) throw new Error(await readError(response));

@@ -1,8 +1,8 @@
-import type { BabaChatRequest, BabaStreamEvent } from "@/lib/baba/protocol";
-import { babaConfig, babaUnavailable, errorMessage, getClaude, sessionBudgetCents } from "@/lib/baba/server";
-import { createTranslator } from "@/lib/baba/translate";
+import type { BabaChatRequest } from "@/lib/baba/protocol";
+import { babaConfig, babaUnavailable, getClaude, sessionBudgetCents } from "@/lib/baba/server";
+import { streamTurn } from "@/lib/baba/stream-turn";
 
-// Long tasks stream for a while. (Vercel caps this by plan; the chat can be resumed later.)
+// Long tasks stream for a while. (Vercel caps this by plan.)
 export const maxDuration = 300;
 
 /**
@@ -26,79 +26,29 @@ export async function POST(request: Request) {
 
   const claude = getClaude();
   const { agentId, environmentId } = babaConfig();
-  const encoder = new TextEncoder();
 
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const emit = (event: BabaStreamEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
-
-      try {
-        // 1. One Claude session per conversation, with a spending cap
-        let sessionId = body.sessionId;
-        if (!sessionId) {
-          const session = await claude.beta.sessions.create({
-            agent: agentId!,
-            environment_id: environmentId!,
-            title: text.slice(0, 80),
-            budget: { type: "limit", max_list_cost: { amount: sessionBudgetCents(), currency: "USD" } },
-          });
-          sessionId = session.id;
-        }
-        emit({ type: "session", sessionId });
-
-        // 2. Open the event stream BEFORE sending, so no early events are missed
-        const events = await claude.beta.sessions.events.stream(sessionId, {}, { signal: request.signal });
-        await claude.beta.sessions.events.send(sessionId, {
-          events: [{ type: "user.message", content: [{ type: "text", text }] }],
+  return streamTurn({
+    request,
+    logName: "baba/chat",
+    async prepare(emit) {
+      // One Claude session per conversation, with a spending cap
+      let sessionId = body.sessionId;
+      if (!sessionId) {
+        const session = await claude.beta.sessions.create({
+          agent: agentId!,
+          environment_id: environmentId!,
+          title: text.slice(0, 80),
+          budget: { type: "limit", max_list_cost: { amount: sessionBudgetCents(), currency: "USD" } },
         });
-
-        // 3. Forward translated events until the turn is over
-        const translate = createTranslator();
-        let finished: BabaStreamEvent | undefined;
-        for await (const event of events) {
-          const result = translate(event);
-          result.out.forEach(emit);
-          if (result.finished) {
-            finished = result.finished;
-            break;
-          }
-        }
-
-        // 4. Files the agents saved to /mnt/session/outputs/ (indexing can lag a moment)
-        if (finished) {
-          for (let attempt = 0; attempt < 3; attempt++) {
-            const files = await claude.beta.files.list({ scope_id: sessionId, betas: ["managed-agents-2026-04-01"] });
-            if (files.data.length > 0) {
-              emit({
-                type: "files",
-                files: files.data.map((f) => ({ id: f.id, name: f.filename, sizeBytes: f.size_bytes })),
-              });
-              break;
-            }
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-          }
-          emit(finished);
-        }
-      } catch (error) {
-        if (!request.signal.aborted) {
-          console.error("[baba/chat]", error);
-          emit({ type: "error", message: errorMessage(error) });
-          emit({ type: "done", reason: "failed" });
-        }
-      } finally {
-        try {
-          controller.close();
-        } catch {
-          // already closed because the browser disconnected
-        }
+        sessionId = session.id;
       }
+      emit({ type: "session", sessionId });
+      return sessionId;
     },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-store",
+    async kickoff(sessionId) {
+      await claude.beta.sessions.events.send(sessionId, {
+        events: [{ type: "user.message", content: [{ type: "text", text }] }],
+      });
     },
   });
 }

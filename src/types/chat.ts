@@ -83,7 +83,9 @@ export type ChatItem =
   | { id: string; type: "error"; text: string; action?: { label: string; href: string } }
   | { id: string; type: "text"; text: string }
   /** A reply from Baba written in Markdown. */
-  | { id: string; type: "markdown"; text: string };
+  | { id: string; type: "markdown"; text: string }
+  /** Shown when the conversation hits its spending cap; "Continue" resumes the same task. */
+  | { id: string; type: "budget_paused"; status: "paused" | "resumed" };
 
 export type Conversation = {
   id: string;
@@ -96,6 +98,8 @@ export type Conversation = {
   sessionId?: string;
   /** Spend so far on this conversation, from Claude's usage reports (US cents). */
   cost?: { cents: number; capCents: number | null };
+  /** True while the conversation is paused at its spending cap. */
+  paused?: boolean;
   tools: ToolId[];
   items: ChatItem[];
 };
