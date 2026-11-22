@@ -11,6 +11,7 @@ import {
   interruptBaba,
   resumeBaba,
   streamBaba,
+  watchBaba,
   type StreamOptions,
 } from "@/lib/baba/client";
 import type { BabaStreamEvent } from "@/lib/baba/protocol";
@@ -22,6 +23,9 @@ import { ConversationList } from "./conversation-list";
 import { MessageList } from "./message-list";
 import { NewChat } from "./new-chat";
 import { TaskDetails } from "./task-details";
+
+// How many times to reconnect automatically if the connection drops mid-task
+const MAX_RECONNECTS = 5;
 
 // The Task details panel sits beside the chat from this width; below it, it opens as a sheet.
 const WIDE_SCREEN_QUERY = "(min-width: 1280px)";
@@ -153,6 +157,13 @@ export function AskBaba() {
     const progressId = existingProgressId ?? crypto.randomUUID();
     let currentSessionId = sessionId;
     let pausedAtCap = false;
+    let gotDone = false;
+    // Approvals already shown in this chat (a reconnect replays them)
+    const seenApprovals = new Set(
+      (conversations.find((c) => c.id === conversationId)?.items ?? []).flatMap((i) =>
+        i.type === "tool_approval" ? [i.toolUseId] : [],
+      ),
+    );
 
     function handle(event: BabaStreamEvent) {
       switch (event.type) {
@@ -165,9 +176,16 @@ export function AskBaba() {
           upsertStep(conversationId, progressId, event);
           break;
         case "message":
-          appendItems(conversationId, [{ id: event.id, type: "markdown", text: event.text }]);
+          // Replays after a reconnect can repeat events, so skip ones already shown
+          updateConversation(conversationId, (c) =>
+            c.items.some((i) => i.id === event.id)
+              ? c
+              : { ...c, items: [...c.items, { id: event.id, type: "markdown", text: event.text }] },
+          );
           break;
         case "approval":
+          if (seenApprovals.has(event.toolUseId)) break;
+          seenApprovals.add(event.toolUseId);
           appendItems(conversationId, [
             {
               id: crypto.randomUUID(),
@@ -208,16 +226,48 @@ export function AskBaba() {
           appendItems(conversationId, [{ id: crypto.randomUUID(), type: "error", text: event.message }]);
           break;
         case "done":
+          gotDone = true;
           if (event.reason === "budget_reached") pausedAtCap = true;
           else finishProgress(conversationId, progressId);
           break;
       }
     }
 
+    const isAbort = (error: unknown) => error instanceof DOMException && error.name === "AbortError";
+    const options = { signal: controller.signal, onEvent: handle };
+
     try {
-      await open(sessionId, { signal: controller.signal, onEvent: handle });
+      let lastError: unknown;
+      try {
+        await open(sessionId, options);
+      } catch (error) {
+        if (isAbort(error)) throw error;
+        lastError = error;
+      }
+
+      // The connection dropped before the task finished (proxy or time limit):
+      // reconnect and catch up. Baba keeps working on Claude's side meanwhile.
+      for (let attempt = 1; !gotDone && currentSessionId && attempt <= MAX_RECONNECTS; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+        if (controller.signal.aborted) break;
+        try {
+          lastError = undefined;
+          await watchBaba(currentSessionId, options);
+        } catch (error) {
+          if (isAbort(error)) throw error;
+          lastError = error;
+        }
+      }
+
+      if (!gotDone && !controller.signal.aborted) {
+        const message =
+          lastError instanceof Error && !/network|fetch|protocol/i.test(lastError.message)
+            ? lastError.message
+            : "Lost the connection to Baba. It may still be working; try sending a short follow-up in a minute.";
+        appendItems(conversationId, [{ id: crypto.randomUUID(), type: "error", text: message }]);
+      }
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError")) {
+      if (!isAbort(error)) {
         appendItems(conversationId, [
           {
             id: crypto.randomUUID(),

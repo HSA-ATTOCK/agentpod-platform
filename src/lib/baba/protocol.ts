@@ -18,6 +18,8 @@ export type BabaStreamEvent =
   | { type: "files"; files: { id: string; name: string; sizeBytes: number }[] }
   | { type: "usage"; costCents: number; capCents: number | null }
   | { type: "error"; message: string }
+  /** Keep-alive sent every few seconds; the UI ignores it. */
+  | { type: "ping" }
   | { type: "done"; reason: "end_turn" | "budget_reached" | "refusal" | "failed" | "terminated" };
 
 export type BabaChatRequest = {

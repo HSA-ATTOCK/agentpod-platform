@@ -39,6 +39,10 @@ delegates to specialist agents (Research Analyst, Writer, Data Analyst).
    `BABA_AGENT_ID` and `BABA_ENVIRONMENT_ID` to `.env.local`.
 3. Restart `npm run dev` and open `/ask`.
 
+**Cheap testing mode:** set `BABA_PROFILE=test` in `.env.local` and run `npm run baba:setup`.
+Every agent then runs on Claude Haiku 5.5 at low effort with smaller limits. Set it back to
+`BABA_PROFILE=normal` (and run setup again) when you're done testing.
+
 **Spending cap:** each conversation stops at `BABA_SESSION_BUDGET_USD` (default `$1`).
 Change it in `.env.local` and restart the dev server. If a task reaches the cap, Baba pauses
 and shows **Continue task**: that raises the cap by the same amount and the task carries on from
