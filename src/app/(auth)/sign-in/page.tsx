@@ -1,13 +1,28 @@
+import { ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
+import { AuthFooterLink } from "@/components/auth/auth-footer-link";
+import { AuthHeading } from "@/components/auth/auth-heading";
+import { AuthSplitLayout } from "@/components/auth/auth-split-layout";
+import { SignInForm } from "@/components/auth/sign-in-form";
+import { routes } from "@/config/routes";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-// Placeholder — replaced by the Phase 1 frontend.
-export default function Page() {
+export default function SignInPage() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-      <h1 className="text-2xl font-semibold">Sign in</h1>
-      <p className="text-muted">Sign-in page coming in Phase 1.</p>
-    </main>
+    <AuthSplitLayout
+      badge={{ icon: ShieldCheck, label: "Your private workspace" }}
+      headline="AI automation with complete human oversight."
+      description="Sign in to manage your agents, review the work they produce and approve sensitive actions before they happen."
+      footnote="Every business gets its own isolated workspace."
+      mobileLink={{ href: routes.home, label: "Back to home" }}
+    >
+      <AuthHeading
+        title="Sign in to your account"
+        subtitle="Welcome back. Enter your details below."
+      />
+      <SignInForm />
+      <AuthFooterLink text="Don't have an account?" href={routes.signUp} linkLabel="Sign up" />
+    </AuthSplitLayout>
   );
 }

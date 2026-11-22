@@ -74,3 +74,14 @@ export type Execution = {
   durationMs: number | null;
   resultSummary: string;
 };
+
+export type ActivityEventTone = "success" | "warning" | "danger" | "info" | "neutral";
+
+export type ActivityEvent = {
+  id: string;
+  workspaceId: string;
+  title: string;
+  description: string;
+  tone: ActivityEventTone;
+  occurredAt: string;
+};
