@@ -1,6 +1,7 @@
 import {
   Activity,
   Bot,
+  FolderOpen,
   GitBranch,
   LayoutDashboard,
   PlugZap,
@@ -27,6 +28,7 @@ export const appNavigation: NavItem[] = [
   { label: "Dashboard", shortLabel: "Home", href: routes.dashboard, icon: LayoutDashboard, inTabBar: true },
   { label: "AI Agents", shortLabel: "Agents", href: routes.agents, icon: Bot, inTabBar: true },
   { label: "Workflows", href: routes.workflows, icon: GitBranch, inTabBar: true },
+  { label: "Projects", href: routes.projects, icon: FolderOpen },
   { label: "Integrations", shortLabel: "Apps", href: routes.integrations, icon: PlugZap },
   { label: "Activity", href: routes.activity, icon: Activity, inTabBar: true },
 ];

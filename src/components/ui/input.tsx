@@ -2,6 +2,10 @@ import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { FieldError } from "./field-error";
 
+/** For native <select> elements, matching the inputs. */
+export const selectClasses =
+  "h-10 w-full rounded-control border border-border bg-surface-raised px-3 text-sm text-foreground transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
+
 export const inputClasses =
   "h-10 w-full rounded-control border bg-surface-raised px-3.5 text-sm text-foreground placeholder:text-subtle transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
