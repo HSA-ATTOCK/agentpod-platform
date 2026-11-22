@@ -44,7 +44,10 @@ export function TaskDetails({ conversation }: { conversation: Conversation | nul
                 <span className="mt-0.5 flex">
                   <StepStatusIcon status={step.status} size="sm" />
                 </span>
-                <span className={step.status === "pending" ? "text-muted" : "text-foreground"}>{step.label}</span>
+                <span className={step.status === "pending" ? "text-muted" : "text-foreground"}>
+                  {step.label}
+                  {step.agent && <span className="block text-[11px] text-subtle">{step.agent}</span>}
+                </span>
               </li>
             ))}
           </ol>

@@ -21,11 +21,11 @@ export const sampleConversations: Conversation[] = [
         type: "progress",
         title: "Working on it",
         steps: [
-          { id: "s1", label: "Planned the task", status: "done", detail: "Split the request into web research, reading your PDF, building a spreadsheet and drafting an email." },
-          { id: "s2", label: "Searched the web for competitor pricing, 12 sources", status: "done", detail: "Looked at each competitor's pricing page and recent product announcements." },
-          { id: "s3", label: "Read 6 pages and your pricing PDF", status: "done", detail: "Pulled out Acme Corp's 2026 plans and each competitor's tiers." },
-          { id: "s4", label: "Building comparison spreadsheet", status: "running", detail: "Adding pricing tiers, free plans and a feature matrix." },
-          { id: "s5", label: "Drafting email to the sales team", status: "pending", detail: "Starts once the spreadsheet is ready." },
+          { id: "s1", label: "Planned the task", agent: "Baba", status: "done", detail: "Split the request into web research, reading your PDF, building a spreadsheet and drafting an email." },
+          { id: "s2", label: "Searched the web for competitor pricing, 12 sources", agent: "Research Analyst", status: "done", detail: "Looked at each competitor's pricing page and recent product announcements." },
+          { id: "s3", label: "Read 6 pages and your pricing PDF", agent: "Research Analyst", status: "done", detail: "Pulled out Acme Corp's 2026 plans and each competitor's tiers." },
+          { id: "s4", label: "Building comparison spreadsheet", agent: "Data Analyst", status: "running", detail: "Adding pricing tiers, free plans and a feature matrix." },
+          { id: "s5", label: "Drafting email to the sales team", agent: "Writer", status: "pending", detail: "Starts once the spreadsheet is ready." },
         ],
       },
       {

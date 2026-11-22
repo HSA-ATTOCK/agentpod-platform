@@ -70,6 +70,11 @@ export function ProgressBlock({ item }: { item: ItemOf<"progress"> }) {
               </span>
               <span className={cn("text-sm", step.status === "pending" ? "text-muted" : "text-foreground")}>
                 {step.label}
+                {step.agent && (
+                  <span className="ml-2 inline-flex rounded-full border border-border bg-surface-raised px-2 py-0.5 align-middle text-[11px] text-subtle">
+                    {step.agent}
+                  </span>
+                )}
               </span>
             </div>
             {showDetails && step.detail && <p className="mt-1 pl-7 text-xs text-muted">{step.detail}</p>}

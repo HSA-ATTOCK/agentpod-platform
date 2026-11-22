@@ -20,6 +20,8 @@ export type TaskStep = {
   /** Short line shown when "Show details" is expanded. */
   detail?: string;
   status: TaskStepStatus;
+  /** Which agent is doing this step, e.g. "Research Analyst". */
+  agent?: string;
 };
 
 export type ChatSource = {
