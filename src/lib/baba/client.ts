@@ -25,6 +25,11 @@ export function resumeBaba(sessionId: string, options: StreamOptions) {
   return postAndStream("/api/baba/resume", { sessionId }, options);
 }
 
+/** Reconnects to a running task after the connection dropped (replays what was missed). */
+export function watchBaba(sessionId: string, options: StreamOptions) {
+  return postAndStream("/api/baba/watch", { sessionId }, options);
+}
+
 async function postAndStream(url: string, payload: unknown, { signal, onEvent }: StreamOptions) {
   const response = await fetch(url, {
     method: "POST",

@@ -12,7 +12,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
-import { baba, babaMultiagent, environment, specialists } from "../baba/team.mjs";
+import { PROFILE, baba, babaMultiagent, environment, specialists } from "../baba/team.mjs";
 
 const LOCK_FILE = "baba.lock.json";
 const ENV_FILE = ".env.local";
@@ -52,6 +52,11 @@ function setEnvVar(name, value) {
 }
 
 async function main() {
+  console.log(
+    PROFILE === "test"
+      ? "Profile: TEST (cheapest: Claude Haiku 5.5, low effort, small limits)\n"
+      : "Profile: normal (Claude Sonnet 5.5)\n",
+  );
   // 1. Environment (the cloud sandbox the agents work in)
   if (!lock.environmentId) {
     const env = await client.beta.environments.create(environment);

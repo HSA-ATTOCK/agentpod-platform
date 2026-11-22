@@ -10,6 +10,20 @@
  * Marketing, Finance, Operations) get added here in later phases.
  */
 
+/**
+ * BABA_PROFILE=test  -> cheapest setup for development: every agent on Claude Haiku 5.5
+ *                       at low effort, smaller page reads and fewer searches.
+ * anything else      -> normal setup (Claude Sonnet 5.5).
+ * Switch by setting BABA_PROFILE in .env.local and running `npm run baba:setup` again.
+ */
+export const PROFILE = process.env.BABA_PROFILE === "test" ? "test" : "normal";
+const TEST = PROFILE === "test";
+
+/** Picks the model for an agent: Haiku 5.5 at low effort in test mode. */
+function model(id, effort) {
+  return TEST ? { id: "claude-haiku-5-5", effort: "low" } : { id, effort };
+}
+
 /** Built-in tools. `enabled` per tool; "auto" lets Claude pause risky calls for approval. */
 function toolset({ web = false, files = true, bash = true } = {}) {
   return {
@@ -24,7 +38,7 @@ function toolset({ web = false, files = true, bash = true } = {}) {
       { name: "grep", enabled: files },
       { name: "web_search", enabled: web },
       // Cap how much text one web page can add to the conversation (big pages are the main cost)
-      { name: "web_fetch", enabled: web, max_content_tokens: 12000 },
+      { name: "web_fetch", enabled: web, max_content_tokens: TEST ? 5000 : 12000 },
     ],
   };
 }
@@ -38,7 +52,9 @@ const RESEARCH_RULES = [
   "- Every fact gets a source. Put a Markdown link next to each price, number or claim, e.g. [asana.com/pricing](https://asana.com/pricing). Never invent or guess a URL; only link pages you actually found.",
   "- Be specific. Give exact figures with the unit and billing basis (per user/month, billed annually or monthly, currency). If an official page and another source disagree, use the official page and mention the difference.",
   "- Date and confidence. State the date the information was checked. Mark anything you could not confirm on an official source as unverified.",
-  "- Stay efficient: usually 3–6 searches and 2–5 official pages are enough. Stop once every fact in the answer is sourced.",
+  TEST
+    ? "- Stay efficient (testing mode): at most 3 searches and 2 page reads. Stop as soon as you can answer."
+    : "- Stay efficient: usually 3–6 searches and 2–5 official pages are enough. Stop once every fact in the answer is sourced.",
   "",
   "Format research answers as: a 1–3 sentence summary; a table where it helps; a 'Sources' list of the links you used; then 'Caveats' for anything uncertain or likely to change.",
 ].join("\n");
@@ -59,7 +75,7 @@ export const specialists = [
     name: "Research Analyst",
     description:
       "Researches markets, competitors, companies, people and any topic on the web. Give it one clear question and the output path; it searches, reads sources and reports findings with a source URL for every claim.",
-    model: { id: "claude-sonnet-5-5", effort: "low" },
+    model: model("claude-sonnet-5-5", "low"),
     system: [
       "You are Baba's Research Analyst.",
       "Answer exactly the question you are given, then report concise, well-organised findings.",
@@ -67,7 +83,7 @@ export const specialists = [
       "",
       RESEARCH_RULES,
       "",
-      "For a large research task you may use up to about 10 searches and 8 page reads.",
+      TEST ? "Keep every task small: at most 3 searches and 2 page reads." : "For a large research task you may use up to about 10 searches and 8 page reads.",
       `If you are asked for a file, write it to ${OUTPUTS} and report the path.`,
     ].join("\n"),
     tools: [toolset({ web: true })],
@@ -77,7 +93,7 @@ export const specialists = [
     name: "Writer",
     description:
       "Writes polished business documents: reports, proposals, emails, plans, summaries, presentations and spreadsheets (DOCX, PDF, PPTX, XLSX, Markdown). Give it the content or the facts, the audience, the tone and the output file name.",
-    model: { id: "claude-sonnet-5-5", effort: "medium" },
+    model: model("claude-sonnet-5-5", "medium"),
     system: [
       "You are Baba's Writer.",
       "Write clear, professional, well-structured documents for business readers. Match the requested audience and tone.",
@@ -92,7 +108,7 @@ export const specialists = [
     name: "Data Analyst",
     description:
       "Analyses spreadsheets and data (CSV, XLSX), finds trends and problems, builds tables and charts, and writes the results to files. Give it the data location, the questions to answer and the output file names.",
-    model: { id: "claude-sonnet-5-5", effort: "medium" },
+    model: model("claude-sonnet-5-5", "medium"),
     system: [
       "You are Baba's Data Analyst.",
       "Use Python (pandas, matplotlib, openpyxl) via bash to analyse data accurately. Check your numbers before reporting them.",
@@ -108,7 +124,7 @@ export const baba = {
   key: "baba",
   name: "Baba",
   description: "Baba, the main business assistant. Plans tasks, delegates to specialists and delivers the result.",
-  model: { id: "claude-sonnet-5-5", effort: "medium" },
+  model: model("claude-sonnet-5-5", "medium"),
   system: [
     "You are Baba, an AI assistant that gets real work done for businesses. The user talks only to you.",
     "",
