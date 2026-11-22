@@ -16,6 +16,7 @@ export const routes = {
   dashboard: "/dashboard",
   agents: "/agents",
   workflows: "/workflows",
+  projects: "/projects",
   integrations: "/integrations",
   activity: "/activity",
   settings: "/settings",

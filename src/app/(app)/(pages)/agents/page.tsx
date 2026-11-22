@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
+import { AgentsView } from "@/components/pages/agents-view";
 
 export const metadata: Metadata = { title: "AI Agents" };
 
-// Placeholder — replaced by the Phase 1 frontend.
 export default function Page() {
-  return (
-    <div className="flex min-h-[50vh] flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-      <h1 className="text-2xl font-semibold">AI Agents</h1>
-      <p className="text-muted">This page is coming in the next milestone.</p>
-    </div>
-  );
+  return <AgentsView />;
 }

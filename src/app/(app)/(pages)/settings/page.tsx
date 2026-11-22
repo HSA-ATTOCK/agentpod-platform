@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
+import { SettingsView } from "@/components/pages/settings-view";
 
 export const metadata: Metadata = { title: "Settings" };
 
-// Placeholder — replaced by the Phase 1 frontend.
-export default function Page() {
-  return (
-    <div className="flex min-h-[50vh] flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-      <h1 className="text-2xl font-semibold">Settings</h1>
-      <p className="text-muted">This page is coming in the next milestone.</p>
-    </div>
-  );
+export default function SettingsPage() {
+  // Show the spending cap and profile Baba really uses (server settings, never secrets)
+  const cap = Number(process.env.BABA_SESSION_BUDGET_USD ?? "1");
+  const currentCapUsd = (Number.isFinite(cap) && cap > 0 ? cap : 1).toFixed(2);
+  const profile = process.env.BABA_PROFILE === "test" ? "test" : "normal";
+  return <SettingsView currentCapUsd={currentCapUsd} profile={profile} />;
 }

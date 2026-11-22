@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
+import { WorkflowsView } from "@/components/pages/workflows-view";
 
 export const metadata: Metadata = { title: "Workflows" };
 
-// Placeholder — replaced by the Phase 1 frontend.
 export default function Page() {
-  return (
-    <div className="flex min-h-[50vh] flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-      <h1 className="text-2xl font-semibold">Workflows</h1>
-      <p className="text-muted">This page is coming in the next milestone.</p>
-    </div>
-  );
+  return <WorkflowsView />;
 }
