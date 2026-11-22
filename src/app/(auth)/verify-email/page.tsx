@@ -25,7 +25,7 @@ export default function VerifyEmailPage() {
         </h1>
         <p className="mb-6 text-sm leading-relaxed text-muted">
           We sent a verification link to your email address. Click the link to activate your
-          account and open your AgentPod workspace.
+          account and open your Baba workspace.
         </p>
 
         <ResendVerification />

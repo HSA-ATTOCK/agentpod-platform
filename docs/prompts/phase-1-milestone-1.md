@@ -1,11 +1,11 @@
-# AgentPod — Frontend prompt: Phase 1, Milestone 1
+# Baba — Frontend prompt: Phase 1, Milestone 1
 
 > Copy everything below the line into your AI tool. When it is done, paste the
 > generated files back to Claude so they can be added to the repository and checked.
 
 ---
 
-You are a senior frontend engineer. Build the first frontend milestone for **AgentPod**, a premium SaaS platform where businesses create and manage AI agents that automate their work (sales, customer support, operations, marketing, research). It must feel like a serious AI workspace and business operations dashboard, **not** a chatbot website.
+You are a senior frontend engineer. Build the first frontend milestone for **Baba**, a premium SaaS platform where businesses create and manage AI agents that automate their work (sales, customer support, operations, marketing, research). It must feel like a serious AI workspace and business operations dashboard, **not** a chatbot website.
 
 ## What to build in this milestone
 
@@ -89,7 +89,7 @@ src/app/
 ```
 You should **add**: `src/app/(marketing)/layout.tsx`, `src/app/(auth)/layout.tsx`, `src/app/(app)/layout.tsx`.
 
-Each page exports `metadata` with a `title` (e.g. `export const metadata: Metadata = { title: "Sign in" }`). The root layout's template turns this into "Sign in · AgentPod". The landing page needs no title.
+Each page exports `metadata` with a `title` (e.g. `export const metadata: Metadata = { title: "Sign in" }`). The root layout's template turns this into "Sign in · Baba". The landing page needs no title.
 
 ### Where components go
 
@@ -129,7 +129,7 @@ Component rules:
 - **StatusBadge**: maps statuses to colors — active/succeeded → success, paused/queued → warning, draft → neutral (muted), error/failed → danger, running → info. Always shows text, not color alone.
 - **EmptyState**: icon, title, description, optional action button.
 - **Alert**: variants `error`, `success`, `info`; uses `role="alert"` for errors and `role="status"` otherwise.
-- **Logo**: a simple mark (e.g. lucide `Hexagon` or `Boxes` in an accent-tinted rounded square) plus the "AgentPod" wordmark.
+- **Logo**: a simple mark (e.g. lucide `Hexagon` or `Boxes` in an accent-tinted rounded square) plus the "Baba" wordmark.
 
 ## 1. Landing page (`/`)
 

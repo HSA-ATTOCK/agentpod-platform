@@ -35,7 +35,7 @@ export default function SignUpPage() {
     >
       <AuthHeading
         title="Create your account"
-        subtitle="Set up your AgentPod workspace in a few minutes."
+        subtitle="Set up your Baba workspace in a few minutes."
       />
       <SignUpForm />
       <AuthFooterLink text="Already have an account?" href={routes.signIn} linkLabel="Sign in" />

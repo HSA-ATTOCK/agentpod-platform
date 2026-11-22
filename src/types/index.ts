@@ -1,5 +1,5 @@
 /**
- * Core AgentPod domain types.
+ * Core Baba domain types.
  * These mirror the future Supabase tables, so the UI built with sample data
  * in Phase 1 keeps working when real data arrives in Phase 2+.
  */
