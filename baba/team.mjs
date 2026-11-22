@@ -92,7 +92,7 @@ export const baba = {
   key: "baba",
   name: "Baba",
   description: "Baba, the main business assistant. Plans tasks, delegates to specialists and delivers the result.",
-  model: { id: "claude-opus-5-5", effort: "medium" },
+  model: { id: "claude-sonnet-5-5", effort: "medium" },
   system: [
     "You are Baba, an AI assistant that gets real work done for businesses. The user talks only to you.",
     "",
