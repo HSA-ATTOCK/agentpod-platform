@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   PlugZap,
   Settings,
+  Sparkles,
   User,
   type LucideIcon,
 } from "lucide-react";
@@ -16,15 +17,18 @@ export type NavItem = {
   shortLabel?: string;
   href: AppRoute;
   icon: LucideIcon;
+  /** Show in the mobile bottom tab bar (max 5 items). */
+  inTabBar?: boolean;
 };
 
-/** Main sidebar / mobile tab bar navigation for the authenticated app. */
+/** Main sidebar navigation for the authenticated app. Items with inTabBar also appear in the mobile tab bar. */
 export const appNavigation: NavItem[] = [
-  { label: "Dashboard", shortLabel: "Home", href: routes.dashboard, icon: LayoutDashboard },
-  { label: "AI Agents", shortLabel: "Agents", href: routes.agents, icon: Bot },
-  { label: "Workflows", href: routes.workflows, icon: GitBranch },
+  { label: "Ask Baba", href: routes.ask, icon: Sparkles, inTabBar: true },
+  { label: "Dashboard", shortLabel: "Home", href: routes.dashboard, icon: LayoutDashboard, inTabBar: true },
+  { label: "AI Agents", shortLabel: "Agents", href: routes.agents, icon: Bot, inTabBar: true },
+  { label: "Workflows", href: routes.workflows, icon: GitBranch, inTabBar: true },
   { label: "Integrations", shortLabel: "Apps", href: routes.integrations, icon: PlugZap },
-  { label: "Activity", href: routes.activity, icon: Activity },
+  { label: "Activity", href: routes.activity, icon: Activity, inTabBar: true },
 ];
 
 /** Secondary items shown at the bottom of the sidebar and in the mobile user menu. */

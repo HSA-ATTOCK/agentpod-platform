@@ -60,7 +60,9 @@ export function SidebarNav({ group }: { group: "main" | "secondary" }) {
   return items.map((item) => <SidebarNavLink key={item.href} item={item} />);
 }
 
-/** The five tabs of the mobile tab bar. */
+/** The tabs of the mobile tab bar (items marked inTabBar). */
 export function TabBarNav() {
-  return appNavigation.map((item) => <TabBarLink key={item.href} item={item} />);
+  return appNavigation
+    .filter((item) => item.inTabBar)
+    .map((item) => <TabBarLink key={item.href} item={item} />);
 }
