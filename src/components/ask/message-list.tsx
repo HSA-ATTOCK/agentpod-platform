@@ -6,6 +6,7 @@ import { itemToPlainText } from "@/lib/chat-meta";
 import type { ChatItem } from "@/types/chat";
 import { ApprovalCard } from "./approval-card";
 import { BabaRow } from "./baba-avatar";
+import { BudgetPausedCard } from "./budget-paused-card";
 import {
   AnswerView,
   ErrorMessage,
@@ -25,19 +26,20 @@ type MessageListProps = {
   working: boolean;
   onUpdateItem: (itemId: string, patch: Partial<ChatItem>) => void;
   onToolDecision: (itemId: string, toolUseId: string, allow: boolean) => Promise<void>;
+  onContinue: (itemId: string) => void;
+  /** Spend so far, shown on the "paused at cap" card. */
+  cost?: { cents: number; capCents: number | null };
   onRetry: () => void;
 };
+
+type Handlers = Pick<MessageListProps, "onUpdateItem" | "onToolDecision" | "onContinue" | "cost" | "working">;
 
 // Item types that get Copy / Retry / Helpful buttons underneath
 const WITH_ACTIONS = new Set<ChatItem["type"]>(["progress", "answer", "text", "markdown"]);
 // Item types that sit under the previous Baba message without their own avatar
 const NO_AVATAR = new Set<ChatItem["type"]>(["sources", "file"]);
 
-function renderItem(
-  item: ChatItem,
-  onUpdateItem: MessageListProps["onUpdateItem"],
-  onToolDecision: MessageListProps["onToolDecision"],
-): ReactNode {
+function renderItem(item: ChatItem, { onUpdateItem, onToolDecision, onContinue, cost, working }: Handlers): ReactNode {
   switch (item.type) {
     case "progress":
       return <ProgressBlock item={item} />;
@@ -59,13 +61,23 @@ function renderItem(
       return (
         <ToolApprovalCard item={item} onDecide={(allow) => onToolDecision(item.id, item.toolUseId, allow)} />
       );
+    case "budget_paused":
+      return <BudgetPausedCard item={item} cost={cost} busy={working} onContinue={() => onContinue(item.id)} />;
     case "user":
       return null;
   }
 }
 
 /** Scrollable list of chat items with a "Jump to latest" button. */
-export function MessageList({ items, working, onUpdateItem, onToolDecision, onRetry }: MessageListProps) {
+export function MessageList({
+  items,
+  working,
+  onUpdateItem,
+  onToolDecision,
+  onContinue,
+  cost,
+  onRetry,
+}: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const nearBottomRef = useRef(true);
   const [showJump, setShowJump] = useState(false);
@@ -110,7 +122,7 @@ export function MessageList({ items, working, onUpdateItem, onToolDecision, onRe
             const showAvatar = !NO_AVATAR.has(item.type) || previous?.type === "user";
             return (
               <BabaRow key={item.id} showAvatar={showAvatar} className="group">
-                {renderItem(item, onUpdateItem, onToolDecision)}
+                {renderItem(item, { onUpdateItem, onToolDecision, onContinue, cost, working })}
                 {WITH_ACTIONS.has(item.type) && (
                   <MessageActions copyText={itemToPlainText(item)} onRetry={onRetry} />
                 )}

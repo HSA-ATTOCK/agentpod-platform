@@ -139,7 +139,7 @@ export function Composer({
             onKeyDown={handleKeyDown}
             placeholder="Ask Baba to do anything…"
             className={cn(
-              "min-w-0 flex-1 resize-none bg-transparent py-2 leading-5 text-foreground placeholder:text-subtle focus:outline-none",
+              "min-w-0 flex-1 resize-none bg-transparent py-2 leading-5 text-foreground placeholder:text-subtle focus:outline-none focus-visible:outline-none",
               size === "large" ? "text-base" : "text-sm",
             )}
           />

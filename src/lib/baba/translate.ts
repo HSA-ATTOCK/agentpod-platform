@@ -159,8 +159,11 @@ export function createTranslator() {
       case "session.thread_status_terminated": {
         // Only threads we saw start are specialists (Baba's own thread also reports idle)
         if (!specialistThreads.has(event.session_thread_id)) return { out: [] };
-        // A specialist waiting for an approval isn't finished yet
-        if (event.type === "session.thread_status_idle" && event.stop_reason.type === "requires_action") {
+        // A specialist waiting for an approval, or paused at the spending cap, isn't finished yet
+        if (
+          event.type === "session.thread_status_idle" &&
+          (event.stop_reason.type === "requires_action" || event.stop_reason.type === "budget_reached")
+        ) {
           return { out: [] };
         }
         return {
@@ -191,10 +194,7 @@ export function createTranslator() {
         const reason = event.stop_reason.type;
         if (reason === "requires_action") return { out: [] }; // waiting for an approval; keep streaming
         if (reason === "budget_reached") {
-          return {
-            out: [{ type: "error", message: "This conversation reached its spending cap, so Baba paused." }],
-            finished: { type: "done", reason: "budget_reached" },
-          };
+          return { out: [], finished: { type: "done", reason: "budget_reached" } };
         }
         if (reason === "refusal") {
           return {

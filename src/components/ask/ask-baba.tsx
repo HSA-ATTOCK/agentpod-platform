@@ -9,7 +9,9 @@ import {
   fileKindFromName,
   formatBytes,
   interruptBaba,
+  resumeBaba,
   streamBaba,
+  type StreamOptions,
 } from "@/lib/baba/client";
 import type { BabaStreamEvent } from "@/lib/baba/protocol";
 import { sampleConversations } from "@/lib/sample-chat";
@@ -113,13 +115,44 @@ export function AskBaba() {
     }));
   }
 
-  async function runBaba(conversationId: string, text: string, sessionId?: string) {
+  /** Marks this turn's progress block as paused at the spending cap. */
+  function pauseProgress(conversationId: string, progressId: string) {
+    updateConversation(conversationId, (c) => ({
+      ...c,
+      paused: true,
+      items: [
+        ...c.items.map((i) =>
+          i.id === progressId && i.type === "progress"
+            ? {
+                ...i,
+                title: "Paused at spending cap",
+                steps: i.steps.map((st) => (st.status === "running" ? { ...st, status: "pending" as const } : st)),
+              }
+            : i,
+        ),
+        { id: crypto.randomUUID(), type: "budget_paused", status: "paused" },
+      ],
+    }));
+  }
+
+  /**
+   * Runs one turn of Baba and shows its progress.
+   * `open` starts the request: a new message, or "Continue" after the spending cap.
+   */
+  async function runBaba(
+    conversationId: string,
+    sessionId: string | undefined,
+    open: (sessionId: string | undefined, options: StreamOptions) => Promise<void>,
+    /** Continue an existing progress block (after "Continue") instead of starting a new one. */
+    existingProgressId?: string,
+  ) {
     const controller = new AbortController();
     abortRef.current = controller;
     runningSessionRef.current = sessionId;
     setWorking(true);
-    const progressId = crypto.randomUUID();
+    const progressId = existingProgressId ?? crypto.randomUUID();
     let currentSessionId = sessionId;
+    let pausedAtCap = false;
 
     function handle(event: BabaStreamEvent) {
       switch (event.type) {
@@ -175,13 +208,14 @@ export function AskBaba() {
           appendItems(conversationId, [{ id: crypto.randomUUID(), type: "error", text: event.message }]);
           break;
         case "done":
-          finishProgress(conversationId, progressId);
+          if (event.reason === "budget_reached") pausedAtCap = true;
+          else finishProgress(conversationId, progressId);
           break;
       }
     }
 
     try {
-      await streamBaba({ sessionId, text }, { signal: controller.signal, onEvent: handle });
+      await open(sessionId, { signal: controller.signal, onEvent: handle });
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
         appendItems(conversationId, [
@@ -193,7 +227,8 @@ export function AskBaba() {
         ]);
       }
     } finally {
-      finishProgress(conversationId, progressId);
+      if (pausedAtCap) pauseProgress(conversationId, progressId);
+      else finishProgress(conversationId, progressId);
       if (abortRef.current === controller) {
         abortRef.current = null;
         setWorking(false);
@@ -217,6 +252,18 @@ export function AskBaba() {
         : [];
     let conversationId = activeId;
 
+    // A paused conversation only accepts "Continue" until its cap is raised
+    if (active?.paused) {
+      appendItems(active.id, [
+        {
+          id: crypto.randomUUID(),
+          type: "error",
+          text: "This conversation is paused at its spending cap. Click Continue above to finish the task, or start a new chat.",
+        },
+      ]);
+      return;
+    }
+
     if (!conversationId) {
       conversationId = crypto.randomUUID();
       const conversation: Conversation = {
@@ -233,7 +280,33 @@ export function AskBaba() {
     }
 
     setDraft("");
-    if (text) void runBaba(conversationId, text, active?.sessionId);
+    if (text) {
+      void runBaba(conversationId, active?.sessionId, (sid, options) => streamBaba({ sessionId: sid, text }, options));
+    }
+  }
+
+  /** "Continue" on a conversation paused at its spending cap. */
+  function continueAfterCap(itemId: string) {
+    if (!active?.sessionId || working) return;
+    const sessionId = active.sessionId;
+    // Keep updating the progress block of the task that was paused
+    const pausedProgress = [...active.items].reverse().find((i) => i.type === "progress");
+    updateConversation(active.id, (c) => ({
+      ...c,
+      paused: false,
+      items: c.items.map((i) => {
+        if (i.id === itemId && i.type === "budget_paused") return { ...i, status: "resumed" };
+        if (i.id === pausedProgress?.id && i.type === "progress") {
+          return {
+            ...i,
+            title: "Working on it",
+            steps: i.steps.map((st) => (st.status === "pending" ? { ...st, status: "running" as const } : st)),
+          };
+        }
+        return i;
+      }),
+    }));
+    void runBaba(active.id, sessionId, (_sid, options) => resumeBaba(sessionId, options), pausedProgress?.id);
   }
 
   async function decideTool(itemId: string, toolUseId: string, allow: boolean) {
@@ -245,7 +318,9 @@ export function AskBaba() {
   function retry() {
     if (!active || working) return;
     const lastUser = [...active.items].reverse().find((i) => i.type === "user");
-    if (lastUser?.type === "user" && lastUser.text) void runBaba(active.id, lastUser.text, active.sessionId);
+    if (active.paused || !lastUser || lastUser.type !== "user" || !lastUser.text) return;
+    const text = lastUser.text;
+    void runBaba(active.id, active.sessionId, (sid, options) => streamBaba({ sessionId: sid, text }, options));
   }
 
   // ---- Navigation between conversations ----
@@ -332,6 +407,8 @@ export function AskBaba() {
               working={working}
               onUpdateItem={updateItem}
               onToolDecision={decideTool}
+              onContinue={continueAfterCap}
+              cost={active.cost}
               onRetry={retry}
             />
             <div className="shrink-0 px-4 pb-3 pt-1 lg:px-8">

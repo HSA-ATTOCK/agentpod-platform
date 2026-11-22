@@ -40,7 +40,9 @@ delegates to specialist agents (Research Analyst, Writer, Data Analyst).
 3. Restart `npm run dev` and open `/ask`.
 
 **Spending cap:** each conversation stops at `BABA_SESSION_BUDGET_USD` (default `$1`).
-Change it in `.env.local` and restart the dev server.
+Change it in `.env.local` and restart the dev server. If a task reaches the cap, Baba pauses
+and shows **Continue task**: that raises the cap by the same amount and the task carries on from
+where it stopped, without redoing (or re-paying for) earlier work.
 
 **Safety:** there's no login yet, so the Baba API routes are disabled in production
 (`next start` / Vercel) unless `BABA_ALLOW_PUBLIC=true`. Keep it off for public deployments.
