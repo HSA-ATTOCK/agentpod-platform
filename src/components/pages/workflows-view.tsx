@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarClock, Info, Play, Plus, Repeat } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ActionMenu } from "@/components/ui/action-menu";
@@ -79,6 +80,11 @@ function LastRun({ wf }: { wf: WorkflowRecord }) {
         <LocalTime iso={last.startedAt} className="text-[11px] text-subtle" />
       </div>
       {last.status === "failed" && last.error && <p className="max-w-[16rem] truncate text-[11px] text-danger">{last.error}</p>}
+      {last.conversationId && (
+        <Link href={`${routes.ask}?c=${last.conversationId}`} className="inline-block text-[11px] font-medium text-accent hover:underline">
+          {last.status === "running" ? "Watch it work" : "View result"}
+        </Link>
+      )}
     </div>
   );
 }

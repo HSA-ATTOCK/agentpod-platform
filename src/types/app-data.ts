@@ -51,7 +51,7 @@ export type WorkflowRecord = {
   capUsd: number;
   enabled: boolean;
   createdBy: string | null;
-  runs: { status: TaskStatus; startedAt: string; costCents: number; error: string | null }[];
+  runs: { status: TaskStatus; startedAt: string; costCents: number; error: string | null; conversationId: string | null }[];
 };
 
 export type MemberRecord = {

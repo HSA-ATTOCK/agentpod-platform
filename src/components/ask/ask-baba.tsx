@@ -18,6 +18,7 @@ import type { BabaStreamEvent } from "@/lib/baba/protocol";
 import {
   createConversation,
   deleteConversation,
+  listRecentConversations,
   loadConversationItems,
   renameConversation,
   saveConversationItems,
@@ -91,6 +92,52 @@ export function AskBaba({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
+
+  // ---- Keeping the list fresh ----
+  // Conversations can be created elsewhere (scheduled workflows, teammates, other tabs):
+  // re-check every 30 seconds and whenever this tab comes back into view.
+  const activeRef = useRef(activeId);
+  useEffect(() => {
+    activeRef.current = activeId;
+  }, [activeId]);
+  useEffect(() => {
+    let cancelled = false;
+    async function refresh() {
+      if (document.visibilityState !== "visible") return;
+      let latest: Conversation[];
+      try {
+        latest = await listRecentConversations(workspaceId);
+      } catch {
+        return; // offline for a moment; try again next time
+      }
+      if (cancelled) return;
+      setConversations((prev) => {
+        const byId = new Map(prev.map((c) => [c.id, c]));
+        const merged = latest.map((fresh) => {
+          const mine = byId.get(fresh.id);
+          if (!mine) return fresh;
+          // The open conversation (or one with unsaved local changes) keeps what's on screen
+          if (mine.id === activeRef.current || !mine.loaded) return { ...mine, title: fresh.title, updatedAt: mine.updatedAt > fresh.updatedAt ? mine.updatedAt : fresh.updatedAt, cost: fresh.cost ?? mine.cost, paused: fresh.paused };
+          // Changed elsewhere since we loaded it: reload its messages when it's next opened
+          return fresh.updatedAt > mine.updatedAt ? fresh : mine;
+        });
+        const freshIds = new Set(latest.map((c) => c.id));
+        // Keep local conversations the server didn't return (brand new, or older than the latest 50)
+        const extra = prev.filter((c) => !freshIds.has(c.id));
+        return [...merged, ...extra].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      });
+    }
+    const timer = setInterval(() => void refresh(), 30_000);
+    const onVisible = () => void refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [workspaceId]);
 
   // ---- Saving to the database ----
 
