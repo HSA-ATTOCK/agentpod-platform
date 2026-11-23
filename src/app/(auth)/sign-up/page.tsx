@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { AuthFooterLink } from "@/components/auth/auth-footer-link";
 import { AuthHeading } from "@/components/auth/auth-heading";
 import { AuthSplitLayout } from "@/components/auth/auth-split-layout";
+import { Suspense } from "react";
 import { SignUpForm } from "@/components/auth/sign-up-form";
 import { routes } from "@/config/routes";
 
@@ -37,7 +38,9 @@ export default function SignUpPage() {
         title="Create your account"
         subtitle="Set up your Baba workspace in a few minutes."
       />
-      <SignUpForm />
+      <Suspense fallback={null}>
+        <SignUpForm />
+      </Suspense>
       <AuthFooterLink text="Already have an account?" href={routes.signIn} linkLabel="Sign in" />
     </AuthSplitLayout>
   );

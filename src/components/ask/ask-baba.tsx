@@ -51,6 +51,12 @@ type AskBabaProps = {
   userId: string;
   /** Viewers can read conversations but not give Baba tasks. */
   canWrite: boolean;
+  /** Open this conversation straight away (from ?c= links on other pages). */
+  initialActiveId?: string;
+  /** Pre-filled message (from a workflow's "Run now"). */
+  initialPrompt?: string;
+  /** The workflow being run, so its task is linked to it. */
+  workflowId?: string;
 };
 
 /**
@@ -58,10 +64,22 @@ type AskBabaProps = {
  * Messages go to our /api/baba routes, which talk to Claude Managed Agents.
  * Conversations and their messages are saved to the database as they change.
  */
-export function AskBaba({ initialConversations, workspaceId, userId, canWrite }: AskBabaProps) {
+export function AskBaba({
+  initialConversations,
+  workspaceId,
+  userId,
+  canWrite,
+  initialActiveId,
+  initialPrompt,
+  workflowId,
+}: AskBabaProps) {
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
+  const [activeId, setActiveId] = useState<string | null>(
+    initialActiveId && initialConversations.some((c) => c.id === initialActiveId) ? initialActiveId : null,
+  );
+  const [draft, setDraft] = useState(initialPrompt ?? "");
+  // Only the first message after "Run now" belongs to the workflow
+  const workflowRef = useRef(workflowId);
   const [working, setWorking] = useState(false);
 
   const [taskPanelOpen, setTaskPanelOpen] = useState(true); // wide screens
@@ -394,7 +412,11 @@ export function AskBaba({ initialConversations, workspaceId, userId, canWrite }:
 
     if (text) {
       const id = conversationId;
-      void runBaba(id, active?.sessionId, (options) => streamBaba({ conversationId: id, text }, options));
+      const workflow = workflowRef.current;
+      workflowRef.current = undefined;
+      void runBaba(id, active?.sessionId, (options) =>
+        streamBaba({ conversationId: id, text, workflowId: workflow }, options),
+      );
     }
   }
 
@@ -440,11 +462,7 @@ export function AskBaba({ initialConversations, workspaceId, userId, canWrite }:
 
   // ---- Navigation between conversations ----
 
-  function selectConversation(id: string) {
-    stop();
-    setActiveId(id);
-    setConversationsSheetOpen(false);
-
+  function loadIfNeeded(id: string) {
     const conversation = conversations.find((c) => c.id === id);
     if (conversation && !conversation.loaded) {
       loadConversationItems(id)
@@ -460,6 +478,21 @@ export function AskBaba({ initialConversations, workspaceId, userId, canWrite }:
         });
     }
   }
+
+  function selectConversation(id: string) {
+    stop();
+    setActiveId(id);
+    setConversationsSheetOpen(false);
+    loadIfNeeded(id);
+  }
+
+  // A ?c= link opened this conversation: fetch its messages once
+  const initialLoad = useRef(activeId);
+  useEffect(() => {
+    if (initialLoad.current) loadIfNeeded(initialLoad.current);
+    initialLoad.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
 
   function startNewChat() {
     stop();

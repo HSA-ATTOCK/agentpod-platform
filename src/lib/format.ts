@@ -44,6 +44,17 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
+/** 5 → "$0.05", 1234 → "$12.34" */
+export function formatCents(cents: number): string {
+  return "$" + (cents / 100).toFixed(2);
+}
+
+/** Time between two ISO dates, e.g. "1m 05s"; "—" if not finished. */
+export function durationBetween(startIso: string, endIso: string | null): string {
+  if (!endIso) return "—";
+  return formatDuration(new Date(endIso).getTime() - new Date(startIso).getTime());
+}
+
 /** "Today, 14:32", "Yesterday, 18:30" or "Nov 20, 09:15" */
 export function formatDateTime(iso: string, now: string): string {
   const date = new Date(iso);

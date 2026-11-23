@@ -1,8 +1,18 @@
 import "server-only";
 import { getAppContext, type AppContext } from "@/lib/data/context";
+import type { Json } from "@/types/database";
 import { fileKindFromName } from "./client";
 import type { BabaStreamEvent } from "./protocol";
 import { babaUnavailable } from "./server";
+
+/** One step of a task as saved in tasks.steps (shown on the Activity page). */
+export type TaskStepRecord = {
+  id: string;
+  label: string;
+  agent?: string;
+  status: "running" | "done" | "failed";
+  at: string;
+};
 
 export type ConversationRow = {
   id: string;
@@ -72,6 +82,8 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
   let capCents: number | null | undefined;
   let lastError: string | undefined;
   const agents = new Set<string>();
+  // Steps for the Activity page, in the order they started
+  const steps = new Map<string, TaskStepRecord>();
 
   async function currentTaskId() {
     if (taskId) return taskId;
@@ -108,8 +120,15 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
       if (event.type === "usage") {
         costCents = event.costCents;
         capCents = event.capCents;
-      } else if (event.type === "step" && event.agent) {
-        agents.add(event.agent);
+      } else if (event.type === "step") {
+        if (event.agent) agents.add(event.agent);
+        steps.set(event.id, {
+          id: event.id,
+          label: event.label,
+          agent: event.agent,
+          status: event.status,
+          at: steps.get(event.id)?.at ?? new Date().toISOString(),
+        });
       } else if (event.type === "error") {
         lastError = event.message;
       } else if (event.type === "files") {
@@ -133,7 +152,23 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
 
       let taskUpdate: PromiseLike<unknown> = Promise.resolve();
       if (task) {
-        const { data: existing } = await supabase.from("tasks").select("cost_cents, agents").eq("id", task).maybeSingle();
+        const { data: existing } = await supabase
+          .from("tasks")
+          .select("cost_cents, agents, steps")
+          .eq("id", task)
+          .maybeSingle();
+        // Merge with steps saved earlier (a task resumed after its cap keeps its first steps)
+        const merged = new Map<string, TaskStepRecord>(
+          ((existing?.steps as TaskStepRecord[] | null) ?? []).map((step) => [step.id, step]),
+        );
+        for (const step of steps.values()) {
+          merged.set(step.id, {
+            ...step,
+            at: merged.get(step.id)?.at ?? step.at,
+            // Anything still "running" when the turn ends didn't finish
+            status: step.status === "running" ? (status === "succeeded" ? "done" : status === "paused" ? "running" : "failed") : step.status,
+          });
+        }
         // The session's spend is cumulative; this turn added (now − what the conversation had before)
         const added = spent !== undefined ? Math.max(0, spent - conversation.cost_cents) : 0;
         taskUpdate = supabase
@@ -142,6 +177,7 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
             status,
             cost_cents: (existing?.cost_cents ?? 0) + added,
             agents: [...new Set([...(existing?.agents ?? []), ...agents])],
+            steps: [...merged.values()].slice(-100) as unknown as Json,
             error: status === "failed" ? (lastError ?? "The task didn't finish.") : null,
             finished_at: status === "paused" ? null : new Date().toISOString(),
             ...(capCents ? { cap_cents: Math.round(capCents) } : {}),
@@ -156,4 +192,36 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
       if (spent !== undefined) conversation.cost_cents = spent;
     },
   };
+}
+
+/** Spending cap for one conversation, from the workspace's AI & spending settings. */
+export function conversationCapCents(ctx: AppContext) {
+  return Math.max(1, Math.round(ctx.workspace.taskCapUsd * 100));
+}
+
+/** What the workspace has spent on Baba since the start of this month (UTC), in cents. */
+export async function monthlySpendCents(ctx: AppContext) {
+  const start = new Date();
+  start.setUTCDate(1);
+  start.setUTCHours(0, 0, 0, 0);
+  const { data } = await ctx.supabase
+    .from("tasks")
+    .select("cost_cents")
+    .eq("workspace_id", ctx.workspace.id)
+    .gte("started_at", start.toISOString());
+  return (data ?? []).reduce((sum, row) => sum + row.cost_cents, 0);
+}
+
+/** Returns an error Response when the workspace has used up its monthly limit. */
+export async function monthlyLimitReached(ctx: AppContext): Promise<Response | null> {
+  const spent = await monthlySpendCents(ctx);
+  const limit = Math.round(ctx.workspace.monthlyLimitUsd * 100);
+  if (spent < limit) return null;
+  const dollars = "$" + (limit / 100).toFixed(2);
+  return Response.json(
+    {
+      error: `This workspace has reached its monthly spending limit (${dollars}). An owner or admin can raise it in Settings → AI & spending.`,
+    },
+    { status: 402 },
+  );
 }

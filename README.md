@@ -43,8 +43,8 @@ delegates to specialist agents (Research Analyst, Writer, Data Analyst).
 Every agent then runs on Claude Haiku 5.5 at low effort with smaller limits. Set it back to
 `BABA_PROFILE=normal` (and run setup again) when you're done testing.
 
-**Spending cap:** each conversation stops at `BABA_SESSION_BUDGET_USD` (default `$1`).
-Change it in `.env.local` and restart the dev server. If a task reaches the cap, Baba pauses
+**Spending caps:** set in the app under **Settings → AI & spending**: a cap per conversation
+(default `$1`) and a monthly limit per workspace (default `$50`; new tasks are blocked once it's reached). If a task reaches the cap, Baba pauses
 and shows **Continue task**: that raises the cap by the same amount and the task carries on from
 where it stopped, without redoing (or re-paying for) earlier work.
 

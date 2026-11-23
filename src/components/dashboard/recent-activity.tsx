@@ -1,22 +1,27 @@
 import { Activity } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LocalTime } from "@/components/ui/local-time";
 import { routes } from "@/config/routes";
-import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { ActivityEvent, ActivityEventTone } from "@/types";
 import { DashboardPanel } from "./dashboard-panel";
 
-const dotColor: Record<ActivityEventTone, string> = {
+export type ActivityItem = {
+  id: string;
+  title: string;
+  description: string;
+  tone: "success" | "warning" | "danger" | "info";
+  at: string;
+};
+
+const dotColor: Record<ActivityItem["tone"], string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
   info: "bg-info",
-  neutral: "bg-subtle",
 };
 
-type RecentActivityProps = { events: ActivityEvent[]; now: string; className?: string };
 
-export function RecentActivity({ events, now, className }: RecentActivityProps) {
+export function RecentActivity({ events, className }: { events: ActivityItem[]; className?: string }) {
   return (
     <DashboardPanel
       title="Recent activity"
@@ -25,27 +30,15 @@ export function RecentActivity({ events, now, className }: RecentActivityProps) 
       className={className}
     >
       {events.length === 0 ? (
-        <EmptyState
-          icon={Activity}
-          title="No activity yet"
-          description="Events like completed tasks and approval requests will show up here."
-        />
+        <EmptyState icon={Activity} title="No activity yet" description="Finished tasks, files and paused work will show up here." />
       ) : (
         <ol className="relative mt-4 space-y-6 border-l border-border pl-4 text-xs">
           {events.map((event) => (
             <li key={event.id} className="relative">
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "absolute -left-[21px] top-1 size-2.5 rounded-full ring-4 ring-surface",
-                  dotColor[event.tone],
-                )}
-              />
+              <span aria-hidden="true" className={cn("absolute -left-[21px] top-1 size-2.5 rounded-full ring-4 ring-surface", dotColor[event.tone])} />
               <p className="font-medium text-foreground">{event.title}</p>
-              <p className="mt-0.5 text-subtle">{event.description}</p>
-              <time dateTime={event.occurredAt} className="mt-1 block text-[11px] text-subtle">
-                {formatRelativeTime(event.occurredAt, now)}
-              </time>
+              <p className="mt-0.5 line-clamp-2 text-subtle">{event.description}</p>
+              <LocalTime iso={event.at} format="relative" className="mt-1 block text-[11px] text-subtle" />
             </li>
           ))}
         </ol>

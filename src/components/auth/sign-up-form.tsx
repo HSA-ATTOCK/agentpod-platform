@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -39,9 +40,11 @@ function validate(f: Fields): Errors {
 }
 
 export function SignUpForm() {
+  // Invite links carry the invited email (?email=)
+  const invitedEmail = useSearchParams().get("email") ?? "";
   const [fields, setFields] = useState<Fields>({
     fullName: "",
-    email: "",
+    email: invitedEmail,
     password: "",
     confirmPassword: "",
     terms: false,

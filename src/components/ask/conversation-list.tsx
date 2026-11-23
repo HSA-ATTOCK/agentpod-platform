@@ -3,28 +3,23 @@
 import { MessageSquare, Plus, Search } from "lucide-react";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { formatDateTime } from "@/lib/format";
-import { SAMPLE_NOW } from "@/lib/sample-data";
+import { LocalTime } from "@/components/ui/local-time";
 import { cn } from "@/lib/utils";
 import type { Conversation } from "@/types/chat";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** "Today" / "Yesterday" / "Previous 7 days" / "Older" relative to the sample clock. */
+/** "Today" / "Yesterday" / "Previous 7 days" / "Older" (UTC days, so server and browser agree). */
 function groupLabel(iso: string) {
   const dayKey = (d: Date) => d.toISOString().slice(0, 10);
   const date = new Date(iso);
-  const now = new Date(SAMPLE_NOW);
+  const now = new Date();
   if (dayKey(date) >= dayKey(now)) return "Today";
   if (dayKey(date) === dayKey(new Date(now.getTime() - DAY_MS))) return "Yesterday";
   if (now.getTime() - date.getTime() < 7 * DAY_MS) return "Previous 7 days";
   return "Older";
 }
 
-/** Time for today's chats, weekday or date for older ones. */
-function timeLabel(iso: string) {
-  return formatDateTime(iso, SAMPLE_NOW).replace(/^Today, /, "").replace(/^Yesterday, /, "");
-}
 
 type ConversationListProps = {
   conversations: Conversation[];
@@ -92,7 +87,7 @@ export function ConversationList({ conversations, activeId, onSelect, onNewChat 
                       <MessageSquare aria-hidden="true" className={cn("size-4 shrink-0", active ? "text-accent" : "text-subtle")} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm">{conversation.title}</span>
-                        <span className="block text-[11px] text-subtle">{timeLabel(conversation.updatedAt)}</span>
+                        <LocalTime iso={conversation.updatedAt} format={groupLabel(conversation.updatedAt) === "Today" ? "time" : "date"} className="block text-[11px] text-subtle" />
                       </span>
                     </button>
                   </li>
