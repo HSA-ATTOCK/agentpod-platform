@@ -35,20 +35,103 @@ type TurnOptions = {
 
 type Finished = BabaStreamEvent & { type: "done" };
 
+type RunOptions = Omit<TurnOptions, "request"> & {
+  /** Receives every translated event (progress, messages, files, usage, done…). */
+  emit: (event: BabaStreamEvent) => void;
+  /** Stops listening (the work continues on Claude's side). */
+  signal?: AbortSignal;
+};
+
 /**
- * Streams one "turn" of a Baba session to the browser as newline-delimited JSON:
- * opens Claude's event stream, starts the work, forwards translated events until
- * the turn ends, then reports any output files.
+ * Runs one "turn" of a Baba session: opens Claude's event stream, starts the work,
+ * passes translated events to `emit` until the turn ends, then reports output files.
+ * Used by the browser stream below and by scheduled workflow runs (no browser).
  */
-export function streamTurn({ request, logName, prepare, kickoff, catchUp, track }: TurnOptions): Response {
+export async function runTurn({ logName, prepare, kickoff, catchUp, track, emit: rawEmit, signal }: RunOptions) {
   const claude = getClaude();
+  const emit = (event: BabaStreamEvent) => {
+    if (event.type !== "ping") track?.event(event);
+    rawEmit(event);
+  };
+
+  try {
+    const sessionId = await prepare(emit);
+    const translate = createTranslator();
+    let finished: Finished | undefined;
+
+    // Open the event stream BEFORE anything else, so no events are missed
+    const events = await claude.beta.sessions.events.stream(sessionId, {}, { signal });
+
+    // Reconnecting: replay this turn's events so far
+    const seen = new Set<string>();
+    if (catchUp) {
+      const history: BetaManagedAgentsSessionEvent[] = [];
+      for await (const event of claude.beta.sessions.events.list(sessionId, { order: "asc" })) {
+        history.push(event);
+      }
+      const turnStart = history.findLastIndex((event) => event.type === "user.message");
+      for (const event of history.slice(turnStart + 1)) {
+        seen.add(event.id);
+        const result = translate(event as BetaManagedAgentsStreamSessionEvents);
+        result.out.forEach(emit);
+        // An earlier pause (e.g. at the budget) that was later resumed doesn't end the turn
+        if (result.finished) finished = result.finished;
+        else if (event.type === "session.status_running") finished = undefined;
+      }
+    }
+
+    if (kickoff) await kickoff(sessionId);
+
+    // Live events until the turn is over (skipped if the replay already reached the end)
+    if (!finished) {
+      for await (const event of events) {
+        if ("id" in event && typeof event.id === "string" && seen.has(event.id)) continue;
+        const result = translate(event);
+        result.out.forEach(emit);
+        if (result.finished) {
+          finished = result.finished;
+          break;
+        }
+      }
+    }
+
+    if (finished) {
+      // Files the agents saved to /mnt/session/outputs/ (indexing can lag a moment)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const files = await claude.beta.files.list({ scope_id: sessionId, betas: ["managed-agents-2026-04-01"] });
+        if (files.data.length > 0) {
+          emit({
+            type: "files",
+            files: files.data.map((f) => ({ id: f.id, name: f.filename, sizeBytes: f.size_bytes })),
+          });
+          break;
+        }
+        if (finished.reason === "budget_reached") break; // don't wait on a paused task
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      await track?.finish(finished.reason).catch((error) => console.error(`[${logName}] track`, error));
+      emit(finished);
+    }
+  } catch (error) {
+    if (!signal?.aborted) {
+      console.error(`[${logName}]`, error);
+      emit({ type: "error", message: errorMessage(error) });
+      await track?.finish("failed").catch((e) => console.error(`[${logName}] track`, e));
+      emit({ type: "done", reason: "failed" });
+    }
+  }
+}
+
+/**
+ * Streams one turn to the browser as newline-delimited JSON (see runTurn).
+ */
+export function streamTurn({ request, ...options }: TurnOptions): Response {
   const encoder = new TextEncoder();
 
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
       let closed = false;
       const emit = (event: BabaStreamEvent) => {
-        if (event.type !== "ping") track?.event(event);
         if (closed) return;
         try {
           controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
@@ -57,72 +140,8 @@ export function streamTurn({ request, logName, prepare, kickoff, catchUp, track 
         }
       };
       const heartbeat = setInterval(() => emit({ type: "ping" }), HEARTBEAT_MS);
-
       try {
-        const sessionId = await prepare(emit);
-        const translate = createTranslator();
-        let finished: Finished | undefined;
-
-        // Open the event stream BEFORE anything else, so no events are missed
-        const events = await claude.beta.sessions.events.stream(sessionId, {}, { signal: request.signal });
-
-        // Reconnecting: replay this turn's events so far
-        const seen = new Set<string>();
-        if (catchUp) {
-          const history: BetaManagedAgentsSessionEvent[] = [];
-          for await (const event of claude.beta.sessions.events.list(sessionId, { order: "asc" })) {
-            history.push(event);
-          }
-          const turnStart = history.findLastIndex((event) => event.type === "user.message");
-          for (const event of history.slice(turnStart + 1)) {
-            seen.add(event.id);
-            const result = translate(event as BetaManagedAgentsStreamSessionEvents);
-            result.out.forEach(emit);
-            // An earlier pause (e.g. at the budget) that was later resumed doesn't end the turn
-            if (result.finished) finished = result.finished;
-            else if (event.type === "session.status_running") finished = undefined;
-          }
-        }
-
-        if (kickoff) await kickoff(sessionId);
-
-        // Live events until the turn is over (skipped if the replay already reached the end)
-        if (!finished) {
-          for await (const event of events) {
-            if ("id" in event && typeof event.id === "string" && seen.has(event.id)) continue;
-            const result = translate(event);
-            result.out.forEach(emit);
-            if (result.finished) {
-              finished = result.finished;
-              break;
-            }
-          }
-        }
-
-        if (finished) {
-          // Files the agents saved to /mnt/session/outputs/ (indexing can lag a moment)
-          for (let attempt = 0; attempt < 3; attempt++) {
-            const files = await claude.beta.files.list({ scope_id: sessionId, betas: ["managed-agents-2026-04-01"] });
-            if (files.data.length > 0) {
-              emit({
-                type: "files",
-                files: files.data.map((f) => ({ id: f.id, name: f.filename, sizeBytes: f.size_bytes })),
-              });
-              break;
-            }
-            if (finished.reason === "budget_reached") break; // don't wait on a paused task
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-          }
-          await track?.finish(finished.reason).catch((error) => console.error(`[${logName}] track`, error));
-          emit(finished);
-        }
-      } catch (error) {
-        if (!request.signal.aborted) {
-          console.error(`[${logName}]`, error);
-          emit({ type: "error", message: errorMessage(error) });
-          await track?.finish("failed").catch((e) => console.error(`[${logName}] track`, e));
-          emit({ type: "done", reason: "failed" });
-        }
+        await runTurn({ ...options, emit, signal: request.signal });
       } finally {
         clearInterval(heartbeat);
         closed = true;

@@ -270,3 +270,10 @@ export async function monthlyLimitReached(ctx: AppContext): Promise<Response | n
     { status: 402 },
   );
 }
+
+/** Puts the workspace's "About your business" notes in front of the first message of a conversation. */
+export async function withBusinessContext(supabase: AppContext["supabase"], workspaceId: string, text: string) {
+  const { data: ws } = await supabase.from("workspaces").select("name, business_context").eq("id", workspaceId).maybeSingle();
+  if (!ws?.business_context.trim()) return text;
+  return `About my business (${ws.name}), from my Baba settings:\n${ws.business_context.trim()}\n\n---\n\n${text}`;
+}
