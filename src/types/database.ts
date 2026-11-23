@@ -177,24 +177,24 @@ export type Database = {
         Row: {
           access_token_enc: string | null
           access_token_expires_at: string | null
-          provider: string
-          refresh_token_enc: string
+          integration_id: string
+          secret_enc: string
           updated_at: string
           workspace_id: string
         }
         Insert: {
           access_token_enc?: string | null
           access_token_expires_at?: string | null
-          provider: string
-          refresh_token_enc: string
+          integration_id: string
+          secret_enc: string
           updated_at?: string
           workspace_id: string
         }
         Update: {
           access_token_enc?: string | null
           access_token_expires_at?: string | null
-          provider?: string
-          refresh_token_enc?: string
+          integration_id?: string
+          secret_enc?: string
           updated_at?: string
           workspace_id?: string
         }
@@ -203,9 +203,12 @@ export type Database = {
       integrations: {
         Row: {
           account_email: string | null
+          config: Json
           connected_by: string | null
           created_at: string
           id: string
+          is_default: boolean
+          label: string
           provider: string
           scopes: string[]
           status: string
@@ -213,9 +216,12 @@ export type Database = {
         }
         Insert: {
           account_email?: string | null
+          config?: Json
           connected_by?: string | null
           created_at?: string
           id?: string
+          is_default?: boolean
+          label?: string
           provider: string
           scopes?: string[]
           status?: string
@@ -223,9 +229,12 @@ export type Database = {
         }
         Update: {
           account_email?: string | null
+          config?: Json
           connected_by?: string | null
           created_at?: string
           id?: string
+          is_default?: boolean
+          label?: string
           provider?: string
           scopes?: string[]
           status?: string

@@ -95,22 +95,29 @@ the workspace's monthly limit, and emails the person who created the workflow if
 When the app is hosted (e.g. Vercel), call `GET /api/cron/workflows` every minute with
 `Authorization: Bearer <CRON_SECRET>` from a scheduler, and set `BABA_SCHEDULER=off`.
 
-## Connected tools (Google)
+## Connected tools
 
-One "Connect Google" per workspace lets Baba use Gmail (search, read, drafts, send),
-Drive (search, read, save files) and Calendar (check, create events). Sending email and
-creating events always wait for a person to approve them in Baba.
+Customers connect their own tools from the chat ("connect my Gmail") or the Integrations page.
+Each workspace can connect **several Google accounts** and any number of **services with an API key**.
 
-1. Google Cloud Console: create a project, enable the **Gmail API**, **Google Drive API** and
-   **Google Calendar API**.
-2. OAuth consent screen: External, add your Gmail as a **test user** (needed until Google reviews the app).
-3. Credentials → Create OAuth client ID → Web application. Authorised redirect URI:
-   `https://<your app address>/api/integrations/google/callback`.
-4. Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.local`, restart, and run
-   `npm run baba:setup` once so Baba gets the Google tools.
-5. Integrations → Gmail → Connect.
+- **Google (Gmail, Drive, Sheets, Calendar):** Baba shows a *Connect Google* button in the chat; the
+  customer signs in on Google's page in a small window. Sending email and creating events always need approval.
+- **Services with an API key:** Baba explains where to create the key and shows a **secure box** in the chat.
+  The key goes straight to the server (encrypted), never into the chat or to Claude, and can only be used for
+  requests to that service's address. Requests that change data need approval.
+- Tokens and keys live in `integration_credentials`, which only the server can read.
 
-Tokens are encrypted and stored in a table only the server can read; they are never sent to Claude.
+### One-time platform setup (you, not your customers)
+
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` identify **Baba the app** to Google. Set them once
+(in `.env.local` now, in your hosting settings when live); every customer then connects their own accounts.
+
+1. Google Cloud Console: create a project, enable the **Gmail API**, **Google Drive API** and **Google Calendar API**.
+2. OAuth consent screen: External; while testing add your Gmail as a **test user**. Before public launch,
+   submit the app for Google's verification.
+3. Credentials → OAuth client ID → Web application. Authorised redirect URI:
+   `https://<your app address>/api/integrations/google/callback` (add one per address: Codespace, live domain).
+4. Set the two values, restart, and run `npm run baba:setup` so Baba gets the tools.
 
 ## Legal pages
 

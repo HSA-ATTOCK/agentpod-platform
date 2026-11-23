@@ -52,6 +52,8 @@ type AskBabaProps = {
   userId: string;
   /** Viewers can read conversations but not give Baba tasks. */
   canWrite: boolean;
+  /** Owners and admins can connect tools from the chat. */
+  canManage: boolean;
   /** Open this conversation straight away (from ?c= links on other pages). */
   initialActiveId?: string;
   /** Pre-filled message (from a workflow's "Run now"). */
@@ -70,6 +72,7 @@ export function AskBaba({
   workspaceId,
   userId,
   canWrite,
+  canManage,
   initialActiveId,
   initialPrompt,
   workflowId,
@@ -311,6 +314,26 @@ export function AskBaba({
             },
           ]);
           break;
+        case "connect_request":
+        case "key_request": {
+          const itemId = `${event.type}-${event.id}`;
+          const item: ChatItem =
+            event.type === "connect_request"
+              ? { id: itemId, type: "connect_request", service: event.service, reason: event.reason, status: "pending" }
+              : {
+                  id: itemId,
+                  type: "key_request",
+                  serviceName: event.serviceName,
+                  apiHost: event.apiHost,
+                  headerName: event.headerName,
+                  headerPrefix: event.headerPrefix,
+                  queryParam: event.queryParam,
+                  instructions: event.instructions,
+                  status: "pending",
+                };
+          updateConversation(conversationId, (c) => (c.items.some((i) => i.id === itemId) ? c : { ...c, items: [...c.items, item] }));
+          break;
+        }
         case "files":
           updateConversation(conversationId, (c) => {
             const known = new Set(c.items.flatMap((i) => (i.type === "file" ? [i.file.id] : [])));
@@ -653,6 +676,9 @@ export function AskBaba({
               onContinue={continueAfterCap}
               cost={active.cost}
               onRetry={retry}
+              canManage={canManage}
+              conversationId={active.id}
+              onSend={(text) => void send(text, [])}
             />
             <div className="shrink-0 px-4 pb-3 pt-1 lg:px-8">
               <div className="mx-auto max-w-3xl">{composer("normal")}</div>

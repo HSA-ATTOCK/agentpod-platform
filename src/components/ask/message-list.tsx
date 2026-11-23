@@ -17,6 +17,7 @@ import {
   ThinkingIndicator,
   UserMessage,
 } from "./chat-items";
+import { ConnectRequestCard, KeyRequestCard } from "./connect-cards";
 import { MarkdownReply } from "./markdown-reply";
 import { MessageActions } from "./message-actions";
 import { ToolApprovalCard } from "./tool-approval-card";
@@ -30,16 +31,27 @@ type MessageListProps = {
   /** Spend so far, shown on the "paused at cap" card. */
   cost?: { cents: number; capCents: number | null };
   onRetry: () => void;
+  /** For the Connect / API-key cards Baba can put in the chat. */
+  canManage: boolean;
+  conversationId: string;
+  onSend: (text: string) => void;
 };
 
-type Handlers = Pick<MessageListProps, "onUpdateItem" | "onToolDecision" | "onContinue" | "cost" | "working">;
+type Handlers = Pick<
+  MessageListProps,
+  "onUpdateItem" | "onToolDecision" | "onContinue" | "cost" | "working" | "canManage" | "conversationId" | "onSend"
+>;
 
 // Item types that get Copy / Retry / Helpful buttons underneath
 const WITH_ACTIONS = new Set<ChatItem["type"]>(["progress", "answer", "text", "markdown"]);
 // Item types that sit under the previous Baba message without their own avatar
 const NO_AVATAR = new Set<ChatItem["type"]>(["sources", "file"]);
 
-function renderItem(item: ChatItem, { onUpdateItem, onToolDecision, onContinue, cost, working }: Handlers): ReactNode {
+function renderItem(
+  item: ChatItem,
+  { onUpdateItem, onToolDecision, onContinue, cost, working, canManage, conversationId, onSend }: Handlers,
+): ReactNode {
+  const cardProps = { canManage, conversationId, onSend, busy: working, onUpdate: (patch: Partial<ChatItem>) => onUpdateItem(item.id, patch) };
   switch (item.type) {
     case "progress":
       return <ProgressBlock item={item} />;
@@ -61,6 +73,10 @@ function renderItem(item: ChatItem, { onUpdateItem, onToolDecision, onContinue, 
       return (
         <ToolApprovalCard item={item} onDecide={(allow) => onToolDecision(item.id, item.toolUseId, allow)} />
       );
+    case "connect_request":
+      return <ConnectRequestCard item={item} {...cardProps} />;
+    case "key_request":
+      return <KeyRequestCard item={item} {...cardProps} />;
     case "budget_paused":
       return <BudgetPausedCard item={item} cost={cost} busy={working} onContinue={() => onContinue(item.id)} />;
     case "user":
@@ -77,6 +93,9 @@ export function MessageList({
   onContinue,
   cost,
   onRetry,
+  canManage,
+  conversationId,
+  onSend,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const nearBottomRef = useRef(true);
@@ -122,7 +141,7 @@ export function MessageList({
             const showAvatar = !NO_AVATAR.has(item.type) || previous?.type === "user";
             return (
               <BabaRow key={item.id} showAvatar={showAvatar} className="group">
-                {renderItem(item, { onUpdateItem, onToolDecision, onContinue, cost, working })}
+                {renderItem(item, { onUpdateItem, onToolDecision, onContinue, cost, working, canManage, conversationId, onSend })}
                 {WITH_ACTIONS.has(item.type) && (
                   <MessageActions copyText={itemToPlainText(item)} onRetry={onRetry} />
                 )}

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AskBaba } from "@/components/ask/ask-baba";
-import { requireAppContext } from "@/lib/data/context";
+import { canManage, requireAppContext } from "@/lib/data/context";
 import { listConversations } from "@/lib/data/conversations";
 import { Suspense } from "react";
 import { AskSkeleton } from "@/components/ui/page-skeleton";
@@ -23,6 +23,7 @@ async function AskBabaPageContent({ searchParams }: PageProps<"/ask">) {
         workspaceId={ctx.workspace.id}
         userId={ctx.user.id}
         canWrite={ctx.workspace.role !== "viewer"}
+        canManage={canManage(ctx.workspace.role)}
         initialActiveId={one(params.c)}
         initialPrompt={one(params.prompt)?.slice(0, 20000)}
         workflowId={one(params.workflow)}

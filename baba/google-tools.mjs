@@ -7,6 +7,10 @@
 export const GOOGLE_APPROVAL_TOOLS = ["gmail_send", "calendar_create_event"];
 
 const email = { type: "string", description: "Email address(es), comma-separated" };
+const account = {
+  type: "string",
+  description: "Which connected Google account to use (its email). Leave out to use the workspace's default account.",
+};
 
 export const googleTools = [
   {
@@ -17,6 +21,7 @@ export const googleTools = [
     input_schema: {
       type: "object",
       properties: {
+        account,
         query: { type: "string", description: "Gmail search query" },
         max_results: { type: "integer", minimum: 1, maximum: 25, description: "Default 10" },
       },
@@ -29,7 +34,8 @@ export const googleTools = [
     description: "Read one Gmail message in full (headers, text, attachment names) by its id from gmail_search.",
     input_schema: {
       type: "object",
-      properties: { message_id: { type: "string" } },
+      properties: {
+        account, message_id: { type: "string" } },
       required: ["message_id"],
     },
   },
@@ -41,6 +47,7 @@ export const googleTools = [
     input_schema: {
       type: "object",
       properties: {
+        account,
         to: email,
         cc: email,
         subject: { type: "string" },
@@ -58,6 +65,7 @@ export const googleTools = [
     input_schema: {
       type: "object",
       properties: {
+        account,
         to: email,
         cc: email,
         subject: { type: "string" },
@@ -75,6 +83,7 @@ export const googleTools = [
     input_schema: {
       type: "object",
       properties: {
+        account,
         query: { type: "string", description: "Words to look for in file names and contents" },
         max_results: { type: "integer", minimum: 1, maximum: 25, description: "Default 10" },
       },
@@ -88,7 +97,8 @@ export const googleTools = [
       "Read a Google Drive file by id: Google Docs and Slides as text, Google Sheets as CSV (first sheet), and plain-text/CSV/JSON files. Long files are cut off.",
     input_schema: {
       type: "object",
-      properties: { file_id: { type: "string" } },
+      properties: {
+        account, file_id: { type: "string" } },
       required: ["file_id"],
     },
   },
@@ -100,6 +110,7 @@ export const googleTools = [
     input_schema: {
       type: "object",
       properties: {
+        account,
         file_name: { type: "string", description: "Name of the file in /mnt/session/outputs/" },
         folder_id: { type: "string", description: "Drive folder id to save into (optional)" },
       },
@@ -114,6 +125,7 @@ export const googleTools = [
     input_schema: {
       type: "object",
       properties: {
+        account,
         time_min: { type: "string" },
         time_max: { type: "string" },
         query: { type: "string", description: "Only events matching these words (optional)" },
@@ -130,6 +142,7 @@ export const googleTools = [
     input_schema: {
       type: "object",
       properties: {
+        account,
         summary: { type: "string", description: "Event title" },
         start: { type: "string" },
         end: { type: "string" },
@@ -143,9 +156,10 @@ export const googleTools = [
 ];
 
 export const GOOGLE_RULES = `
-CONNECTED TOOLS (Google): you have gmail_*, drive_* and calendar_* tools. They work only if the user
-connected Google on the Integrations page; if a tool says it isn't connected, tell the user how to
-connect it (Integrations → Google → Connect) instead of guessing.
+CONNECTED TOOLS (Google): you have gmail_*, drive_* and calendar_* tools. They work once the workspace has
+connected Google. If a tool says it isn't connected, call request_connection (service "google") so the user
+gets a Connect button in the chat. If several Google accounts are connected, pass \`account\` (an email) when
+it matters which one; otherwise the default account is used.
 - Read and search freely to do the task. Never invent email contents or file data.
 - Prepare replies with gmail_create_draft. Only use gmail_send when the user clearly asked to SEND;
   each send waits for the user's approval in Baba (they see the recipient, subject and text).

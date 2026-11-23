@@ -1,11 +1,20 @@
 import "server-only";
 import type { BetaManagedAgentsAgentCustomToolUseEvent } from "@anthropic-ai/sdk/resources/beta/sessions/events";
 import {
-  approvalSummary,
+  apiRequest,
+  apiRequestSummary,
+  cleanHost,
+  CONNECTION_TOOL_NAMES,
+  connectionNeedsApproval,
+  listConnectionsText,
+} from "@/lib/integrations/connections";
+import { isGoogleConfigured } from "@/lib/integrations/google/oauth";
+import {
+  approvalSummary as googleApprovalSummary,
   GOOGLE_TOOL_NAMES,
-  NEEDS_APPROVAL,
+  NEEDS_APPROVAL as GOOGLE_NEEDS_APPROVAL,
   runGoogleTool,
-  TOOL_LABELS,
+  TOOL_LABELS as GOOGLE_LABELS,
 } from "@/lib/integrations/google/tools";
 import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
@@ -13,9 +22,12 @@ import type { BabaStreamEvent } from "./protocol";
 import { getClaude } from "./server";
 
 /**
- * Runs the custom tools Baba asks for (Google so far) on our server.
- * Tools that change something outside Baba (send email, create event) are not run here:
- * they're saved as pending approvals, and /api/baba/confirm runs them once a person approves.
+ * Runs the custom tools Baba asks for, on our server:
+ * - Google tools (Gmail, Drive, Calendar) with the workspace's tokens
+ * - connection tools: list what's connected, show a Connect button or a secure key box
+ *   in the chat, and call services added with an API key
+ * Calls that change something outside Baba are saved as pending approvals instead, and
+ * /api/baba/confirm runs them once a person approves.
  */
 
 export type CustomToolOutcome = "handled" | "awaiting_approval";
@@ -24,6 +36,40 @@ export type CustomToolHandler = (
   sessionId: string,
   emit: (event: BabaStreamEvent) => void,
 ) => Promise<CustomToolOutcome>;
+
+type Input = Record<string, unknown>;
+const str = (input: Input, key: string) => (typeof input[key] === "string" ? (input[key] as string).trim() : "");
+
+function needsApproval(name: string, input: Input) {
+  return GOOGLE_NEEDS_APPROVAL.has(name) || connectionNeedsApproval(name, input);
+}
+
+function label(name: string, input: Input) {
+  switch (name) {
+    case "list_connections":
+      return "Checking connected tools";
+    case "request_connection":
+      return "Asking you to connect Google";
+    case "request_api_key":
+      return `Asking for a ${str(input, "service_name") || "service"} API key`;
+    case "api_request":
+      return `Calling ${str(input, "service_name") || "a connected service"}`;
+    default:
+      return GOOGLE_LABELS[name] ?? name;
+  }
+}
+
+function summary(name: string, input: Input) {
+  return name === "api_request" ? apiRequestSummary(input) : googleApprovalSummary(name, input);
+}
+
+/** Runs a tool that doesn't need the chat UI. */
+async function runTool(name: string, input: Input, scope: { workspaceId: string; sessionId: string }) {
+  if (GOOGLE_TOOL_NAMES.has(name)) return runGoogleTool(name, input, scope);
+  if (name === "list_connections") return { text: await listConnectionsText(scope.workspaceId), isError: false };
+  if (name === "api_request") return apiRequest(scope.workspaceId, input);
+  return { text: `Unknown tool "${name}".`, isError: true };
+}
 
 async function sendResult(sessionId: string, toolUseId: string, text: string, isError: boolean) {
   await getClaude().beta.sessions.events.send(sessionId, {
@@ -39,29 +85,79 @@ async function sendResult(sessionId: string, toolUseId: string, text: string, is
 }
 
 // Tool calls already being handled by this server (a reconnect mustn't run one twice)
-const inFlight = (globalThis as unknown as { __babaToolCalls?: Set<string> }).__babaToolCalls ??= new Set<string>();
-(globalThis as unknown as { __babaToolCalls?: Set<string> }).__babaToolCalls = inFlight;
+const store = globalThis as unknown as { __babaToolCalls?: Set<string> };
+const inFlight = (store.__babaToolCalls ??= new Set<string>());
 
 export function createCustomToolHandler(scope: { workspaceId: string; conversationId: string }): CustomToolHandler {
   return async (event, sessionId, emit) => {
-    if (!NEEDS_APPROVAL.has(event.name)) {
+    const input = (event.input ?? {}) as Input;
+    const approval = needsApproval(event.name, input);
+    if (!approval) {
       if (inFlight.has(event.id)) return "handled";
       inFlight.add(event.id);
       setTimeout(() => inFlight.delete(event.id), 10 * 60_000);
     }
-    const label = TOOL_LABELS[event.name] ?? event.name;
+    const stepLabel = label(event.name, input);
     const stepId = `custom-${event.id}`;
 
-    if (!GOOGLE_TOOL_NAMES.has(event.name)) {
+    if (!GOOGLE_TOOL_NAMES.has(event.name) && !CONNECTION_TOOL_NAMES.has(event.name)) {
       await sendResult(sessionId, event.id, `Unknown tool "${event.name}".`, true);
       return "handled";
     }
     if (!isAdminConfigured()) {
-      await sendResult(sessionId, event.id, "Connected tools aren't set up on this server (SUPABASE_SECRET_KEY is missing).", true);
+      await sendResult(sessionId, event.id, "Connected tools aren't set up on this server yet (the server's secret key is missing).", true);
       return "handled";
     }
 
-    if (NEEDS_APPROVAL.has(event.name)) {
+    // ---- Things shown in the chat for the user to do ----
+    if (event.name === "request_connection") {
+      if (str(input, "service") !== "google") {
+        await sendResult(sessionId, event.id, "Only \"google\" can be connected with a button so far.", true);
+        return "handled";
+      }
+      if (!isGoogleConfigured()) {
+        await sendResult(sessionId, event.id, "Google sign-in isn't available on this server yet. Tell the user it's coming soon.", true);
+        return "handled";
+      }
+      emit({ type: "connect_request", id: event.id, service: "google", reason: str(input, "reason") });
+      await sendResult(
+        sessionId,
+        event.id,
+        "A 'Connect Google' button is now shown in the chat. Stop here: ask the user to click it, sign in, and tell you when it's done. Then check with list_connections.",
+        false,
+      );
+      emit({ type: "step", id: stepId, label: stepLabel, status: "done" });
+      return "handled";
+    }
+
+    if (event.name === "request_api_key") {
+      const host = cleanHost(str(input, "api_host"));
+      if (!host || !str(input, "service_name")) {
+        await sendResult(sessionId, event.id, "Give service_name and a valid public api_host (e.g. api.example.com).", true);
+        return "handled";
+      }
+      emit({
+        type: "key_request",
+        id: event.id,
+        serviceName: str(input, "service_name").slice(0, 60),
+        apiHost: host,
+        headerName: str(input, "header_name") || "Authorization",
+        headerPrefix: typeof input.header_prefix === "string" ? (input.header_prefix as string) : "Bearer ",
+        queryParam: str(input, "query_param") || null,
+        instructions: str(input, "instructions").slice(0, 3000),
+      });
+      await sendResult(
+        sessionId,
+        event.id,
+        "A secure box for the key is now shown in the chat. Stop here: ask the user to paste the key into that box (not into the chat) and tell you when it's saved. Then check with list_connections.",
+        false,
+      );
+      emit({ type: "step", id: stepId, label: stepLabel, status: "done" });
+      return "handled";
+    }
+
+    // ---- Changes outside Baba: wait for a person's OK ----
+    if (approval) {
       const admin = getSupabaseAdmin();
       await admin.from("tool_approvals").upsert(
         {
@@ -69,7 +165,7 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
           conversation_id: scope.conversationId,
           tool_use_id: event.id,
           tool_name: event.name,
-          input: event.input as Json,
+          input: input as Json,
         },
         { onConflict: "tool_use_id", ignoreDuplicates: true },
       );
@@ -79,18 +175,19 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
         .update({ status: "needs_approval" })
         .eq("conversation_id", scope.conversationId)
         .eq("status", "running");
-      emit({ type: "step", id: stepId, label: `Waiting for your approval: ${label.toLowerCase()}`, status: "running" });
-      emit({ type: "approval", toolUseId: event.id, toolName: label, summary: approvalSummary(event.name, event.input) });
+      emit({ type: "step", id: stepId, label: `Waiting for your approval: ${stepLabel.toLowerCase()}`, status: "running" });
+      emit({ type: "approval", toolUseId: event.id, toolName: stepLabel, summary: summary(event.name, input) });
       return "awaiting_approval";
     }
 
-    emit({ type: "step", id: stepId, label, status: "running" });
-    const result = await runGoogleTool(event.name, event.input, { workspaceId: scope.workspaceId, sessionId });
+    // ---- Everything else runs straight away ----
+    emit({ type: "step", id: stepId, label: stepLabel, status: "running" });
+    const result = await runTool(event.name, input, { workspaceId: scope.workspaceId, sessionId });
     await sendResult(sessionId, event.id, result.text, result.isError);
     emit({
       type: "step",
       id: stepId,
-      label,
+      label: stepLabel,
       status: result.isError ? "failed" : "done",
       detail: result.isError ? result.text.slice(0, 200) : undefined,
     });
@@ -133,7 +230,7 @@ export async function decidePendingTool(input: {
     await sendResult(input.sessionId, input.toolUseId, "The user declined this action. Don't retry it unless they ask.", true);
     return { ok: true as const, message: "Declined." };
   }
-  const result = await runGoogleTool(claimed.tool_name, claimed.input as Record<string, unknown>, {
+  const result = await runTool(claimed.tool_name, claimed.input as Input, {
     workspaceId: input.workspaceId,
     sessionId: input.sessionId,
   });

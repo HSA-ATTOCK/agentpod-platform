@@ -89,6 +89,27 @@ export type ChatItem =
   | { id: string; type: "text"; text: string }
   /** A reply from Baba written in Markdown. */
   | { id: string; type: "markdown"; text: string }
+  /** A "Connect Google" button Baba put in the chat. */
+  | {
+      id: string;
+      type: "connect_request";
+      service: "google";
+      reason: string;
+      status: "pending" | "connected";
+      account?: string;
+    }
+  /** A secure box for pasting an API key (the key is sent to the server only, never into the chat). */
+  | {
+      id: string;
+      type: "key_request";
+      serviceName: string;
+      apiHost: string;
+      headerName: string;
+      headerPrefix: string;
+      queryParam: string | null;
+      instructions: string;
+      status: "pending" | "saved";
+    }
   /** Shown when the conversation hits its spending cap; "Continue" resumes the same task. */
   | { id: string; type: "budget_paused"; status: "paused" | "resumed" };
 
