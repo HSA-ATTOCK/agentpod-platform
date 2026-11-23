@@ -173,28 +173,61 @@ export type Database = {
           },
         ]
       }
+      integration_credentials: {
+        Row: {
+          access_token_enc: string | null
+          access_token_expires_at: string | null
+          provider: string
+          refresh_token_enc: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          access_token_enc?: string | null
+          access_token_expires_at?: string | null
+          provider: string
+          refresh_token_enc: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          access_token_enc?: string | null
+          access_token_expires_at?: string | null
+          provider?: string
+          refresh_token_enc?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       integrations: {
         Row: {
+          account_email: string | null
           connected_by: string | null
           created_at: string
           id: string
           provider: string
+          scopes: string[]
           status: string
           workspace_id: string
         }
         Insert: {
+          account_email?: string | null
           connected_by?: string | null
           created_at?: string
           id?: string
           provider: string
+          scopes?: string[]
           status?: string
           workspace_id: string
         }
         Update: {
+          account_email?: string | null
           connected_by?: string | null
           created_at?: string
           id?: string
           provider?: string
+          scopes?: string[]
           status?: string
           workspace_id?: string
         }
@@ -348,6 +381,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tool_approvals: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          input: Json
+          status: string
+          tool_name: string
+          tool_use_id: string
+          workspace_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          input: Json
+          status?: string
+          tool_name: string
+          tool_use_id: string
+          workspace_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          input?: Json
+          status?: string
+          tool_name?: string
+          tool_use_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       workflows: {
         Row: {
@@ -546,7 +618,7 @@ export type Database = {
       }
     }
     Enums: {
-      task_status: "running" | "succeeded" | "failed" | "paused"
+      task_status: "running" | "succeeded" | "failed" | "paused" | "needs_approval"
       workspace_role: "owner" | "admin" | "member" | "viewer"
     }
     CompositeTypes: {

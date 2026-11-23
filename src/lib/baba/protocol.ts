@@ -20,7 +20,7 @@ export type BabaStreamEvent =
   | { type: "error"; message: string }
   /** Keep-alive sent every few seconds; the UI ignores it. */
   | { type: "ping" }
-  | { type: "done"; reason: "end_turn" | "budget_reached" | "refusal" | "failed" | "terminated" };
+  | { type: "done"; reason: "end_turn" | "budget_reached" | "refusal" | "failed" | "terminated" | "needs_approval" };
 
 /**
  * Body of POST /api/baba/chat. The browser creates the conversation row first

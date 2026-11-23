@@ -4,6 +4,7 @@ import type {
   BetaManagedAgentsStreamSessionEvents,
 } from "@anthropic-ai/sdk/resources/beta/sessions/events";
 import type { BabaStreamEvent } from "./protocol";
+import type { CustomToolHandler } from "./custom-tools";
 import { errorMessage, getClaude } from "./server";
 import { createTranslator } from "./translate";
 
@@ -31,6 +32,13 @@ type TurnOptions = {
     event: (event: BabaStreamEvent) => void;
     finish: (reason: Finished["reason"]) => Promise<void>;
   };
+  /** Runs the custom tools Baba calls (Google…). */
+  customTools?: CustomToolHandler;
+  /**
+   * Nobody is watching (scheduled runs): when a tool call needs a person's approval,
+   * stop here and record the task as waiting, instead of waiting on the stream.
+   */
+  headless?: boolean;
 };
 
 type Finished = BabaStreamEvent & { type: "done" };
@@ -47,7 +55,7 @@ type RunOptions = Omit<TurnOptions, "request"> & {
  * passes translated events to `emit` until the turn ends, then reports output files.
  * Used by the browser stream below and by scheduled workflow runs (no browser).
  */
-export async function runTurn({ logName, prepare, kickoff, catchUp, track, emit: rawEmit, signal }: RunOptions) {
+export async function runTurn({ logName, prepare, kickoff, catchUp, track, customTools, headless, emit: rawEmit, signal }: RunOptions) {
   const claude = getClaude();
   const emit = (event: BabaStreamEvent) => {
     if (event.type !== "ping") track?.event(event);
@@ -62,6 +70,14 @@ export async function runTurn({ logName, prepare, kickoff, catchUp, track, emit:
     // Open the event stream BEFORE anything else, so no events are missed
     const events = await claude.beta.sessions.events.stream(sessionId, {}, { signal });
 
+    // A custom tool call (Google…): run it, or note that it waits for approval
+    let awaitingApproval = false;
+    const onCustomTool = async (event: BetaManagedAgentsStreamSessionEvents) => {
+      if (event.type !== "agent.custom_tool_use" || !customTools) return;
+      const outcome = await customTools(event, sessionId, emit);
+      if (outcome === "awaiting_approval") awaitingApproval = true;
+    };
+
     // Reconnecting: replay this turn's events so far
     const seen = new Set<string>();
     if (catchUp) {
@@ -70,14 +86,23 @@ export async function runTurn({ logName, prepare, kickoff, catchUp, track, emit:
         history.push(event);
       }
       const turnStart = history.findLastIndex((event) => event.type === "user.message");
-      for (const event of history.slice(turnStart + 1)) {
+      const turn = history.slice(turnStart + 1);
+      // Custom tool calls that already have an answer mustn't run again
+      const answered = new Set(
+        turn.flatMap((event) => (event.type === "user.custom_tool_result" ? [event.custom_tool_use_id] : [])),
+      );
+      for (const event of turn) {
         seen.add(event.id);
         const result = translate(event as BetaManagedAgentsStreamSessionEvents);
         result.out.forEach(emit);
+        if (event.type === "agent.custom_tool_use" && !answered.has(event.id)) {
+          await onCustomTool(event as BetaManagedAgentsStreamSessionEvents);
+        }
         // An earlier pause (e.g. at the budget) that was later resumed doesn't end the turn
         if (result.finished) finished = result.finished;
         else if (event.type === "session.status_running") finished = undefined;
       }
+      if (headless && awaitingApproval && !finished) finished = { type: "done", reason: "needs_approval" };
     }
 
     if (kickoff) await kickoff(sessionId);
@@ -88,8 +113,13 @@ export async function runTurn({ logName, prepare, kickoff, catchUp, track, emit:
         if ("id" in event && typeof event.id === "string" && seen.has(event.id)) continue;
         const result = translate(event);
         result.out.forEach(emit);
+        await onCustomTool(event);
         if (result.finished) {
           finished = result.finished;
+          break;
+        }
+        if (headless && awaitingApproval) {
+          finished = { type: "done", reason: "needs_approval" };
           break;
         }
       }

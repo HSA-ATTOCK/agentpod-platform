@@ -68,7 +68,11 @@ export function notFound() {
   return Response.json({ error: "Conversation not found." }, { status: 404 });
 }
 
-const STATUS_FOR: Record<Extract<BabaStreamEvent, { type: "done" }>["reason"], "succeeded" | "failed" | "paused"> = {
+const STATUS_FOR: Record<
+  Extract<BabaStreamEvent, { type: "done" }>["reason"],
+  "succeeded" | "failed" | "paused" | "needs_approval"
+> = {
+  needs_approval: "needs_approval",
   end_turn: "succeeded",
   budget_reached: "paused",
   refusal: "failed",
@@ -95,7 +99,7 @@ async function notify(ctx: AppContext, kind: TaskEmailKind, request: string, url
   await sendEmail(taskEmail({ to: ctx.user.email, kind, request, url, detail }));
 }
 
-const EMAIL_FOR: Partial<Record<"succeeded" | "failed" | "paused", TaskEmailKind>> = {
+const EMAIL_FOR: Partial<Record<"succeeded" | "failed" | "paused" | "needs_approval", TaskEmailKind>> = {
   succeeded: "task_finished",
   failed: "task_failed",
   paused: "paused_at_cap",
@@ -203,7 +207,14 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
             ...step,
             at: merged.get(step.id)?.at ?? step.at,
             // Anything still "running" when the turn ends didn't finish
-            status: step.status === "running" ? (status === "succeeded" ? "done" : status === "paused" ? "running" : "failed") : step.status,
+            status:
+              step.status === "running"
+                ? status === "succeeded"
+                  ? "done"
+                  : status === "paused" || status === "needs_approval"
+                    ? "running"
+                    : "failed"
+                : step.status,
           });
         }
         // The session's spend is cumulative; this turn added (now − what the conversation had before)
@@ -216,7 +227,7 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
             agents: [...new Set([...(existing?.agents ?? []), ...agents])],
             steps: [...merged.values()].slice(-100) as unknown as Json,
             error: status === "failed" ? (lastError ?? "The task didn't finish.") : null,
-            finished_at: status === "paused" ? null : new Date().toISOString(),
+            finished_at: status === "paused" || status === "needs_approval" ? null : new Date().toISOString(),
             ...(capCents ? { cap_cents: Math.round(capCents) } : {}),
           })
           .eq("id", task);
