@@ -159,11 +159,11 @@ export function SignUpForm() {
             />
             <span className="text-xs leading-relaxed text-muted">
               I agree to the{" "}
-              <a href="#" className="text-foreground hover:underline">
+              <a href={routes.terms} target="_blank" rel="noreferrer" className="text-foreground hover:underline">
                 Terms of Service
               </a>{" "}
               and the{" "}
-              <a href="#" className="text-foreground hover:underline">
+              <a href={routes.privacy} target="_blank" rel="noreferrer" className="text-foreground hover:underline">
                 Privacy Policy
               </a>
               .

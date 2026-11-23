@@ -14,6 +14,7 @@ export type CurrentWorkspace = Workspace & {
   role: WorkspaceRole;
   taskCapUsd: number;
   monthlyLimitUsd: number;
+  logoUrl: string | null;
 };
 
 export type AppContext = {
@@ -25,7 +26,7 @@ export type AppContext = {
 };
 
 const MEMBERSHIPS =
-  "role, created_at, workspaces (id, name, slug, task_cap_usd, monthly_limit_usd)" as const;
+  "role, created_at, workspaces (id, name, slug, task_cap_usd, monthly_limit_usd, logo_url)" as const;
 
 /**
  * Who is signed in and which workspace they're working in. Cached for one request.
@@ -37,6 +38,8 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims.sub;
   if (!userId) return null;
+  // Two-step verification switched on but not done in this session: no data access yet
+  if (await mfaPending(supabase)) return null;
 
   const loadMemberships = () =>
     supabase.from("workspace_members").select(MEMBERSHIPS).eq("user_id", userId).order("created_at", { ascending: true });
@@ -74,15 +77,30 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
       role: current.role,
       taskCapUsd: Number(ws.task_cap_usd),
       monthlyLimitUsd: Number(ws.monthly_limit_usd),
+      logoUrl: ws.logo_url,
     },
     workspaces: usable.map((m) => ({ id: m.workspaces!.id, name: m.workspaces!.name, role: m.role })),
   };
 });
 
-/** Like getAppContext, but sends people who aren't signed in to the sign-in page. */
+/** True when the user has two-step verification on but hasn't entered a code this session. */
+export async function mfaPending(supabase: Awaited<ReturnType<typeof getSupabaseServer>>) {
+  const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  return data?.nextLevel === "aal2" && data.currentLevel !== "aal2";
+}
+
+/**
+ * Like getAppContext, but sends people who aren't signed in to the sign-in page
+ * (or to the two-step code page if that's what's missing).
+ */
 export async function requireAppContext(): Promise<AppContext> {
   const context = await getAppContext();
-  if (!context) redirect(routes.signIn);
+  if (!context) {
+    const supabase = await getSupabaseServer();
+    const { data } = await supabase.auth.getClaims();
+    if (data?.claims.sub && (await mfaPending(supabase))) redirect(routes.twoFactor);
+    redirect(routes.signIn);
+  }
   return context;
 }
 

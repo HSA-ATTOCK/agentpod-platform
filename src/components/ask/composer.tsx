@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowUp, FileText, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, CircleAlert, FileText, Loader2, Paperclip, Square, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { uploadForBaba } from "@/lib/baba/client";
 import { cn } from "@/lib/utils";
 import type { ChatAttachment } from "@/types/chat";
 
@@ -26,6 +27,9 @@ type ComposerProps = {
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
 };
 
+// Most files Baba can take in one message
+const MAX_FILES = 5;
+
 /** The message box: grows with text, attaches files, sends with Enter. */
 export function Composer({
   value,
@@ -41,7 +45,9 @@ export function Composer({
   const fallbackRef = useRef<HTMLTextAreaElement | null>(null);
   const inputRef = textareaRef ?? fallbackRef;
 
-  const canSend = value.trim().length > 0 || attachments.length > 0;
+  const uploading = attachments.some((a) => a.status === "uploading");
+  const ready = attachments.filter((a) => a.status === "ready");
+  const canSend = !uploading && (value.trim().length > 0 || ready.length > 0);
 
   // Grow the textarea with its content, up to MAX_LINES
   useLayoutEffect(() => {
@@ -53,7 +59,7 @@ export function Composer({
 
   function send() {
     if (!canSend || working) return;
-    onSend(value.trim(), attachments);
+    onSend(value.trim(), ready);
     setAttachments([]);
   }
 
@@ -66,12 +72,35 @@ export function Composer({
 
   function handleFiles(files: FileList | null) {
     if (!files) return;
-    const added = Array.from(files).map((file) => ({
+    const room = MAX_FILES - attachments.length;
+    const picked = Array.from(files).slice(0, Math.max(0, room));
+    const added: ChatAttachment[] = picked.map((file) => ({
       id: crypto.randomUUID(),
       name: file.name,
       sizeLabel: formatSize(file.size),
+      status: "uploading",
     }));
     setAttachments((prev) => [...prev, ...added]);
+
+    // Upload straight away, so sending is instant
+    picked.forEach((file, i) => {
+      const id = added[i].id;
+      uploadForBaba(file)
+        .then((up) =>
+          setAttachments((prev) =>
+            prev.map((a) =>
+              a.id === id ? { ...a, status: "ready", upload: { fileId: up.fileId, token: up.token, mimeType: up.mimeType } } : a,
+            ),
+          ),
+        )
+        .catch((error: unknown) =>
+          setAttachments((prev) =>
+            prev.map((a) =>
+              a.id === id ? { ...a, status: "failed", error: error instanceof Error ? error.message : "Upload failed." } : a,
+            ),
+          ),
+        );
+    });
   }
 
   return (
@@ -89,9 +118,19 @@ export function Composer({
                 key={file.id}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface py-1 pl-2.5 pr-1 text-xs text-foreground"
               >
-                <FileText aria-hidden="true" className="size-3.5 text-accent" />
-                <span className="max-w-40 truncate">{file.name}</span>
-                {file.sizeLabel && <span className="text-subtle">{file.sizeLabel}</span>}
+                {file.status === "uploading" ? (
+                  <Loader2 aria-hidden="true" className="size-3.5 animate-spin text-subtle" />
+                ) : file.status === "failed" ? (
+                  <CircleAlert aria-hidden="true" className="size-3.5 text-danger" />
+                ) : (
+                  <FileText aria-hidden="true" className="size-3.5 text-accent" />
+                )}
+                <span className={cn("max-w-40 truncate", file.status === "failed" && "text-danger")} title={file.error}>
+                  {file.name}
+                </span>
+                <span className={file.status === "failed" ? "text-danger" : "text-subtle"}>
+                  {file.status === "uploading" ? "Uploading…" : file.status === "failed" ? (file.error ?? "Failed") : file.sizeLabel}
+                </span>
                 <button
                   type="button"
                   onClick={() => setAttachments((prev) => prev.filter((f) => f.id !== file.id))}
@@ -110,6 +149,7 @@ export function Composer({
             ref={fileInputRef}
             type="file"
             multiple
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.md,.json,.png,.jpg,.jpeg,.webp,.gif"
             className="sr-only"
             tabIndex={-1}
             aria-hidden="true"

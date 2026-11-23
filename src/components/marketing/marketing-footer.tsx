@@ -7,10 +7,10 @@ const linkColumns = [
   {
     title: "Product",
     links: [
-      { label: "Features", href: "#features" },
-      { label: "Use cases", href: "#use-cases" },
-      { label: "How it works", href: "#how-it-works" },
-      { label: "App preview", href: routes.dashboard },
+      { label: "Features", href: "/#features" },
+      { label: "Use cases", href: "/#use-cases" },
+      { label: "How it works", href: "/#how-it-works" },
+      { label: "Open the app", href: routes.ask },
     ],
   },
   {
@@ -54,12 +54,12 @@ export function MarketingFooter() {
         <div className="flex flex-col items-center justify-between gap-4 pt-8 text-xs text-subtle sm:flex-row">
           <p>© 2026 {siteConfig.name}. All rights reserved.</p>
           <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-muted">
+            <Link href={routes.terms} className="hover:text-muted">
               Terms of Service
-            </a>
-            <a href="#" className="hover:text-muted">
+            </Link>
+            <Link href={routes.privacy} className="hover:text-muted">
               Privacy Policy
-            </a>
+            </Link>
           </div>
         </div>
       </div>

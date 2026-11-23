@@ -56,6 +56,15 @@ async function postAndStream(url: string, payload: unknown, { signal, onEvent }:
   if (buffer.trim()) onEvent(JSON.parse(buffer) as BabaStreamEvent);
 }
 
+/** Uploads a file for Baba to work on. */
+export async function uploadForBaba(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch("/api/baba/uploads", { method: "POST", body: form });
+  if (!response.ok) throw new Error(await readError(response));
+  return (await response.json()) as { fileId: string; token: string; name: string; mimeType: string; sizeBytes: number };
+}
+
 /** Stop button: asks Baba to stop working on the current task. */
 export async function interruptBaba(conversationId: string) {
   await fetch("/api/baba/interrupt", {

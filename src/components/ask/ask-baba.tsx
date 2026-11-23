@@ -355,19 +355,17 @@ export function AskBaba({
 
   async function send(text: string, attachments: ChatAttachment[]) {
     if (!canWrite) return;
-    const userItem: ChatItem = { id: crypto.randomUUID(), type: "user", text, attachments };
-    const notes: ChatItem[] =
-      attachments.length > 0
-        ? [
-            {
-              id: crypto.randomUUID(),
-              type: "error",
-              text: text
-                ? "Attached files can't be sent to Baba yet, so only your message text was sent."
-                : "Attached files can't be sent to Baba yet. Please describe the task in text.",
-            },
-          ]
-        : [];
+    // What's saved in the chat: name and size only
+    const userItem: ChatItem = {
+      id: crypto.randomUUID(),
+      type: "user",
+      text,
+      attachments: attachments.map(({ id, name, sizeLabel }) => ({ id, name, sizeLabel })),
+    };
+    const files = attachments.flatMap((a) =>
+      a.upload ? [{ fileId: a.upload.fileId, token: a.upload.token, name: a.name, mimeType: a.upload.mimeType }] : [],
+    );
+    const notes: ChatItem[] = [];
     let conversationId = activeId;
 
     // A paused conversation only accepts "Continue" until its cap is raised
@@ -410,12 +408,12 @@ export function AskBaba({
       appendItems(conversationId, [userItem, ...notes]);
     }
 
-    if (text) {
+    if (text || files.length > 0) {
       const id = conversationId;
       const workflow = workflowRef.current;
       workflowRef.current = undefined;
       void runBaba(id, active?.sessionId, (options) =>
-        streamBaba({ conversationId: id, text, workflowId: workflow }, options),
+        streamBaba({ conversationId: id, text, workflowId: workflow, attachments: files }, options),
       );
     }
   }

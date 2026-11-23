@@ -90,6 +90,26 @@ export async function resendVerificationEmail(email: string): Promise<AuthResult
   return result(error);
 }
 
+/** True when this account has two-step verification on and the session still needs a code. */
+export async function needsTwoFactor() {
+  const { data } = await getSupabaseBrowser().auth.mfa.getAuthenticatorAssuranceLevel();
+  return data?.nextLevel === "aal2" && data.currentLevel !== "aal2";
+}
+
+/** Checks a 6-digit code from the authenticator app and upgrades the session. */
+export async function verifyTwoFactorCode(code: string): Promise<AuthResult> {
+  const supabase = getSupabaseBrowser();
+  const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+  if (listError) return { ok: false, error: friendly(listError) };
+  const factor = factors.totp.find((f) => f.status === "verified");
+  if (!factor) return { ok: false, error: "No authenticator app is set up for this account." };
+  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: code.replace(/\s+/g, "") });
+  if (error) {
+    return { ok: false, error: /invalid|expired/i.test(error.message) ? "That code isn't right. Check the app and try the newest code." : friendly(error) };
+  }
+  return { ok: true };
+}
+
 export async function updatePassword(password: string): Promise<AuthResult> {
   const { error } = await getSupabaseBrowser().auth.updateUser({ password });
   return result(error);

@@ -10,6 +10,11 @@ export type ChatAttachment = {
   name: string;
   /** e.g. "1.2 MB" */
   sizeLabel?: string;
+  /** While in the message box: uploading, ready to send, or failed. */
+  status?: "uploading" | "ready" | "failed";
+  error?: string;
+  /** Set once uploaded (see /api/baba/uploads). */
+  upload?: { fileId: string; token: string; mimeType: string };
 };
 
 export type TaskStepStatus = "done" | "running" | "pending" | "failed";

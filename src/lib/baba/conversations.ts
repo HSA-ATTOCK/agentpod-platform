@@ -1,5 +1,9 @@
 import "server-only";
+import { emailEnabled, type NotificationPrefs } from "@/config/notifications";
+import { routes } from "@/config/routes";
 import { getAppContext, type AppContext } from "@/lib/data/context";
+import { sendEmail } from "@/lib/email/mailer";
+import { taskEmail, type TaskEmailKind } from "@/lib/email/templates";
 import type { Json } from "@/types/database";
 import { fileKindFromName } from "./client";
 import type { BabaStreamEvent } from "./protocol";
@@ -76,8 +80,32 @@ const STATUS_FOR: Record<Extract<BabaStreamEvent, { type: "done" }>["reason"], "
  * Records a turn in the database as it streams: spend, which agents helped,
  * the files Baba created, and how the task ended (for the Activity and Projects pages).
  */
-export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId?: string) {
+/**
+ * Emails the person who started the task, if their notification choices allow it
+ * (Settings → Notifications).
+ */
+async function notify(ctx: AppContext, kind: TaskEmailKind, request: string, url: string, detail?: string) {
+  const { data } = await ctx.supabase
+    .from("notification_preferences")
+    .select("prefs")
+    .eq("user_id", ctx.user.id)
+    .eq("workspace_id", ctx.workspace.id)
+    .maybeSingle();
+  if (!emailEnabled((data?.prefs ?? {}) as NotificationPrefs, kind)) return;
+  await sendEmail(taskEmail({ to: ctx.user.email, kind, request, url, detail }));
+}
+
+const EMAIL_FOR: Partial<Record<"succeeded" | "failed" | "paused", TaskEmailKind>> = {
+  succeeded: "task_finished",
+  failed: "task_failed",
+  paused: "paused_at_cap",
+};
+
+/** `origin` is the app's address, for links in notification emails. */
+export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId?: string, origin?: string) {
   const { supabase } = ctx;
+  const chatUrl = origin ? `${origin}${routes.ask}?c=${conversation.id}` : null;
+  const approvalsEmailed = new Set<string>();
   let costCents: number | undefined;
   let capCents: number | null | undefined;
   let lastError: string | undefined;
@@ -133,6 +161,13 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
         lastError = event.message;
       } else if (event.type === "files") {
         void saveFiles(event.files);
+      } else if (event.type === "approval" && chatUrl && !approvalsEmailed.has(event.toolUseId)) {
+        approvalsEmailed.add(event.toolUseId);
+        void (async () => {
+          const id = await currentTaskId();
+          const { data } = id ? await supabase.from("tasks").select("request").eq("id", id).maybeSingle() : { data: null };
+          await notify(ctx, "approval_needed", data?.request ?? conversation.id, chatUrl, `Baba wants to use: ${event.toolName}`);
+        })().catch((error) => console.error("[baba/track] approval email", error));
       }
     },
 
@@ -151,12 +186,14 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
         .eq("id", conversation.id);
 
       let taskUpdate: PromiseLike<unknown> = Promise.resolve();
+      let previous: { status: string; request: string } | null = null;
       if (task) {
         const { data: existing } = await supabase
           .from("tasks")
-          .select("cost_cents, agents, steps")
+          .select("cost_cents, agents, steps, status, request")
           .eq("id", task)
           .maybeSingle();
+        previous = existing ? { status: existing.status, request: existing.request } : null;
         // Merge with steps saved earlier (a task resumed after its cap keeps its first steps)
         const merged = new Map<string, TaskStepRecord>(
           ((existing?.steps as TaskStepRecord[] | null) ?? []).map((step) => [step.id, step]),
@@ -190,6 +227,14 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
         if (result?.error) console.error("[baba/track]", result.error.message);
       }
       if (spent !== undefined) conversation.cost_cents = spent;
+
+      // Email once per change of outcome (a reconnect replaying the same ending sends nothing)
+      const kind = EMAIL_FOR[status];
+      if (kind && chatUrl && previous && previous.status !== status) {
+        await notify(ctx, kind, previous.request, chatUrl, status === "failed" ? (lastError ?? undefined) : undefined).catch((error) =>
+          console.error("[baba/track] email", error),
+        );
+      }
     },
   };
 }

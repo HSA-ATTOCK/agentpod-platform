@@ -26,4 +26,12 @@ export type BabaStreamEvent =
  * Body of POST /api/baba/chat. The browser creates the conversation row first
  * (so its messages can be saved); the server looks up its Claude session itself.
  */
-export type BabaChatRequest = { conversationId: string; text: string; workflowId?: string };
+/** A file uploaded through /api/baba/uploads, as sent along with a message. */
+export type BabaAttachment = { fileId: string; token: string; name: string; mimeType: string };
+
+export type BabaChatRequest = {
+  conversationId: string;
+  text: string;
+  workflowId?: string;
+  attachments?: BabaAttachment[];
+};

@@ -36,7 +36,7 @@ export function AppSidebar({ workspace, workspaces, invites, user }: AppSidebarP
 
         <div className="mt-1 border-t border-border pt-2">
           <div className="flex items-center gap-3 rounded-control border border-border bg-surface-raised p-2">
-            <Avatar name={user.fullName} />
+            <Avatar name={user.fullName} src={user.avatarUrl} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-foreground">{user.fullName}</p>
               <p className="truncate text-[11px] text-subtle">{user.email}</p>

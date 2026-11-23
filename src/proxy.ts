@@ -14,6 +14,7 @@ const PROTECTED = [
   routes.settings,
   routes.profile,
   routes.resetPassword,
+  routes.twoFactor,
 ];
 
 // Pages a signed-in user doesn't need (sent on to the app instead)

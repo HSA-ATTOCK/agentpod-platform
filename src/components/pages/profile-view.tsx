@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { Input, selectClasses } from "@/components/ui/input";
 import { LocalTime } from "@/components/ui/local-time";
 import { PageHeader } from "@/components/ui/page-header";
@@ -172,7 +173,7 @@ export function ProfileView({ profile, role, usage }: ProfileViewProps) {
 
       <Card className="flex flex-col justify-between gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
         <div className="flex items-center gap-4">
-          <Avatar name={details.name || "?"} className="size-16 border-2 border-accent text-xl text-accent" />
+          <Avatar name={details.name || "?"} src={profile.avatarUrl} className="size-16 border-2 border-accent text-xl text-accent" />
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl font-bold text-foreground">{details.name || "Your name"}</h2>
@@ -182,6 +183,20 @@ export function ProfileView({ profile, role, usage }: ProfileViewProps) {
             <p className="mt-0.5 text-xs text-subtle">
               Member since <LocalTime iso={profile.createdAt} format="date" />
             </p>
+            <div className="mt-2">
+              <ImageUpload
+                bucket="avatars"
+                folder={profile.id}
+                hasImage={Boolean(profile.avatarUrl)}
+                label="Upload profile photo"
+                onError={showToast}
+                onChange={async (url) => {
+                  const { error } = await supabase.from("profiles").update({ avatar_url: url }).eq("id", profile.id);
+                  showToast(error ? "Couldn't save your photo." : url ? "Photo updated." : "Photo removed.");
+                  if (!error) router.refresh();
+                }}
+              />
+            </div>
           </div>
         </div>
       </Card>
