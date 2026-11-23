@@ -1,4 +1,5 @@
 import "server-only";
+import { listCustomAgentsText, runCustomAgent } from "@/lib/custom-agents/custom-agents";
 import type { AppContext } from "@/lib/data/context";
 import { dbQuery } from "@/lib/integrations/databases";
 import { deleteMemory, memoryText, saveMemory, searchKnowledge } from "@/lib/knowledge/knowledge";
@@ -14,6 +15,8 @@ type Result = { text: string; isError: boolean };
 const str = (input: Input, key: string) => (typeof input[key] === "string" ? (input[key] as string).trim() : "");
 
 export const WORKSPACE_TOOL_NAMES = new Set([
+  "list_custom_agents",
+  "run_custom_agent",
   "memory_list",
   "memory_save",
   "memory_delete",
@@ -32,7 +35,8 @@ export const WORKSPACE_NEEDS_APPROVAL = new Set(["memory_delete", "site_restore_
 const WRITE_TOOLS = new Set(["memory_save", "memory_delete", "site_publish_preview", "site_restore_version"]);
 
 export const WORKSPACE_LABELS: Record<string, string> = {
-  memory_list: "Reading business memory",
+  list_custom_agents: "Checking your custom agents",
+  run_custom_agent: "Your custom agent is working on a sub-task",
   memory_save: "Saving to business memory",
   memory_delete: "Deleting a memory",
   knowledge_search: "Searching the knowledge base",
@@ -56,6 +60,10 @@ export async function runWorkspaceTool(name: string, input: Input, scope: { ctx:
   }
   try {
     switch (name) {
+      case "list_custom_agents":
+        return { text: await listCustomAgentsText(ctx), isError: false };
+      case "run_custom_agent":
+        return { text: await runCustomAgent(ctx, scope, { agent: str(input, "agent"), task: str(input, "task") }), isError: false };
       case "memory_list":
         return { text: await memoryText(ctx), isError: false };
       case "memory_save": {

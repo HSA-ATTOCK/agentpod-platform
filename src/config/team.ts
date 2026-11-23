@@ -61,12 +61,12 @@ export const specialists: TeamMember[] = [
     tools: ["Run code", "Create files"],
     icon: ChartColumn,
   },
-  { id: "website_builder", name: "Website Builder", job: "Builds complete, responsive websites you can preview and download.", status: "coming_soon", tools: [], icon: Globe },
+  { id: "website_builder", name: "Website Builder", job: "Builds complete, responsive websites with a live preview link and version history.", status: "active", tools: ["Build files", "Run code", "Preview links"], icon: Globe },
   { id: "mobile_app_builder", name: "Mobile App Builder", job: "Builds iOS and Android apps with a live preview.", status: "coming_soon", tools: [], icon: Smartphone },
-  { id: "designer", name: "UI/UX Designer", job: "Plans the look, layout and wording of websites and apps.", status: "coming_soon", tools: [], icon: LayoutTemplate },
-  { id: "qa_reviewer", name: "QA Reviewer", job: "Tests what the builders made and sends bugs back to them.", status: "coming_soon", tools: [], icon: CircleCheck },
-  { id: "marketing", name: "Marketing Strategist", job: "Plans campaigns, content, SEO and social posts.", status: "coming_soon", tools: [], icon: Target },
-  { id: "finance", name: "Finance & Accounts Analyst", job: "Bookkeeping, financial reports, budgets and forecasts.", status: "coming_soon", tools: [], icon: Calculator },
+  { id: "designer", name: "UI/UX Designer", job: "Plans the look, layout, colours and journeys of websites and apps.", status: "active", tools: ["Design specs"], icon: LayoutTemplate },
+  { id: "qa_reviewer", name: "QA Reviewer", job: "Independently tests websites, checks numbers and reviews documents before you get them.", status: "active", tools: ["Run code", "Test sites"], icon: CircleCheck },
+  { id: "marketing", name: "Marketing & SEO", job: "SEO audits, keyword ideas, campaign plans, content calendars and ad copy.", status: "active", tools: ["Web search", "Read web pages"], icon: Target },
+  { id: "finance", name: "Finance Analyst", job: "Revenue, expenses, profit and cash-flow reports from your data, with traceable figures.", status: "active", tools: ["Run code", "Spreadsheets"], icon: Calculator },
   { id: "operations", name: "Operations Agent", job: "Inbox, CRM, scheduling and admin work through your connected tools.", status: "coming_soon", tools: [], icon: Workflow },
 ];
 

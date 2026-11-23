@@ -158,6 +158,8 @@ after updating so Baba has the latest tools.
 - **Databases:** Baba shows a secure form to connect PostgreSQL or MySQL. Access is read-only
   (checked queries, read-only transaction, 15-second limit); the password is encrypted and never
   reaches the AI.
+- **Your own agents:** owners and admins create custom specialists (instructions, model, web access,
+  cost limit) on the AI Agents page. Baba hands them work in a separate, budget-capped session.
 - **Webhooks:** any workflow can get a secret link (Workflows → ⋯ → Create webhook link). A POST to
   it runs the workflow with the request body as data.
 

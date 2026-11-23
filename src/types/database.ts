@@ -1080,6 +1080,63 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_agents: {
+        Row: {
+          claude_agent_id: string | null
+          claude_agent_version: number | null
+          created_at: string
+          created_by: string | null
+          description: string
+          enabled: boolean
+          id: string
+          instructions: string
+          last_run_at: string | null
+          max_cost_usd: number
+          model: string
+          name: string
+          runs: number
+          updated_at: string
+          web_access: boolean
+          workspace_id: string
+        }
+        Insert: {
+          claude_agent_id?: string | null
+          claude_agent_version?: number | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          enabled?: boolean
+          id?: string
+          instructions: string
+          last_run_at?: string | null
+          max_cost_usd?: number
+          model?: string
+          name: string
+          runs?: number
+          updated_at?: string
+          web_access?: boolean
+          workspace_id: string
+        }
+        Update: {
+          claude_agent_id?: string | null
+          claude_agent_version?: number | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          enabled?: boolean
+          id?: string
+          instructions?: string
+          last_run_at?: string | null
+          max_cost_usd?: number
+          model?: string
+          name?: string
+          runs?: number
+          updated_at?: string
+          web_access?: boolean
+          workspace_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

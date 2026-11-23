@@ -323,12 +323,16 @@ export async function monthlyLimitReached(ctx: AppContext): Promise<Response | n
 
 /** Puts the workspace's "About your business" notes in front of the first message of a conversation. */
 export async function withBusinessContext(supabase: AppContext["supabase"], workspaceId: string, text: string) {
-  const [{ data: ws }, memory] = await Promise.all([
+  const [{ data: ws }, memory, { data: custom }] = await Promise.all([
     supabase.from("workspaces").select("name, business_context").eq("id", workspaceId).maybeSingle(),
     memoryForPrompt(supabase, workspaceId),
+    supabase.from("custom_agents").select("name, description").eq("workspace_id", workspaceId).eq("enabled", true).order("name"),
   ]);
   const parts: string[] = [];
   if (ws?.business_context.trim()) parts.push(`About my business (${ws.name}), from my Baba settings:\n${ws.business_context.trim()}`);
   if (memory) parts.push(`Business memory (reuse this instead of asking again; "unconfirmed" items are Baba's suggestions, not verified facts):\n${memory}`);
+  if (custom?.length) {
+    parts.push(`My custom agents (use run_custom_agent when a task fits one):\n${custom.map((a) => `- ${a.name}: ${a.description || "no description"}`).join("\n")}`);
+  }
   return parts.length ? `${parts.join("\n\n")}\n\n---\n\n${text}` : text;
 }

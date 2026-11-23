@@ -11,6 +11,13 @@ const tool = (name, description, properties = {}, required = []) => ({
 });
 
 export const workspaceTools = [
+  tool("list_custom_agents", "List the custom agents this business created (their own specialists), with what each is for."),
+  tool(
+    "run_custom_agent",
+    "Give one task to one of the business's custom agents and get its reply (and any files it made). It runs in its own workspace with its own cost limit and can't see this conversation, so include everything it needs: context, data, constraints and the exact output wanted.",
+    { agent: { type: "string", description: "The custom agent's name (from list_custom_agents)." }, task: { type: "string" } },
+    ["agent", "task"],
+  ),
   tool("memory_list", "List the workspace's business memory: saved facts about the company, brand, products, audience, policies and writing style."),
   tool(
     "memory_save",
@@ -65,6 +72,10 @@ export const workspaceTools = [
 ];
 
 export const WORKSPACE_RULES = `
+CUSTOM AGENTS: the business may have created its own specialists. If the first message lists them, or the user
+mentions one, use run_custom_agent when a task matches what that agent is for (the user created it for a reason).
+Check its reply like any specialist's work before you use it.
+
 MEMORY & KNOWLEDGE: the first message of a conversation includes the business memory. Reuse it instead of asking
 again. When the user tells you a lasting fact about their business (brand, audience, products, tone, policies),
 save it with memory_save. Never save guesses. For questions about the company's own policies, procedures or

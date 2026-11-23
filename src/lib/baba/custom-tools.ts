@@ -65,6 +65,8 @@ function label(name: string, input: Input) {
       return `Asking for a ${str(input, "service_name") || "service"} API key`;
     case "api_request":
       return `Calling ${str(input, "service_name") || "a connected service"}`;
+    case "run_custom_agent":
+      return `${str(input, "agent") || "Your custom agent"} is working on a sub-task`;
     default:
       return WORKSPACE_LABELS[name] ?? APP_LABELS[name] ?? GOOGLE_LABELS[name] ?? name;
   }

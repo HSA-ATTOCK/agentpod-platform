@@ -57,6 +57,14 @@ NOT_STARTED.
 | Execution logs, cost per task | VERIFIED | `tasks` table, Activity page. |
 | Second AI provider / model fallback | NOT_STARTED | |
 
+### Custom agent builder (PRD §28)
+| Feature | Status | Notes |
+|---|---|---|
+| Create / edit / switch off / delete custom agents (owners & admins) | IMPLEMENTED | AI Agents page → "Your own agents", with 3 templates. Each is a real Claude agent; saving publishes a new version. Not created end to end here (no Claude key in the dev container). |
+| Name, description, instructions, model, web access, cost limit per run | IMPLEMENTED | Platform safety rules are always added above the business's instructions. |
+| Baba delegates to them (`run_custom_agent`) | IMPLEMENTED | Runs in a separate session with its own budget (never above the workspace's cap), workspace limits checked first, cost added to the task, files copied back, every run audited. |
+| Custom agents use connected tools (Gmail, databases…) | NOT_STARTED | Deliberately no access to secrets or connections for now. |
+
 ### Phase 4 — Integrations
 | Feature | Status | Notes |
 |---|---|---|
