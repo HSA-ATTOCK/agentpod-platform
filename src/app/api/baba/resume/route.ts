@@ -1,3 +1,4 @@
+import { createCustomToolHandler } from "@/lib/baba/custom-tools";
 import {
   babaGate,
   conversationCapCents,
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
     request,
     logName: "baba/resume",
     track: trackTurn(ctx, conversation, task?.id, appOrigin(request)),
+    customTools: createCustomToolHandler({ workspaceId: conversation.workspace_id, conversationId: conversation.id }),
     async prepare() {
       return sessionId;
     },

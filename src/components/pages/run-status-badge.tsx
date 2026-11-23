@@ -6,6 +6,7 @@ const meta: Record<RunStatus, { label: string; tone: BadgeTone }> = {
   failed: { label: "Failed", tone: "danger" },
   running: { label: "Running", tone: "info" },
   paused: { label: "Paused at cap", tone: "warning" },
+  needs_approval: { label: "Needs approval", tone: "warning" },
 };
 
 /** Status of a task or workflow run, always with a text label. */

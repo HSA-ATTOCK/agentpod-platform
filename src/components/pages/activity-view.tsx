@@ -77,7 +77,7 @@ function StatCard({ label, value, icon, tone }: { label: string; value: string; 
 function stepDot(step: TaskStep, task: TaskRecord) {
   if (step.status === "done") return "bg-success";
   if (step.status === "failed") return "bg-danger";
-  return task.status === "paused" ? "bg-warning" : "bg-info animate-pulse";
+  return task.status === "paused" || task.status === "needs_approval" ? "bg-warning" : "bg-info animate-pulse";
 }
 
 function askLink(task: TaskRecord) {
@@ -148,6 +148,7 @@ export function ActivityView({ tasks, now, initialAgent }: { tasks: TaskRecord[]
             <option value="failed">Failed</option>
             <option value="running">Running</option>
             <option value="paused">Paused at cap</option>
+            <option value="needs_approval">Needs approval</option>
           </select>
         </div>
         <div>
@@ -299,6 +300,9 @@ export function ActivityView({ tasks, now, initialAgent }: { tasks: TaskRecord[]
                 <span className="text-foreground">{durationBetween(selected.startedAt, selected.finishedAt)}</span>
               </p>
               {selected.status === "failed" && selected.error && <p className="mt-2 text-sm text-danger">{selected.error}</p>}
+              {selected.status === "needs_approval" && (
+                <p className="mt-2 text-sm text-warning">Waiting for your approval. Open it in Ask Baba to approve or reject.</p>
+              )}
               {selected.status === "paused" && (
                 <p className="mt-2 text-sm text-warning">Paused at its spending cap. Open it in Ask Baba and click Continue to finish.</p>
               )}

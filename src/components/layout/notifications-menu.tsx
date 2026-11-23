@@ -34,7 +34,7 @@ export function NotificationsMenu({ workspaceId, className }: { workspaceId: str
       .from("tasks")
       .select("id, request, status, started_at, finished_at, conversation_id")
       .eq("workspace_id", workspaceId)
-      .in("status", ["succeeded", "failed", "paused"])
+      .in("status", ["succeeded", "failed", "paused", "needs_approval"])
       .gte("started_at", since)
       .order("started_at", { ascending: false })
       .limit(8)
@@ -44,7 +44,14 @@ export function NotificationsMenu({ workspaceId, className }: { workspaceId: str
         setNotes(
           (data ?? []).map((t) => ({
             id: t.id,
-            title: t.status === "succeeded" ? "Task finished" : t.status === "failed" ? "Task failed" : "Paused at spending cap",
+            title:
+              t.status === "succeeded"
+                ? "Task finished"
+                : t.status === "failed"
+                  ? "Task failed"
+                  : t.status === "needs_approval"
+                    ? "Needs your approval"
+                    : "Paused at spending cap",
             text: t.request,
             at: t.finished_at ?? t.started_at,
             href: t.conversation_id ? `${routes.ask}?c=${t.conversation_id}` : routes.activity,

@@ -44,32 +44,30 @@ export function ToolApprovalCard({ item, onDecide }: ToolApprovalCardProps) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ShieldAlert aria-hidden="true" className="size-5 text-warning" />
-            <h3 className="text-sm font-semibold text-foreground">
-              Baba wants to use <span className="font-mono">{item.toolName}</span>
-            </h3>
+            <h3 className="text-sm font-semibold text-foreground">Baba needs your OK: {item.toolName}</h3>
           </div>
           {item.status === "pending" && <Badge tone="warning">Needs your approval</Badge>}
-          {item.status === "approved" && <Badge tone="success">Allowed</Badge>}
-          {item.status === "rejected" && <Badge tone="neutral">Denied</Badge>}
+          {item.status === "approved" && <Badge tone="success">Approved</Badge>}
+          {item.status === "rejected" && <Badge tone="neutral">Rejected</Badge>}
         </div>
 
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-control border border-border bg-surface p-3 font-mono text-xs text-muted">
+        <div className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-control border border-border bg-surface p-3 text-sm leading-relaxed text-foreground">
           {item.summary}
-        </pre>
+        </div>
 
         {item.status === "pending" ? (
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => decide(true)} loading={busy === "allow"} disabled={busy !== null}>
-              Allow
+              Approve
             </Button>
             <Button variant="ghost" onClick={() => decide(false)} loading={busy === "deny"} disabled={busy !== null}>
-              Deny
+              Reject
             </Button>
           </div>
         ) : (
           <p role="status" className={cn("flex items-center gap-2 text-sm font-medium", item.status === "approved" ? "text-success" : "text-muted")}>
             {item.status === "approved" ? <CircleCheck aria-hidden="true" className="size-4" /> : <CircleX aria-hidden="true" className="size-4" />}
-            {item.status === "approved" ? "Allowed — Baba is continuing." : "Denied — Baba won't do this."}
+            {item.status === "approved" ? "Approved — Baba is continuing." : "Rejected — Baba won't do this."}
           </p>
         )}
         {error && <p role="alert" className="text-xs text-danger">{error}</p>}

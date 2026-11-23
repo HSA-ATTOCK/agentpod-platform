@@ -95,6 +95,23 @@ the workspace's monthly limit, and emails the person who created the workflow if
 When the app is hosted (e.g. Vercel), call `GET /api/cron/workflows` every minute with
 `Authorization: Bearer <CRON_SECRET>` from a scheduler, and set `BABA_SCHEDULER=off`.
 
+## Connected tools (Google)
+
+One "Connect Google" per workspace lets Baba use Gmail (search, read, drafts, send),
+Drive (search, read, save files) and Calendar (check, create events). Sending email and
+creating events always wait for a person to approve them in Baba.
+
+1. Google Cloud Console: create a project, enable the **Gmail API**, **Google Drive API** and
+   **Google Calendar API**.
+2. OAuth consent screen: External, add your Gmail as a **test user** (needed until Google reviews the app).
+3. Credentials → Create OAuth client ID → Web application. Authorised redirect URI:
+   `https://<your app address>/api/integrations/google/callback`.
+4. Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.local`, restart, and run
+   `npm run baba:setup` once so Baba gets the Google tools.
+5. Integrations → Gmail → Connect.
+
+Tokens are encrypted and stored in a table only the server can read; they are never sent to Claude.
+
 ## Legal pages
 
 `/terms` and `/privacy` are drafts. Fill in your details in `src/config/legal.ts` and have them

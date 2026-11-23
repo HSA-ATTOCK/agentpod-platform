@@ -6,6 +6,7 @@ import {
   withBusinessContext,
   type ConversationRow,
 } from "@/lib/baba/conversations";
+import { createCustomToolHandler } from "@/lib/baba/custom-tools";
 import { babaConfig, babaUnavailable, getClaude } from "@/lib/baba/server";
 import { runTurn } from "@/lib/baba/stream-turn";
 import { createTranscript } from "@/lib/baba/transcript";
@@ -226,6 +227,9 @@ async function runWorkflow(wf: DueWorkflow, slotIso: string) {
       logName: `workflow:${wf.name}`,
       track: trackTurn(ctx, conversation, task.id, serverOrigin()),
       emit: (event) => transcript.add(event),
+      customTools: createCustomToolHandler({ workspaceId: wf.workspace_id, conversationId }),
+      // Nobody is watching: a send that needs approval waits in the conversation (and you get an email)
+      headless: true,
       async prepare() {
         const session = await claude.beta.sessions.create({
           agent: agentId!,

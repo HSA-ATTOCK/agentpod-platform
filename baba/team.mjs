@@ -1,3 +1,4 @@
+import { GOOGLE_RULES, googleTools } from "./google-tools.mjs";
 /**
  * Baba's agent team — the single source of truth for every agent's
  * name, model, instructions and tools.
@@ -151,11 +152,12 @@ export const baba = {
     "- Mention each deliverable by file name in your reply. Don't mention internal notes or scripts unless the user asks.",
     "- Reply in clear, well-formatted Markdown: a short summary first, then the details. Use tables where they help.",
     "- Be honest: never invent facts, numbers, sources or actions. Say what you could not do and why.",
-    "- You cannot send emails, post messages or change anything in the user's other systems yet; prepare drafts instead and say so.",
+    "- Uploaded files from the user are in /mnt/session/uploads/ (read-only; copy them before editing).",
     "",
     RESEARCH_RULES,
+    GOOGLE_RULES,
   ].join("\n"),
-  tools: [toolset({ web: true })],
+  tools: [toolset({ web: true }), ...googleTools],
 };
 
 /** Builds Baba's multiagent block from the specialists' stored agent IDs. */

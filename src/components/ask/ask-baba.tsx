@@ -494,6 +494,13 @@ export function AskBaba({
     if (!active?.sessionId) throw new Error("This conversation isn't connected to Baba.");
     await confirmBabaTool(active.id, toolUseId, allow);
     updateItem(itemId, { status: allow ? "approved" : "rejected" });
+    // Nothing is listening (e.g. a scheduled run waiting for this OK, or the page was reloaded):
+    // follow Baba as it carries on
+    if (!working) {
+      const id = active.id;
+      const progress = [...active.items].reverse().find((i) => i.type === "progress");
+      void runBaba(id, active.sessionId, (options) => watchBaba(id, options), progress?.id);
+    }
   }
 
   function retry() {

@@ -4,7 +4,7 @@
  */
 import type { WorkspaceRole } from "@/lib/data/context";
 
-export type TaskStatus = "running" | "succeeded" | "failed" | "paused";
+export type TaskStatus = "running" | "succeeded" | "failed" | "paused" | "needs_approval";
 
 export type TaskStep = {
   id: string;

@@ -1,14 +1,16 @@
 "use client";
 
 import { Check, Search, ShieldCheck, TriangleAlert } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FilterTabs } from "@/components/ui/filter-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { Sheet } from "@/components/ui/sheet";
+import { useToast } from "@/components/ui/toast";
 import { integrationCatalog, type Integration, type IntegrationCategory } from "@/config/integrations";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +41,37 @@ function Monogram({ name, muted }: { name: string; muted?: boolean }) {
   );
 }
 
-export function IntegrationsView() {
+export type GoogleConnection = {
+  status: "connected" | "error";
+  accountEmail: string | null;
+  connectedBy: string | null;
+} | null;
+
+type IntegrationsViewProps = {
+  google: GoogleConnection;
+  googleConfigured: boolean;
+  canManage: boolean;
+  flash: { connected?: string; account?: string; error?: string };
+};
+
+export function IntegrationsView({ google, googleConfigured, canManage, flash }: IntegrationsViewProps) {
+  const router = useRouter();
+  const { toast, showToast } = useToast();
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  async function disconnectGoogle() {
+    if (!window.confirm("Disconnect Google? Baba will lose access to Gmail, Drive and Calendar for this workspace.")) return;
+    setDisconnecting(true);
+    const response = await fetch("/api/integrations/google/disconnect", { method: "POST" });
+    setDisconnecting(false);
+    if (!response.ok) {
+      showToast("Couldn't disconnect Google.");
+      return;
+    }
+    setConnecting(null);
+    showToast("Google disconnected.");
+    router.refresh();
+  }
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [connecting, setConnecting] = useState<Integration | null>(null);
@@ -55,6 +87,19 @@ export function IntegrationsView() {
         title="Integrations"
         description="Choose which tools Baba is allowed to use. Baba only uses what you connect."
       />
+
+      {flash.connected === "google" && (
+        <Alert variant="success" title="Google connected">
+          Baba can now use Gmail, Drive and Calendar{flash.account ? ` (${flash.account})` : ""}. Try asking: &ldquo;Summarise my unread
+          emails from today&rdquo;.
+        </Alert>
+      )}
+      {flash.error && <Alert variant="error">{flash.error}</Alert>}
+      {google?.status === "error" && (
+        <Alert variant="error" title="Google needs reconnecting">
+          Google access expired or was removed. Click Connect on any Google tool to sign in again.
+        </Alert>
+      )}
 
       <Card className="flex items-start gap-3.5 p-4 sm:p-5">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-warning/20 bg-warning/10 text-warning">
@@ -96,10 +141,19 @@ export function IntegrationsView() {
                   <div>
                     <div className="flex items-center justify-between">
                       <Monogram name={integration.name} muted={integration.comingSoon} />
-                      <Badge tone="neutral">{integration.comingSoon ? "Coming soon" : "Not connected"}</Badge>
+                      {integration.provider === "google" && google?.status === "connected" ? (
+                        <Badge tone="success">Connected</Badge>
+                      ) : integration.provider === "google" && google?.status === "error" ? (
+                        <Badge tone="danger">Reconnect</Badge>
+                      ) : (
+                        <Badge tone="neutral">{integration.comingSoon ? "Coming soon" : "Not connected"}</Badge>
+                      )}
                     </div>
                     <h3 className="mt-3 text-sm font-medium text-foreground">{integration.name}</h3>
                     <p className="mt-1 text-xs text-muted">{integration.description}</p>
+                    {integration.provider === "google" && google?.accountEmail && (
+                      <p className="mt-2 truncate text-[11px] text-subtle">Account: {google.accountEmail}</p>
+                    )}
                   </div>
                   <div className="mt-5 flex justify-end border-t border-border pt-4">
                     {integration.comingSoon ? (
@@ -109,11 +163,12 @@ export function IntegrationsView() {
                     ) : (
                       <Button
                         size="sm"
+                        variant={integration.provider === "google" && google?.status === "connected" ? "secondary" : "primary"}
                         onClick={() => {
                           setConnecting(integration);
                         }}
                       >
-                        Connect
+                        {integration.provider === "google" && google?.status === "connected" ? "Manage" : "Connect"}
                       </Button>
                     )}
                   </div>
@@ -135,7 +190,20 @@ export function IntegrationsView() {
               <Button variant="secondary" onClick={() => setConnecting(null)}>
                 Cancel
               </Button>
-              <Button disabled title="Coming soon">Connect {connecting.name}</Button>
+              {connecting.provider === "google" && google?.status === "connected" ? (
+                canManage && (
+                  <Button variant="danger" onClick={disconnectGoogle} loading={disconnecting} loadingText="Disconnecting…">
+                    Disconnect Google
+                  </Button>
+                )
+              ) : connecting.provider === "google" && canManage && googleConfigured ? (
+                // A full page visit: the browser goes to Google and comes back
+                <a href="/api/integrations/google/connect" className={buttonClasses({})}>
+                  Continue to Google
+                </a>
+              ) : (
+                <Button disabled>Connect {connecting.name}</Button>
+              )}
             </>
           )
         }
@@ -162,13 +230,35 @@ export function IntegrationsView() {
                 ))}
               </ul>
             </div>
-            <Alert variant="info">
-              Connecting tools is coming in the next update. This is exactly what Baba will be able to do once it&apos;s
-              switched on.
-            </Alert>
+            {connecting.provider === "google" ? (
+              google?.status === "connected" ? (
+                <Alert variant="success">
+                  Connected{google.accountEmail ? ` as ${google.accountEmail}` : ""}
+                  {google.connectedBy ? ` by ${google.connectedBy}` : ""}. One Google sign-in covers Gmail, Drive, Sheets and Calendar
+                  for this workspace.
+                </Alert>
+              ) : !googleConfigured ? (
+                <Alert variant="info">
+                  Google isn&apos;t set up on the server yet: add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to the environment (see the
+                  README).
+                </Alert>
+              ) : !canManage ? (
+                <Alert variant="info">Only owners and admins can connect tools. Ask one of them to connect Google.</Alert>
+              ) : (
+                <Alert variant="info">
+                  You&apos;ll sign in with Google and allow access. One sign-in covers Gmail, Drive, Sheets and Calendar for everyone in
+                  this workspace. You can disconnect any time.
+                </Alert>
+              )
+            ) : (
+              <Alert variant="info">
+                {connecting.name} is coming soon. This is exactly what Baba will be able to do once it&apos;s switched on.
+              </Alert>
+            )}
           </div>
         )}
       </Sheet>
+      {toast}
     </div>
   );
 }

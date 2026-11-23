@@ -1,3 +1,4 @@
+import { createCustomToolHandler } from "@/lib/baba/custom-tools";
 import { babaGate, loadConversation, notFound, trackTurn } from "@/lib/baba/conversations";
 import { streamTurn } from "@/lib/baba/stream-turn";
 import { appOrigin } from "@/lib/email/mailer";
@@ -26,6 +27,10 @@ export async function POST(request: Request) {
     catchUp: true,
     // Viewers may watch, but only people who can write record the result
     track: ctx.workspace.role === "viewer" ? undefined : trackTurn(ctx, conversation, undefined, appOrigin(request)),
+    customTools:
+      ctx.workspace.role === "viewer"
+        ? undefined
+        : createCustomToolHandler({ workspaceId: conversation.workspace_id, conversationId: conversation.id }),
     async prepare() {
       return sessionId;
     },

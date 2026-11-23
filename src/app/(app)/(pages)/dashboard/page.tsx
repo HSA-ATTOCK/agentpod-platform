@@ -34,6 +34,7 @@ function activityFrom(tasks: TaskRecord[]): ActivityItem[] {
     if (task.status === "succeeded") items.push({ id: task.id, title: "Task finished", description, tone: "success", at });
     else if (task.status === "failed") items.push({ id: task.id, title: "Task failed", description, tone: "danger", at });
     else if (task.status === "paused") items.push({ id: task.id, title: "Paused at spending cap", description, tone: "warning", at });
+    else if (task.status === "needs_approval") items.push({ id: task.id, title: "Waiting for your approval", description, tone: "warning", at });
     else items.push({ id: task.id, title: "Task started", description, tone: "info", at });
   }
   return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6);
