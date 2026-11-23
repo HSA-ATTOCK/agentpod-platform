@@ -48,7 +48,13 @@ export async function GET(request: Request) {
   if (!code) return done({ ok: false, error: "Google didn't send a sign-in code. Please try again." });
 
   try {
-    const account = await completeConnection({ code, origin: publicOrigin(request), workspaceId: state.workspaceId, userId: state.userId });
+    const account = await completeConnection({
+      code,
+      origin: publicOrigin(request),
+      workspaceId: state.workspaceId,
+      userId: state.userId,
+      client: state.client,
+    });
     return done({ ok: true, account });
   } catch (error) {
     console.error("[integrations/google]", error);

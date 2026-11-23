@@ -8,7 +8,7 @@ import {
   connectionNeedsApproval,
   listConnectionsText,
 } from "@/lib/integrations/connections";
-import { isGoogleConfigured } from "@/lib/integrations/google/oauth";
+import { googleClientFor } from "@/lib/integrations/google/oauth";
 import {
   approvalSummary as googleApprovalSummary,
   GOOGLE_TOOL_NAMES,
@@ -18,6 +18,7 @@ import {
 } from "@/lib/integrations/google/tools";
 import { APP_LABELS, APP_TOOL_NAMES, appApprovalSummary, appToolNeedsApproval, runAppTool } from "@/lib/app-tools/tools";
 import type { AppContext } from "@/lib/data/context";
+import { serverOrigin } from "@/lib/origin";
 import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 import type { BabaStreamEvent } from "./protocol";
@@ -120,8 +121,30 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
         await sendResult(sessionId, event.id, "Only \"google\" can be connected with a button so far.", true);
         return "handled";
       }
-      if (!isGoogleConfigured()) {
-        await sendResult(sessionId, event.id, "Google sign-in hasn't been set up on this Baba server yet. This is a one-time setup by whoever runs this Baba (the platform owner adds Google's client ID and secret; see the README section \"One-time platform setup\"). Tell the user exactly that; do NOT say Gmail is 'coming soon'. Customers never need to do this themselves.", true);
+      if (!(await googleClientFor(scope.workspaceId))) {
+        const isManager = scope.ctx.workspace.role === "owner" || scope.ctx.workspace.role === "admin";
+        if (!isManager) {
+          await sendResult(sessionId, event.id, "This workspace hasn't set up Google yet, and only an owner or admin can do it. Tell the user to ask one of them to say \"connect my Gmail\" to Baba.", true);
+          return "handled";
+        }
+        // No Google app for this workspace yet: show the secure setup card (Client ID + secret, then Connect)
+        emit({
+          type: "google_app_request",
+          id: event.id,
+          redirectUri: `${serverOrigin()}/api/integrations/google/callback`,
+          reason: str(input, "reason"),
+        });
+        await sendResult(
+          sessionId,
+          event.id,
+          "This workspace doesn't have its Google app yet, so a secure setup card is now shown in the chat. It has the step-by-step " +
+            "instructions (create a Google Cloud project, enable the Gmail/Drive/Calendar APIs, set up the consent screen with the user as a " +
+            "test user, create an OAuth client ID with the redirect address shown on the card) and two boxes for the Client ID and secret. " +
+            "Briefly say this is a one-time setup of about 10 minutes, that the ID and secret go ONLY in the card (never in the chat), and " +
+            "that once saved the card turns into a Connect Google button. Offer to explain any step. Then stop and wait.",
+          false,
+        );
+        emit({ type: "step", id: stepId, label: "Setting up Google for this workspace", status: "done" });
         return "handled";
       }
       emit({ type: "connect_request", id: event.id, service: "google", reason: str(input, "reason") });

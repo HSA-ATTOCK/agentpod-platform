@@ -2,7 +2,7 @@ import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 import { decrypt, encrypt } from "./crypto";
-import { isGoogleConfigured, listGoogleAccounts } from "./google/oauth";
+import { listGoogleAccounts, workspaceGoogleAppId } from "./google/oauth";
 
 /**
  * Connections that aren't OAuth sign-ins: services added with an API key from the
@@ -112,17 +112,16 @@ export function connectionNeedsApproval(name: string, input: Input) {
 }
 
 export async function listConnectionsText(workspaceId: string) {
-  const [google, keys] = await Promise.all([listGoogleAccounts(workspaceId), listApiKeys(workspaceId)]);
+  const [google, keys, ownApp] = await Promise.all([listGoogleAccounts(workspaceId), listApiKeys(workspaceId), workspaceGoogleAppId(workspaceId)]);
   const lines: string[] = [];
   lines.push(
     google.length
       ? `Google accounts (Gmail, Drive, Sheets, Calendar):\n${google
           .map((a) => `- ${a.email}${a.isDefault ? " (default)" : ""}${a.status === "error" ? " — needs reconnecting" : ""}`)
           .join("\n")}`
-      : isGoogleConfigured()
-        ? "Google: not connected yet (use request_connection to show a Connect button)."
-        : "Google: can't be connected yet: Google sign-in hasn't been set up on this Baba server (a one-time setup by the platform owner, not the customer). Don't call it 'coming soon'.",
+      : "Google: not connected yet. Use request_connection (service \"google\"): it shows a Connect button, or first a one-time setup card if this workspace hasn't added its Google app.",
   );
+  lines.push(ownApp ? "This workspace has its own Google app set up." : "This workspace hasn't added its own Google app yet.");
   lines.push(
     keys.length
       ? `Services connected with an API key:\n${keys.map((k) => `- ${k.name} (host: ${k.config.host})`).join("\n")}`

@@ -77,6 +77,9 @@ export function createTranscript(conversationId: string, userItem: ChatItem) {
         case "connect_request":
           items.push({ id: `connect_request-${event.id}`, type: "connect_request", service: event.service, reason: event.reason, status: "pending" });
           break;
+        case "google_app_request":
+          items.push({ id: `google_app_request-${event.id}`, type: "google_app_request", redirectUri: event.redirectUri, reason: event.reason, status: "pending" });
+          break;
         case "key_request":
           items.push({
             id: `key_request-${event.id}`,

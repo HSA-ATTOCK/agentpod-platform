@@ -14,7 +14,7 @@ export const connectionTools = [
     type: "custom",
     name: "request_connection",
     description:
-      "Show the user a 'Connect' button in the chat for a service that signs in with OAuth. Supported: \"google\" (Gmail, Drive, Sheets, Calendar; can be used again to add another Google account). After calling it, stop and ask the user to click the button and tell you when it's done.",
+      "Start connecting a service that signs in with OAuth. Supported: \"google\" (Gmail, Drive, Sheets, Calendar; call it again to add another Google account). Shows a Connect button in the chat, or, if the workspace hasn't set up its Google app yet, a secure one-time setup card that becomes the Connect button. After calling it, stop and wait for the user.",
     input_schema: {
       type: "object",
       properties: {
@@ -64,8 +64,10 @@ export const connectionTools = [
 export const CONNECTION_RULES = `
 CONNECTING TOOLS FROM THE CHAT:
 - When the user wants to connect a service, or a task needs one that isn't connected:
-  * Google (Gmail, Drive, Sheets, Calendar): call request_connection with service "google". Several Google
-    accounts can be connected; call it again to add another. Use the \`account\` field to pick one.
+  * Google (Gmail, Drive, Sheets, Calendar): call request_connection with service "google". The first time,
+    the workspace sets up its own Google app through a secure card in the chat (guide them step by step if they
+    ask); after that it's a single Connect button. Several Google accounts can be connected; call it again to add
+    another. Use the \`account\` field to pick one.
   * A service that uses an API key: explain in 1–2 lines what the key allows, then call request_api_key with
     clear steps for creating the key. Then use api_request to work with it.
   * Others that need sign-in (e.g. Slack, Microsoft, X/Twitter): say they're coming soon and offer an alternative.

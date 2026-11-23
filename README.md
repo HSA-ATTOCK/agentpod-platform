@@ -116,17 +116,19 @@ Each workspace can connect **several Google accounts** and any number of **servi
   requests to that service's address. Requests that change data need approval.
 - Tokens and keys live in `integration_credentials`, which only the server can read.
 
-### One-time platform setup (you, not your customers)
+### Google: each workspace uses its own Google app (set up from the chat)
 
-`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` identify **Baba the app** to Google. Set them once
-(in `.env.local` now, in your hosting settings when live); every customer then connects their own accounts.
+Nothing goes in `.env.local`. The first time a workspace says "connect my Gmail", Baba shows a secure
+setup card with step-by-step instructions and the exact redirect address. The owner/admin creates an
+OAuth client in Google Cloud and pastes its **Client ID and secret into the card** (never into the chat).
+They're encrypted and stored for that workspace only. After that, the card becomes a Connect button and
+the workspace can connect as many Google accounts as it likes. Replace or remove the app in Integrations.
 
-1. Google Cloud Console: create a project, enable the **Gmail API**, **Google Drive API** and **Google Calendar API**.
-2. OAuth consent screen: External; while testing add your Gmail as a **test user**. Before public launch,
-   submit the app for Google's verification.
-3. Credentials → OAuth client ID → Web application. Authorised redirect URI:
-   `https://<your app address>/api/integrations/google/callback` (add one per address: Codespace, live domain).
-4. Set the two values, restart, and run `npm run baba:setup` so Baba gets the tools.
+Optional: set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` to offer one shared Google app to every
+workspace that hasn't added its own (then customers just click Connect).
+
+Requirement on the server: `SUPABASE_SECRET_KEY` (used to store secrets encrypted). Run `npm run baba:setup`
+after updating so Baba has the latest tools.
 
 ## Legal pages
 

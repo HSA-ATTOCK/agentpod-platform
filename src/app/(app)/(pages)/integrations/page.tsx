@@ -3,7 +3,8 @@ import { Suspense } from "react";
 import { IntegrationsView, type ApiKeyRow, type GoogleAccountRow } from "@/components/pages/integrations-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { canManage, requireAppContext } from "@/lib/data/context";
-import { isGoogleConfigured } from "@/lib/integrations/google/oauth";
+import { googleClientFor, isGoogleConfigured, workspaceGoogleAppId } from "@/lib/integrations/google/oauth";
+import { serverOrigin } from "@/lib/origin";
 import { isAdminConfigured } from "@/lib/supabase/admin";
 
 export const metadata: Metadata = { title: "Integrations" };
@@ -51,11 +52,17 @@ async function PageContent({ searchParams }: PageProps<"/integrations">) {
       createdAt: r.created_at,
     }));
 
+  const admin = isAdminConfigured();
+  const [ownAppId, client] = admin
+    ? await Promise.all([workspaceGoogleAppId(ctx.workspace.id), googleClientFor(ctx.workspace.id)])
+    : [null, null];
+
   return (
     <IntegrationsView
       googleAccounts={googleAccounts}
       apiKeys={apiKeys}
-      googleConfigured={isGoogleConfigured() && isAdminConfigured()}
+      googleConfigured={Boolean(client)}
+      googleApp={{ clientId: ownAppId, platformAvailable: isGoogleConfigured(), redirectUri: `${serverOrigin()}/api/integrations/google/callback` }}
       keysAvailable={isAdminConfigured()}
       canManage={canManage(ctx.workspace.role)}
       flash={{ connected: one(params.connected), account: one(params.account), error: one(params.error) }}
