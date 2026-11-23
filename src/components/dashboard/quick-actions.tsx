@@ -1,13 +1,13 @@
-import { Bot, GitMerge, History, Plug } from "lucide-react";
+import { FolderOpen, History, MessageSquare, Repeat } from "lucide-react";
 import Link from "next/link";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 
 const actions = [
-  { label: "Create agent", detail: "A new AI worker", href: routes.agents, icon: Bot, iconClass: "bg-accent/15 text-accent" },
-  { label: "Create workflow", detail: "Chain agents together", href: routes.workflows, icon: GitMerge, iconClass: "bg-info/15 text-info" },
-  { label: "Connect an integration", detail: "Gmail, Slack, HubSpot…", href: routes.integrations, icon: Plug, iconClass: "bg-warning/15 text-warning" },
-  { label: "View activity", detail: "Execution history", href: routes.activity, icon: History, iconClass: "bg-foreground/10 text-foreground" },
+  { label: "Ask Baba", detail: "Give Baba a new task", href: routes.ask, icon: MessageSquare, iconClass: "bg-accent/15 text-accent" },
+  { label: "Create workflow", detail: "Save a task you repeat", href: routes.workflows, icon: Repeat, iconClass: "bg-info/15 text-info" },
+  { label: "Your files", detail: "Reports and spreadsheets", href: routes.projects, icon: FolderOpen, iconClass: "bg-warning/15 text-warning" },
+  { label: "View activity", detail: "Every task and its cost", href: routes.activity, icon: History, iconClass: "bg-foreground/10 text-foreground" },
 ];
 
 export function QuickActions() {
@@ -23,12 +23,7 @@ export function QuickActions() {
             href={action.href}
             className="group flex items-center gap-3 rounded-xl border border-border bg-surface p-3.5 transition-colors hover:border-border-strong hover:bg-surface-raised"
           >
-            <span
-              className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105",
-                action.iconClass,
-              )}
-            >
+            <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105", action.iconClass)}>
               <action.icon aria-hidden="true" className="size-4" />
             </span>
             <span className="min-w-0">

@@ -13,13 +13,6 @@ export function getClaude() {
   return client;
 }
 
-/** Spending cap per conversation, in US dollars. Change BABA_SESSION_BUDGET_USD to adjust. */
-export function sessionBudgetCents() {
-  const dollars = Number(process.env.BABA_SESSION_BUDGET_USD ?? "1");
-  const safeDollars = Number.isFinite(dollars) && dollars > 0 ? dollars : 1;
-  return String(Math.round(safeDollars * 100));
-}
-
 export function babaConfig() {
   return {
     agentId: process.env.BABA_AGENT_ID,

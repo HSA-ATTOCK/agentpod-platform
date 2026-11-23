@@ -1,5 +1,5 @@
 import { Badge, type BadgeTone } from "@/components/ui/badge";
-import type { RunStatus } from "@/lib/sample-pages";
+import type { TaskStatus as RunStatus } from "@/types/app-data";
 
 const meta: Record<RunStatus, { label: string; tone: BadgeTone }> = {
   succeeded: { label: "Succeeded", tone: "success" },

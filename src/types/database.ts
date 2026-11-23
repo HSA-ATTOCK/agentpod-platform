@@ -289,6 +289,7 @@ export type Database = {
           request: string
           started_at: string
           status: Database["public"]["Enums"]["task_status"]
+          steps: Json
           workflow_id: string | null
           workspace_id: string
         }
@@ -304,6 +305,7 @@ export type Database = {
           request: string
           started_at?: string
           status?: Database["public"]["Enums"]["task_status"]
+          steps?: Json
           workflow_id?: string | null
           workspace_id: string
         }
@@ -319,6 +321,7 @@ export type Database = {
           request?: string
           started_at?: string
           status?: Database["public"]["Enums"]["task_status"]
+          steps?: Json
           workflow_id?: string | null
           workspace_id?: string
         }
@@ -471,6 +474,7 @@ export type Database = {
       }
       workspaces: {
         Row: {
+          business_context: string
           company_size: string | null
           created_at: string
           created_by: string | null
@@ -486,6 +490,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          business_context?: string
           company_size?: string | null
           created_at?: string
           created_by?: string | null
@@ -501,6 +506,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          business_context?: string
           company_size?: string | null
           created_at?: string
           created_by?: string | null
@@ -522,7 +528,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      accept_invite: { Args: { invite_id: string }; Returns: string }
+      ensure_workspace: { Args: Record<PropertyKey, never>; Returns: string }
+      delete_my_account: { Args: Record<PropertyKey, never>; Returns: undefined }
+      transfer_ownership: { Args: { ws: string; new_owner: string }; Returns: undefined }
+      my_invites: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          workspace_name: string
+          role: Database["public"]["Enums"]["workspace_role"]
+          invited_at: string
+        }[]
+      }
     }
     Enums: {
       task_status: "running" | "succeeded" | "failed" | "paused"

@@ -1,6 +1,13 @@
-import { babaGate, loadConversation, notFound, trackTurn } from "@/lib/baba/conversations";
+import {
+  babaGate,
+  conversationCapCents,
+  loadConversation,
+  monthlyLimitReached,
+  notFound,
+  trackTurn,
+} from "@/lib/baba/conversations";
 import type { BabaChatRequest } from "@/lib/baba/protocol";
-import { babaConfig, getClaude, sessionBudgetCents } from "@/lib/baba/server";
+import { babaConfig, getClaude } from "@/lib/baba/server";
 import { streamTurn } from "@/lib/baba/stream-turn";
 
 // Long tasks stream for a while. (Vercel caps this by plan.)
@@ -35,6 +42,24 @@ export async function POST(request: Request) {
     );
   }
 
+  const overLimit = await monthlyLimitReached(ctx);
+  if (overLimit) return overLimit;
+  let capCents = conversationCapCents(ctx);
+
+  // "Run now" on a workflow: link the task to it (only if this workspace can see it)
+  let workflowId: string | null = null;
+  if (typeof body.workflowId === "string" && /^[0-9a-f-]{36}$/i.test(body.workflowId)) {
+    const { data: workflow } = await ctx.supabase
+      .from("workflows")
+      .select("id, cap_usd")
+      .eq("id", body.workflowId)
+      .eq("workspace_id", conversation.workspace_id)
+      .maybeSingle();
+    workflowId = workflow?.id ?? null;
+    // A new conversation started by a workflow uses the workflow's own cap
+    if (workflow && !conversation.claude_session_id) capCents = Math.max(1, Math.round(Number(workflow.cap_usd) * 100));
+  }
+
   // One row per request, for the Activity page
   const { data: task, error: taskError } = await ctx.supabase
     .from("tasks")
@@ -42,8 +67,9 @@ export async function POST(request: Request) {
       workspace_id: conversation.workspace_id,
       conversation_id: conversation.id,
       created_by: ctx.user.id,
+      workflow_id: workflowId,
       request: text.slice(0, 2000),
-      cap_cents: Number(sessionBudgetCents()),
+      cap_cents: capCents,
     })
     .select("id")
     .single();
@@ -54,6 +80,7 @@ export async function POST(request: Request) {
 
   const claude = getClaude();
   const { agentId, environmentId } = babaConfig();
+  let isFirstMessage = false;
 
   return streamTurn({
     request,
@@ -63,17 +90,18 @@ export async function POST(request: Request) {
       // One Claude session per conversation, with a spending cap
       let sessionId = conversation.claude_session_id;
       if (!sessionId) {
+        isFirstMessage = true;
         const session = await claude.beta.sessions.create({
           agent: agentId!,
           environment_id: environmentId!,
           title: text.slice(0, 80),
-          budget: { type: "limit", max_list_cost: { amount: sessionBudgetCents(), currency: "USD" } },
+          budget: { type: "limit", max_list_cost: { amount: String(capCents), currency: "USD" } },
           metadata: { workspace_id: conversation.workspace_id, conversation_id: conversation.id },
         });
         sessionId = session.id;
         const { error } = await ctx.supabase
           .from("conversations")
-          .update({ claude_session_id: sessionId, cap_cents: Number(sessionBudgetCents()) })
+          .update({ claude_session_id: sessionId, cap_cents: capCents })
           .eq("id", conversation.id);
         if (error) throw new Error(`Couldn't link the conversation: ${error.message}`);
       }
@@ -81,8 +109,20 @@ export async function POST(request: Request) {
       return sessionId;
     },
     async kickoff(sessionId) {
+      // The first message of a conversation carries the workspace's "About your business" notes
+      let message = text;
+      if (isFirstMessage) {
+        const { data: ws } = await ctx.supabase
+          .from("workspaces")
+          .select("name, business_context")
+          .eq("id", conversation.workspace_id)
+          .maybeSingle();
+        if (ws?.business_context.trim()) {
+          message = `About my business (${ws.name}), from my Baba settings:\n${ws.business_context.trim()}\n\n---\n\n${text}`;
+        }
+      }
       await claude.beta.sessions.events.send(sessionId, {
-        events: [{ type: "user.message", content: [{ type: "text", text }] }],
+        events: [{ type: "user.message", content: [{ type: "text", text: message }] }],
       });
     },
   });

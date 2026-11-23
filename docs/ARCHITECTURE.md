@@ -140,8 +140,20 @@ generated types in `src/types/database.ts` (regenerate after every migration).
   session id) and record each task's cost, agents, files and outcome.
 - `src/proxy.ts` refreshes the session and keeps signed-out visitors out of the app.
 
-Still on sample data: Dashboard, Agents, Workflows, Integrations, Activity, Projects,
-Settings and Profile pages (next step: read/write them from these tables).
+Every app page now runs on this data:
+- **Dashboard / Activity / Projects** — tasks (with saved steps, cost, agents) and files.
+- **Agents** — the team from `src/config/team.ts` with real usage; "Business instructions"
+  (`workspaces.business_context`) are sent to Baba with the first message of each conversation.
+- **Workflows** — saved tasks with Run now (opens Ask Baba pre-filled, linked via
+  `tasks.workflow_id`, using the workflow's own cap). Automatic scheduled runs: not yet.
+- **Settings** — workspace details, team (roles, remove, transfer ownership, invites),
+  spending (per-conversation cap + monthly limit, both enforced by the API), notification
+  choices (saved; sending not yet), sessions, delete workspace.
+- **Profile** — details, email change, password, usage, sign out everywhere, delete account.
+- **Invites** — the invitee signs up with the invited email and joins automatically, or
+  accepts from the workspace switcher if they already have an account. Invite emails are
+  not sent yet (share the sign-up link).
+- **Integrations** — catalogue only; connecting tools comes with the agent phase.
 
 ## Phases
 

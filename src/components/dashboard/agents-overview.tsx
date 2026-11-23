@@ -1,74 +1,53 @@
-import { BotOff, Plus } from "lucide-react";
-import { ButtonLink } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { routes } from "@/config/routes";
-import { agentCategoryMeta } from "@/lib/agent-meta";
-import { formatRelativeTime } from "@/lib/format";
+import { mainAgent, specialists } from "@/config/team";
 import { cn } from "@/lib/utils";
-import type { Agent, AgentStatus } from "@/types";
 import { DashboardPanel } from "./dashboard-panel";
 
-const iconColorByStatus: Record<AgentStatus, string> = {
-  active: "text-accent",
-  paused: "text-warning",
-  draft: "text-muted",
-  error: "text-danger",
+type AgentsOverviewProps = {
+  /** Tasks this month per agent name. */
+  taskCounts: Record<string, number>;
+  modelLabel: string;
+  className?: string;
 };
 
-type AgentsOverviewProps = { agents: Agent[]; now: string; className?: string };
+/** Baba and the specialists that can work today, with this month's task counts. */
+export function AgentsOverview({ taskCounts, modelLabel, className }: AgentsOverviewProps) {
+  const team = [
+    { name: mainAgent.name, job: "Main agent: plans the work and checks results", icon: mainAgent.icon },
+    ...specialists.filter((s) => s.status === "active").map((s) => ({ name: s.name, job: s.job, icon: s.icon })),
+  ];
+  const comingSoon = specialists.filter((s) => s.status === "coming_soon").length;
 
-export function AgentsOverview({ agents, now, className }: AgentsOverviewProps) {
   return (
-    <DashboardPanel
-      title="AI agents"
-      subtitle={agents.length > 0 ? `${agents.length} agents in this workspace` : undefined}
-      viewAllHref={agents.length > 0 ? routes.agents : undefined}
-      className={className}
-    >
-      {agents.length === 0 ? (
-        <EmptyState
-          icon={BotOff}
-          title="No agents yet"
-          description="You haven't created any AI agents yet."
-          action={
-            <ButtonLink href={routes.agents} size="sm">
-              <Plus aria-hidden="true" className="size-3.5" />
-              Create your first agent
-            </ButtonLink>
-          }
-        />
-      ) : (
-        <ul className="divide-y divide-border/60">
-          {agents.map((agent) => {
-            const category = agentCategoryMeta[agent.category];
-            return (
-              <li key={agent.id} className="flex items-center justify-between gap-3 py-3.5">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span
-                    className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-raised",
-                      iconColorByStatus[agent.status],
-                    )}
-                  >
-                    <category.icon aria-hidden="true" className="size-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">{agent.name}</p>
-                    <p className="truncate text-xs text-subtle">
-                      {category.label} ·{" "}
-                      {agent.lastActiveAt
-                        ? `Last active ${formatRelativeTime(agent.lastActiveAt, now)}`
-                        : "Never run"}
-                    </p>
-                  </div>
-                </div>
-                <StatusBadge status={agent.status} />
-              </li>
-            );
-          })}
-        </ul>
-      )}
+    <DashboardPanel title="AI agents" subtitle={`Running on ${modelLabel}`} viewAllHref={routes.agents} className={className}>
+      <ul className="divide-y divide-border/60">
+        {team.map((agent, i) => (
+          <li key={agent.name} className="flex items-center justify-between gap-3 py-3.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <span
+                className={cn(
+                  "flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-raised text-accent",
+                  i === 0 && "border-accent/30 bg-accent/10",
+                )}
+              >
+                <agent.icon aria-hidden="true" className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">{agent.name}</p>
+                <p className="truncate text-xs text-subtle">{agent.job}</p>
+              </div>
+            </div>
+            <span className="shrink-0 text-right text-xs text-muted">
+              <span className="block text-sm font-semibold text-foreground">{taskCounts[agent.name] ?? 0}</span>
+              this month
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 flex items-center gap-2 text-xs text-subtle">
+        <Badge tone="neutral">{comingSoon} more</Badge> specialists coming soon, like Website Builder and Designer.
+      </p>
     </DashboardPanel>
   );
 }

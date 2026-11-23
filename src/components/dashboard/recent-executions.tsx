@@ -1,100 +1,78 @@
-import { History, Plus } from "lucide-react";
+import { History, MessageSquare } from "lucide-react";
+import Link from "next/link";
+import { RunStatusBadge } from "@/components/pages/run-status-badge";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { LocalTime } from "@/components/ui/local-time";
 import { routes } from "@/config/routes";
-import { formatDateTime, formatDuration } from "@/lib/format";
-import { cn } from "@/lib/utils";
-import type { Execution, ExecutionStatus } from "@/types";
+import { durationBetween, formatCents } from "@/lib/format";
+import type { TaskRecord } from "@/types/app-data";
 import { DashboardPanel } from "./dashboard-panel";
 
-const durationColor: Record<ExecutionStatus, string> = {
-  succeeded: "text-foreground",
-  failed: "text-danger",
-  running: "text-info",
-  queued: "text-subtle",
-};
-
-/** Running tasks show "In progress", queued ones "Waiting". */
-function durationLabel(execution: Execution) {
-  if (execution.status === "running") return "In progress";
-  if (execution.status === "queued") return "Waiting";
-  return formatDuration(execution.durationMs);
+function taskLink(task: TaskRecord) {
+  return task.conversationId ? `${routes.ask}?c=${task.conversationId}` : routes.activity;
 }
 
-type RecentExecutionsProps = { executions: Execution[]; now: string };
-
-/** Table on large screens, stacked cards on phones. */
-export function RecentExecutions({ executions, now }: RecentExecutionsProps) {
+/** The latest tasks: table on large screens, stacked cards on phones. */
+export function RecentExecutions({ tasks }: { tasks: TaskRecord[] }) {
   return (
-    <DashboardPanel
-      title="Recent executions"
-      subtitle="The latest tasks your agents ran"
-      viewAllHref={executions.length > 0 ? routes.activity : undefined}
-    >
-      {executions.length === 0 ? (
+    <DashboardPanel title="Recent tasks" subtitle="The latest work Baba did" viewAllHref={tasks.length > 0 ? routes.activity : undefined}>
+      {tasks.length === 0 ? (
         <EmptyState
           icon={History}
-          title="No executions yet"
-          description="Task runs will appear here once your agents start working."
+          title="No tasks yet"
+          description="Give Baba its first task: research, a report, a spreadsheet analysis…"
           action={
-            <ButtonLink href={routes.agents} variant="secondary" size="sm">
-              <Plus aria-hidden="true" className="size-3.5 text-accent" />
-              Set up an agent
+            <ButtonLink href={routes.ask} size="sm">
+              <MessageSquare aria-hidden="true" className="size-3.5" />
+              Ask Baba
             </ButtonLink>
           }
         />
       ) : (
         <>
-          {/* Table: tablets and up */}
           <div className="mt-2 hidden overflow-x-auto md:block">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wider text-subtle">
                   <th scope="col" className="px-4 py-3 font-semibold">Task</th>
-                  <th scope="col" className="px-4 py-3 font-semibold">Agent</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Status</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Started</th>
                   <th scope="col" className="px-4 py-3 text-right font-semibold">Duration</th>
+                  <th scope="col" className="px-4 py-3 text-right font-semibold">Cost</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60 text-muted">
-                {executions.map((execution) => (
-                  <tr key={execution.id} className="transition-colors hover:bg-surface-raised/50">
-                    <td className="px-4 py-3.5 font-medium text-foreground">{execution.taskName}</td>
-                    <td className="px-4 py-3.5">{execution.agentName}</td>
-                    <td className="px-4 py-3.5">
-                      <StatusBadge status={execution.status} className="text-[11px]" />
+                {tasks.map((task) => (
+                  <tr key={task.id} className="transition-colors hover:bg-surface-raised/50">
+                    <td className="max-w-md px-4 py-3.5">
+                      <Link href={taskLink(task)} className="block truncate font-medium text-foreground hover:text-accent">
+                        {task.request}
+                      </Link>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3.5 text-subtle">
-                      <time dateTime={execution.startedAt}>{formatDateTime(execution.startedAt, now)}</time>
-                    </td>
-                    <td className={cn("whitespace-nowrap px-4 py-3.5 text-right tabular-nums", durationColor[execution.status])}>
-                      {durationLabel(execution)}
-                    </td>
+                    <td className="px-4 py-3.5"><RunStatusBadge status={task.status} /></td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-subtle"><LocalTime iso={task.startedAt} /></td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-right tabular-nums">{durationBetween(task.startedAt, task.finishedAt)}</td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-right tabular-nums text-foreground">{formatCents(task.costCents)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Cards: phones */}
           <ul className="mt-3 space-y-3 md:hidden">
-            {executions.map((execution) => (
-              <li key={execution.id} className="space-y-2 rounded-xl border border-border bg-surface-raised p-3.5">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-sm font-semibold text-foreground">{execution.taskName}</span>
-                  <StatusBadge status={execution.status} className="text-[11px]" />
-                </div>
-                <div className="flex items-center justify-between gap-2 text-xs text-subtle">
-                  <span className="truncate">{execution.agentName}</span>
-                  <span className={cn("shrink-0 tabular-nums", durationColor[execution.status])}>
-                    {durationLabel(execution)}
-                  </span>
-                </div>
-                <time dateTime={execution.startedAt} className="block text-[11px] text-subtle">
-                  {formatDateTime(execution.startedAt, now)}
-                </time>
+            {tasks.map((task) => (
+              <li key={task.id}>
+                <Link href={taskLink(task)} className="block space-y-2 rounded-xl border border-border bg-surface-raised p-3.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="line-clamp-2 text-sm font-semibold text-foreground">{task.request}</span>
+                    <RunStatusBadge status={task.status} />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs text-subtle">
+                    <LocalTime iso={task.startedAt} />
+                    <span className="tabular-nums text-foreground">{formatCents(task.costCents)}</span>
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>

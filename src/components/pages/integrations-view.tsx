@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { FilterTabs } from "@/components/ui/filter-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { Sheet } from "@/components/ui/sheet";
-import { sampleIntegrations, type IntegrationCategory, type SampleIntegration } from "@/lib/sample-pages";
+import { integrationCatalog, type Integration, type IntegrationCategory } from "@/config/integrations";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | IntegrationCategory;
@@ -42,11 +42,10 @@ function Monogram({ name, muted }: { name: string; muted?: boolean }) {
 export function IntegrationsView() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-  const [connecting, setConnecting] = useState<SampleIntegration | null>(null);
-  const [tried, setTried] = useState(false);
+  const [connecting, setConnecting] = useState<Integration | null>(null);
 
   const q = query.trim().toLowerCase();
-  const shown = sampleIntegrations.filter(
+  const shown = integrationCatalog.filter(
     (i) => (filter === "all" || i.category === filter) && (!q || i.name.toLowerCase().includes(q)),
   );
 
@@ -55,7 +54,6 @@ export function IntegrationsView() {
       <PageHeader
         title="Integrations"
         description="Choose which tools Baba is allowed to use. Baba only uses what you connect."
-        sample
       />
 
       <Card className="flex items-start gap-3.5 p-4 sm:p-5">
@@ -112,7 +110,6 @@ export function IntegrationsView() {
                       <Button
                         size="sm"
                         onClick={() => {
-                          setTried(false);
                           setConnecting(integration);
                         }}
                       >
@@ -138,7 +135,7 @@ export function IntegrationsView() {
               <Button variant="secondary" onClick={() => setConnecting(null)}>
                 Cancel
               </Button>
-              <Button onClick={() => setTried(true)}>Continue to {connecting.name}</Button>
+              <Button disabled title="Coming soon">Connect {connecting.name}</Button>
             </>
           )
         }
@@ -165,11 +162,10 @@ export function IntegrationsView() {
                 ))}
               </ul>
             </div>
-            {tried && (
-              <Alert variant="info">
-                Connecting isn&apos;t available yet. It will be enabled in a later phase.
-              </Alert>
-            )}
+            <Alert variant="info">
+              Connecting tools is coming in the next update. This is exactly what Baba will be able to do once it&apos;s
+              switched on.
+            </Alert>
           </div>
         )}
       </Sheet>

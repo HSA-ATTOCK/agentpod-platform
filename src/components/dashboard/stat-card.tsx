@@ -12,7 +12,7 @@ const valueColor: Record<StatTone, string> = {
 
 type StatCardProps = {
   label: string;
-  value: number;
+  value: number | string;
   /** Short supporting text, e.g. "50% of agents". */
   detail?: string;
   tone?: StatTone;
@@ -25,7 +25,7 @@ export function StatCard({ label, value, detail, tone = "default" }: StatCardPro
       <span className="text-xs font-medium text-muted">{label}</span>
       <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-2">
         <span className={cn("text-2xl font-bold", valueColor[tone])}>
-          {value.toLocaleString("en-US")}
+          {typeof value === "number" ? value.toLocaleString("en-US") : value}
         </span>
         {detail && <span className="text-[11px] text-subtle">{detail}</span>}
       </div>

@@ -1,35 +1,28 @@
-import { ChevronsUpDown, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Logo } from "@/components/ui/logo";
 import { routes } from "@/config/routes";
-import type { UserProfile, Workspace } from "@/types";
+import type { UserProfile } from "@/types";
 import { SidebarNav } from "./nav-link";
+import { WorkspaceSwitcher, type PendingInvite, type SwitcherWorkspace } from "./workspace-switcher";
 
-type AppSidebarProps = { workspace: Workspace; user: UserProfile };
+type AppSidebarProps = {
+  workspace: SwitcherWorkspace;
+  workspaces: SwitcherWorkspace[];
+  invites: PendingInvite[];
+  user: UserProfile;
+};
 
 /** Fixed left sidebar for large screens. Hidden on phones and tablets. */
-export function AppSidebar({ workspace, user }: AppSidebarProps) {
+export function AppSidebar({ workspace, workspaces, invites, user }: AppSidebarProps) {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-surface lg:flex">
       <div className="flex h-16 items-center border-b border-border px-5">
         <Logo size="sm" href={routes.dashboard} />
       </div>
 
-      {/* Workspace switcher (one workspace per account for now; switching comes with team invites) */}
       <div className="p-3">
-        <button
-          type="button"
-          aria-label={`Current workspace: ${workspace.name}. Switch workspace`}
-          className="flex w-full items-center justify-between gap-2 rounded-control border border-border bg-surface-raised p-2.5 text-left transition-colors hover:bg-surface-hover"
-        >
-          <span className="flex min-w-0 items-center gap-2.5">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/20 text-xs font-bold text-accent">
-              {workspace.name[0]}
-            </span>
-            <span className="truncate text-xs font-semibold text-foreground">{workspace.name}</span>
-          </span>
-          <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-subtle" />
-        </button>
+        <WorkspaceSwitcher current={workspace} workspaces={workspaces} invites={invites} />
       </div>
 
       <nav aria-label="Main" className="flex-1 space-y-1 overflow-y-auto px-3 py-2">

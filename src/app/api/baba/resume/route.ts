@@ -1,5 +1,12 @@
-import { babaGate, loadConversation, notFound, trackTurn } from "@/lib/baba/conversations";
-import { errorMessage, getClaude, sessionBudgetCents } from "@/lib/baba/server";
+import {
+  babaGate,
+  conversationCapCents,
+  loadConversation,
+  monthlyLimitReached,
+  notFound,
+  trackTurn,
+} from "@/lib/baba/conversations";
+import { errorMessage, getClaude } from "@/lib/baba/server";
 import { streamTurn } from "@/lib/baba/stream-turn";
 
 export const maxDuration = 300;
@@ -8,7 +15,7 @@ export const maxDuration = 300;
  * POST /api/baba/resume — the "Continue" button on a conversation paused at its spending cap.
  * Body: { conversationId }
  *
- * Raises the session's cap by one more per-conversation amount (BABA_SESSION_BUDGET_USD).
+ * Raises the session's cap by one more per-conversation amount (Settings → AI & spending).
  * Claude keeps the paused session's history and workspace, so the work continues exactly
  * where it stopped — nothing is redone or paid for twice.
  */
@@ -21,6 +28,9 @@ export async function POST(request: Request) {
   const conversation = await loadConversation(ctx, conversationId);
   if (!conversation?.claude_session_id) return notFound();
   const sessionId = conversation.claude_session_id;
+
+  const overLimit = await monthlyLimitReached(ctx);
+  if (overLimit) return overLimit;
 
   const claude = getClaude();
 
@@ -36,7 +46,7 @@ export async function POST(request: Request) {
     }
     // The new cap must be above what's been spent so far (which can be a little over the old cap)
     const spentCents = Number(session.usage.list_cost?.amount ?? session.budget?.max_list_cost.amount ?? "0");
-    newCapCents = Math.ceil(spentCents) + Number(sessionBudgetCents());
+    newCapCents = Math.ceil(spentCents) + conversationCapCents(ctx);
   } catch (error) {
     return Response.json({ error: errorMessage(error) }, { status: 502 });
   }

@@ -5,8 +5,12 @@ import { listConversations } from "@/lib/data/conversations";
 
 export const metadata: Metadata = { title: "Ask Baba" };
 
-export default async function AskBabaPage() {
-  const ctx = await requireAppContext();
+function one(value: string | string[] | undefined) {
+  return typeof value === "string" ? value : undefined;
+}
+
+export default async function AskBabaPage({ searchParams }: PageProps<"/ask">) {
+  const [ctx, params] = await Promise.all([requireAppContext(), searchParams]);
   const conversations = await listConversations(ctx);
 
   return (
@@ -17,6 +21,9 @@ export default async function AskBabaPage() {
         workspaceId={ctx.workspace.id}
         userId={ctx.user.id}
         canWrite={ctx.workspace.role !== "viewer"}
+        initialActiveId={one(params.c)}
+        initialPrompt={one(params.prompt)?.slice(0, 20000)}
+        workflowId={one(params.workflow)}
       />
     </main>
   );
