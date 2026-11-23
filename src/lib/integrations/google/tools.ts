@@ -218,8 +218,28 @@ async function driveSearch(token: string, input: Input) {
     .join("\n")}`;
 }
 
+/** Accepts a plain file id or a Google Docs/Sheets/Slides/Drive link, and returns the file id. */
+export function driveFileId(value: string) {
+  const v = value.trim();
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(v)) return v;
+  let url: URL;
+  try {
+    url = new URL(v);
+  } catch {
+    throw new ToolError("That doesn't look like a Google Drive file id or link.");
+  }
+  if (!/(^|\.)google\.com$/.test(url.hostname)) throw new ToolError("Only Google Docs/Sheets/Slides/Drive links can be read here.");
+  const fromPath = url.pathname.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
+  const id = fromPath?.[1] ?? url.searchParams.get("id");
+  if (!id || !/^[a-zA-Z0-9_-]{10,}$/.test(id)) throw new ToolError("Couldn't find the file id in that link.");
+  return id;
+}
+
+const READ_CHUNK = 40_000;
+const READ_CHUNK_MAX = 80_000;
+
 async function driveRead(token: string, input: Input) {
-  const id = encodeURIComponent(str(input, "file_id", true)!);
+  const id = encodeURIComponent(driveFileId(str(input, "file_id", true)!));
   const meta = (await (await google(token, `https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType,size&supportsAllDrives=true`)).json()) as {
     name: string;
     mimeType: string;
@@ -237,7 +257,26 @@ async function driveRead(token: string, input: Input) {
     return `"${meta.name}" is a ${meta.mimeType} file, which can't be read as text here. Ask the user to download it and attach it in Ask Baba.`;
   }
   const text = await (await google(token, url)).text();
-  return cut(`File: ${meta.name} (${meta.mimeType})\n\n${text}`);
+  // Long documents are read in parts: each call returns one part, and says where the next one starts
+  const total = text.length;
+  const rawOffset = Number(input.offset);
+  const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.min(Math.floor(rawOffset), total) : 0;
+  const size = int(input, "max_chars", READ_CHUNK, READ_CHUNK_MAX);
+  const end = Math.min(offset + size, total);
+  const part = text.slice(offset, end);
+  const where =
+    total === 0
+      ? "The file is empty."
+      : offset === 0 && end === total
+        ? `Whole document (${total} characters).`
+        : `Characters ${offset}–${end} of ${total}.`;
+  const next =
+    end < total
+      ? `\n\n[More remains (${total - end} characters). Call drive_read again with the same file_id and offset=${end} to continue.]`
+      : total > 0 && offset > 0
+        ? "\n\n[End of document.]"
+        : "";
+  return `File: ${meta.name} (${meta.mimeType}). ${where}\n\n${part}${next}`;
 }
 
 async function driveSaveOutput(token: string, input: Input, ctx: ToolContext) {
