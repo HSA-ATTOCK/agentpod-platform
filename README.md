@@ -79,6 +79,22 @@ Baba sends invite emails and task notifications through your Gmail account with 
 Gmail allows about 500 emails a day, which is fine while you grow; move to a dedicated
 sending service later if you need more.
 
+## Scheduled workflows
+
+Workflows with a schedule run by themselves at their time in the **workspace timezone**
+(Settings → Workspace).
+
+1. Add `SUPABASE_SECRET_KEY` to `.env.local` (Supabase → Project Settings → API Keys → Secret key).
+2. Restart the app. The terminal shows `[workflows] Scheduler on: checking for due workflows every minute.`
+
+While the app runs, it checks every minute. If it was off at a scheduled time, the run is caught up
+when the app starts again (up to 3 hours late); older ones show in Activity as "Missed".
+Each run creates a conversation (open it from Activity), counts against the workflow's own cap and
+the workspace's monthly limit, and emails the person who created the workflow if it fails or pauses.
+
+When the app is hosted (e.g. Vercel), call `GET /api/cron/workflows` every minute with
+`Authorization: Bearer <CRON_SECRET>` from a scheduler, and set `BABA_SCHEDULER=off`.
+
 ## Legal pages
 
 `/terms` and `/privacy` are drafts. Fill in your details in `src/config/legal.ts` and have them

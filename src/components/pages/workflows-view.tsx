@@ -16,6 +16,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { routes } from "@/config/routes";
 import { formatCents } from "@/lib/format";
+import { nextSlot, shortZone } from "@/lib/schedule";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { WorkflowRecord } from "@/types/app-data";
@@ -43,6 +44,24 @@ function scheduleLabel(wf: Pick<WorkflowRecord, "frequency" | "dayOfWeek" | "tim
   if (wf.frequency === "monthly") return `1st of each month at ${time}`;
   const day = DAYS.find((d) => d.value === wf.dayOfWeek)?.label ?? "Mon";
   return `Every ${day} at ${time}`;
+}
+
+/** "Today, 13:27" / "Tue 24 Nov, 13:27" in the workspace's timezone. */
+function nextRunLabel(wf: WorkflowRecord, timeZone: string) {
+  if (!wf.enabled || wf.frequency === "manual") return null;
+  const next = nextSlot(wf, timeZone, Date.now());
+  if (next === null) return null;
+  const fmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { timeZone, ...opts }).format(next);
+  const day = fmt({ year: "numeric", month: "2-digit", day: "2-digit" });
+  const today = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(Date.now());
+  const time = fmt({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  return day === today ? `Today, ${time}` : `${fmt({ weekday: "short", day: "numeric", month: "short" })}, ${time}`;
+}
+
+function NextRun({ wf, timeZone }: { wf: WorkflowRecord; timeZone: string }) {
+  const label = nextRunLabel(wf, timeZone);
+  if (!label) return <span className="text-subtle">—</span>;
+  return <span suppressHydrationWarning>{label}</span>;
 }
 
 function runPrompt(wf: WorkflowRecord) {
@@ -76,9 +95,11 @@ type WorkflowsViewProps = {
   userId: string;
   canWrite: boolean;
   canManageAll: boolean;
+  /** The workspace timezone schedules run in (Settings → Workspace). */
+  timeZone: string;
 };
 
-export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canManageAll }: WorkflowsViewProps) {
+export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canManageAll, timeZone }: WorkflowsViewProps) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [errors, setErrors] = useState<{ name?: string; instruction?: string; cap?: string }>({});
@@ -133,7 +154,8 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
       enabled: draft.frequency !== "manual",
     };
     const { error } = draft.id
-      ? await supabase.from("workflows").update(values).eq("id", draft.id)
+      ? // A changed schedule only counts from now on (a time that already passed today doesn't fire at once)
+        await supabase.from("workflows").update({ ...values, last_run_slot: new Date().toISOString() }).eq("id", draft.id)
       : await supabase.from("workflows").insert({ ...values, workspace_id: workspaceId, created_by: userId });
     setSaving(false);
     if (error) {
@@ -195,8 +217,9 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
       <div className="flex items-start gap-2.5 rounded-card border border-border bg-surface p-3.5 text-xs text-muted">
         <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info" />
         <p>
-          <span className="font-medium text-foreground">Run now</span> opens the workflow in Ask Baba, ready to send.
-          Schedules are saved with each workflow; automatic scheduled runs are coming with the next agent update.
+          Scheduled workflows run by themselves at their time in <span className="font-medium text-foreground">{timeZone.replace(/_/g, " ")}</span>{" "}
+          time (change it in Settings → Workspace). Each run appears in Activity, and you&apos;re emailed if it fails or
+          pauses. <span className="font-medium text-foreground">Run now</span> opens a workflow in Ask Baba straight away.
         </p>
       </div>
 
@@ -218,6 +241,7 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
                 <tr className="border-b border-border text-xs text-subtle">
                   <th scope="col" className="px-4 py-3 font-medium">Workflow</th>
                   <th scope="col" className="px-4 py-3 font-medium">Schedule</th>
+                  <th scope="col" className="px-4 py-3 font-medium">Next run</th>
                   <th scope="col" className="px-4 py-3 font-medium">Last run</th>
                   <th scope="col" className="px-4 py-3 font-medium">Runs</th>
                   <th scope="col" className="px-4 py-3 font-medium">Avg cost</th>
@@ -231,7 +255,18 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
                       <p className="font-medium text-foreground">{wf.name}</p>
                       <p className="mt-0.5 truncate text-xs text-muted">{wf.instruction}</p>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-xs text-muted">{scheduleLabel(wf)}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-xs text-muted">
+                      {scheduleLabel(wf)}
+                    {wf.frequency !== "manual" && (
+                      <span className="text-subtle">
+                        · next <NextRun wf={wf} timeZone={timeZone} />
+                      </span>
+                    )}
+                      {wf.frequency !== "manual" && <span className="block text-[11px] text-subtle">{shortZone(timeZone)} time</span>}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-xs text-foreground">
+                      <NextRun wf={wf} timeZone={timeZone} />
+                    </td>
                     <td className="px-4 py-4"><LastRun wf={wf} /></td>
                     <td className="px-4 py-4 text-xs text-foreground">{wf.runs.length >= 10 ? "10+" : wf.runs.length}</td>
                     <td className="whitespace-nowrap px-4 py-4 text-xs text-foreground">{averageCost(wf) ?? "—"}</td>
@@ -339,6 +374,7 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
                 value={draft.time}
                 disabled={draft.frequency === "manual"}
                 onChange={(e) => setDraft({ ...draft, time: e.target.value })}
+                hint={draft.frequency === "manual" ? undefined : `${shortZone(timeZone)} time`}
               />
             </div>
             {draft.frequency === "weekly" && (

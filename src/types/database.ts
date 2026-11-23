@@ -359,6 +359,7 @@ export type Database = {
           frequency: string
           id: string
           instruction: string
+          last_run_slot: string | null
           name: string
           time_of_day: string | null
           updated_at: string
@@ -373,6 +374,7 @@ export type Database = {
           frequency?: string
           id?: string
           instruction: string
+          last_run_slot?: string | null
           name: string
           time_of_day?: string | null
           updated_at?: string
@@ -387,6 +389,7 @@ export type Database = {
           frequency?: string
           id?: string
           instruction?: string
+          last_run_slot?: string | null
           name?: string
           time_of_day?: string | null
           updated_at?: string

@@ -5,6 +5,7 @@ import {
   monthlyLimitReached,
   notFound,
   trackTurn,
+  withBusinessContext,
 } from "@/lib/baba/conversations";
 import type { BabaChatRequest } from "@/lib/baba/protocol";
 import { babaConfig, getClaude } from "@/lib/baba/server";
@@ -131,17 +132,7 @@ export async function POST(request: Request) {
     },
     async kickoff(sessionId) {
       // The first message of a conversation carries the workspace's "About your business" notes
-      let message = text;
-      if (isFirstMessage) {
-        const { data: ws } = await ctx.supabase
-          .from("workspaces")
-          .select("name, business_context")
-          .eq("id", conversation.workspace_id)
-          .maybeSingle();
-        if (ws?.business_context.trim()) {
-          message = `About my business (${ws.name}), from my Baba settings:\n${ws.business_context.trim()}\n\n---\n\n${text}`;
-        }
-      }
+      let message = isFirstMessage ? await withBusinessContext(ctx.supabase, conversation.workspace_id, text) : text;
       // Attached files: mounted in the agents' workspace (for code and the specialists),
       // and images/PDFs also shown to Baba directly
       type Block = { type: "text"; text: string } | { type: "image" | "document"; source: { type: "file"; file_id: string } };
