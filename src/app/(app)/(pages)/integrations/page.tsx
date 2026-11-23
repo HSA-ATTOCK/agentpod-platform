@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { IntegrationsView, type GoogleConnection } from "@/components/pages/integrations-view";
+import { IntegrationsView, type ApiKeyRow, type GoogleAccountRow } from "@/components/pages/integrations-view";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { canManage, requireAppContext } from "@/lib/data/context";
 import { isGoogleConfigured } from "@/lib/integrations/google/oauth";
@@ -14,25 +14,49 @@ function one(value: string | string[] | undefined) {
 
 async function PageContent({ searchParams }: PageProps<"/integrations">) {
   const [ctx, params] = await Promise.all([requireAppContext(), searchParams]);
-  const { data: row } = await ctx.supabase
+  // Members can see what's connected (never the secrets: those are in a server-only table)
+  const { data: rows } = await ctx.supabase
     .from("integrations")
-    .select("status, account_email, connected_by")
+    .select("id, provider, status, account_email, label, is_default, config, connected_by, created_at")
     .eq("workspace_id", ctx.workspace.id)
-    .eq("provider", "google")
-    .maybeSingle();
+    .order("created_at", { ascending: true });
 
-  let google: GoogleConnection = null;
-  if (row && (row.status === "connected" || row.status === "error")) {
-    const { data: who } = row.connected_by
-      ? await ctx.supabase.from("profiles").select("full_name, email").eq("id", row.connected_by).maybeSingle()
-      : { data: null };
-    google = { status: row.status, accountEmail: row.account_email, connectedBy: who?.full_name || who?.email || null };
-  }
+  const people = [...new Set((rows ?? []).map((r) => r.connected_by).filter(Boolean))] as string[];
+  const { data: profiles } = people.length
+    ? await ctx.supabase.from("profiles").select("id, full_name, email").in("id", people)
+    : { data: [] };
+  const nameOf = (id: string | null) => {
+    const p = profiles?.find((x) => x.id === id);
+    return p ? p.full_name || p.email : null;
+  };
+
+  const googleAccounts: GoogleAccountRow[] = (rows ?? [])
+    .filter((r) => r.provider === "google")
+    .sort((a, b) => Number(b.is_default) - Number(a.is_default))
+    .map((r) => ({
+      id: r.id,
+      email: r.account_email ?? r.label,
+      isDefault: r.is_default,
+      status: r.status,
+      connectedBy: nameOf(r.connected_by),
+      createdAt: r.created_at,
+    }));
+  const apiKeys: ApiKeyRow[] = (rows ?? [])
+    .filter((r) => r.provider === "api_key")
+    .map((r) => ({
+      id: r.id,
+      name: r.label,
+      host: (r.config as { host?: string } | null)?.host ?? "",
+      connectedBy: nameOf(r.connected_by),
+      createdAt: r.created_at,
+    }));
 
   return (
     <IntegrationsView
-      google={google}
+      googleAccounts={googleAccounts}
+      apiKeys={apiKeys}
       googleConfigured={isGoogleConfigured() && isAdminConfigured()}
+      keysAvailable={isAdminConfigured()}
       canManage={canManage(ctx.workspace.role)}
       flash={{ connected: one(params.connected), account: one(params.account), error: one(params.error) }}
     />

@@ -17,6 +17,19 @@ export type BabaStreamEvent =
   | { type: "approval"; toolUseId: string; toolName: string; summary: string }
   | { type: "files"; files: { id: string; name: string; sizeBytes: number }[] }
   | { type: "usage"; costCents: number; capCents: number | null }
+  /** Baba asks the user to connect a service: show a Connect button in the chat. */
+  | { type: "connect_request"; id: string; service: "google"; reason: string }
+  /** Baba asks for an API key: show a secure box in the chat (the key never goes to Claude). */
+  | {
+      type: "key_request";
+      id: string;
+      serviceName: string;
+      apiHost: string;
+      headerName: string;
+      headerPrefix: string;
+      queryParam: string | null;
+      instructions: string;
+    }
   | { type: "error"; message: string }
   /** Keep-alive sent every few seconds; the UI ignores it. */
   | { type: "ping" }

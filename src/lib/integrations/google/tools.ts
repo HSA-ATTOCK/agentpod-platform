@@ -333,12 +333,13 @@ async function calendarCreate(token: string, input: Input) {
 /** Short description of a sensitive call, for the approval card and email. */
 export function approvalSummary(name: string, input: Input) {
   const s = (key: string) => (typeof input[key] === "string" ? (input[key] as string) : "");
+  const from = s("account") ? `From: ${s("account")}\n` : "";
   if (name === "gmail_send") {
     const body = s("body");
-    return `Send an email\nTo: ${s("to")}${s("cc") ? `\nCc: ${s("cc")}` : ""}\nSubject: ${s("subject")}\n\n${body.length > 1200 ? `${body.slice(0, 1200)}…` : body}`;
+    return `Send an email\n${from}To: ${s("to")}${s("cc") ? `\nCc: ${s("cc")}` : ""}\nSubject: ${s("subject")}\n\n${body.length > 1200 ? `${body.slice(0, 1200)}…` : body}`;
   }
   if (name === "calendar_create_event") {
-    return `Create a calendar event\n${s("summary")}\n${s("start")} → ${s("end")}${s("attendees") ? `\nInvite: ${s("attendees")}` : ""}${s("location") ? `\nWhere: ${s("location")}` : ""}`;
+    return `Create a calendar event\n${from}${s("summary")}\n${s("start")} → ${s("end")}${s("attendees") ? `\nInvite: ${s("attendees")}` : ""}${s("location") ? `\nWhere: ${s("location")}` : ""}`;
   }
   return JSON.stringify(input).slice(0, 1200);
 }
@@ -358,13 +359,15 @@ export const TOOL_LABELS: Record<string, string> = {
 /** Runs a Google tool. Returns { text, isError } for Claude. */
 export async function runGoogleTool(name: string, input: Input, ctx: ToolContext): Promise<{ text: string; isError: boolean }> {
   try {
-    const token = await googleAccessToken(ctx.workspaceId);
-    if (!token) {
+    const auth = await googleAccessToken(ctx.workspaceId, str(input, "account"));
+    if (!auth) {
       return {
-        text: "Google isn't connected for this workspace. Tell the user to connect it: Integrations → Google → Connect.",
+        text: "Google isn't connected for this workspace. Call request_connection with service \"google\" so the user gets a Connect button.",
         isError: true,
       };
     }
+    const token = auth.token;
+    const result = await (async () => {
     switch (name) {
       case "gmail_search":
         return { text: await gmailSearch(token, input), isError: false };
@@ -387,6 +390,9 @@ export async function runGoogleTool(name: string, input: Input, ctx: ToolContext
       default:
         return { text: `Unknown tool "${name}".`, isError: true };
     }
+    })();
+    // Say which account was used (useful when several are connected)
+    return result.isError ? result : { ...result, text: `[Google account: ${auth.email}]\n${result.text}` };
   } catch (error) {
     return { text: error instanceof Error ? error.message : String(error), isError: true };
   }

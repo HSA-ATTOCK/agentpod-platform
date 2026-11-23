@@ -1,0 +1,211 @@
+"use client";
+
+import { CircleCheck, KeyRound, Link2, Lock } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
+import type { ChatItem } from "@/types/chat";
+
+type ConnectItem = Extract<ChatItem, { type: "connect_request" }>;
+type KeyItem = Extract<ChatItem, { type: "key_request" }>;
+
+type Shared = {
+  /** Owners and admins can connect tools. */
+  canManage: boolean;
+  /** The conversation this card is in (to come back to after a same-tab sign-in). */
+  conversationId: string;
+  onUpdate: (patch: Partial<ChatItem>) => void;
+  /** Sends a message to Baba (e.g. "I've connected Google"). */
+  onSend: (text: string) => void;
+  busy: boolean;
+};
+
+/** "Connect Google" button that Baba put in the chat. Signs in in a small window, so the chat stays put. */
+export function ConnectRequestCard({ item, canManage, conversationId, onUpdate, onSend, busy }: Shared & { item: ConnectItem }) {
+  const [error, setError] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(false);
+
+  // The sign-in window reports back with postMessage (only from our own origin)
+  useEffect(() => {
+    if (item.status !== "pending") return;
+    function onMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as { type?: string; ok?: boolean; account?: string; error?: string };
+      if (data?.type !== "baba-connect") return;
+      setWaiting(false);
+      if (data.ok) {
+        setError(null);
+        onUpdate({ status: "connected", account: data.account } as Partial<ChatItem>);
+      } else {
+        setError(data.error ?? "Google sign-in didn't finish.");
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [item.status, onUpdate]);
+
+  function connect() {
+    setError(null);
+    const width = 520;
+    const height = 680;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    const popup = window.open(
+      "/api/integrations/google/connect?popup=1",
+      "baba-connect-google",
+      `width=${width},height=${height},left=${left},top=${top}`,
+    );
+    if (!popup) {
+      // Pop-ups blocked: sign in in this tab and come back to this conversation
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a server route that redirects to Google
+      window.location.assign(`/api/integrations/google/connect?return=${encodeURIComponent(`/ask?c=${conversationId}`)}`);
+      return;
+    }
+    setWaiting(true);
+  }
+
+  return (
+    <section aria-label="Connect Google" className="rounded-card border border-border bg-surface-raised p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-control border border-info/20 bg-info/10 text-info">
+          <Link2 aria-hidden="true" className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Connect Google</h3>
+            <p className="text-xs text-muted">Gmail, Drive, Sheets and Calendar{item.reason ? `: ${item.reason}` : "."}</p>
+          </div>
+          {item.status === "connected" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-success">
+                <CircleCheck aria-hidden="true" className="size-4" /> Connected{item.account ? ` as ${item.account}` : ""}
+              </p>
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => onSend(`I've connected Google${item.account ? ` (${item.account})` : ""}. Please continue.`)}
+              >
+                Continue
+              </Button>
+            </div>
+          ) : canManage ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" onClick={connect} loading={waiting} loadingText="Waiting for Google…">
+                  Connect Google
+                </Button>
+                {waiting && (
+                  <button type="button" onClick={connect} className="text-xs text-muted hover:text-foreground">
+                    Window didn&apos;t open? Try again
+                  </button>
+                )}
+              </div>
+              <p className="flex items-center gap-1.5 text-[11px] text-subtle">
+                <Lock aria-hidden="true" className="size-3" /> You sign in on Google&apos;s own page. Baba never sees your password,
+                and sending emails always needs your approval.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-muted">Only owners and admins can connect tools. Ask one of them to connect Google for this workspace.</p>
+          )}
+          {error && <Alert variant="error">{error}</Alert>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Secure box for an API key Baba asked for. The key goes only to our server, never into the chat or to Claude. */
+export function KeyRequestCard({ item, canManage, onUpdate, onSend, busy }: Shared & { item: KeyItem }) {
+  const [key, setKey] = useState("");
+  const [name, setName] = useState(item.serviceName);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (key.trim().length < 8) {
+      setError("Paste the whole key.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/integrations/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceName: name.trim() || item.serviceName,
+          apiHost: item.apiHost,
+          headerName: item.headerName,
+          headerPrefix: item.headerPrefix,
+          queryParam: item.queryParam,
+          key,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Couldn't save the key.");
+      setKey("");
+      onUpdate({ status: "saved", serviceName: name.trim() || item.serviceName } as Partial<ChatItem>);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save the key.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section aria-label={`Add ${item.serviceName} API key`} className="rounded-card border border-border bg-surface-raised p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-control border border-warning/20 bg-warning/10 text-warning">
+          <KeyRound aria-hidden="true" className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Add your {item.serviceName} API key</h3>
+            <p className="text-xs text-muted">Used only for requests to {item.apiHost}.</p>
+          </div>
+          {item.instructions && (
+            <div className="whitespace-pre-wrap rounded-control border border-border bg-surface p-3 text-sm leading-relaxed text-foreground">
+              {item.instructions}
+            </div>
+          )}
+          {item.status === "saved" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-success">
+                <CircleCheck aria-hidden="true" className="size-4" /> Key saved securely
+              </p>
+              <Button size="sm" disabled={busy} onClick={() => onSend(`I've added the ${item.serviceName} API key. Please continue.`)}>
+                Continue
+              </Button>
+            </div>
+          ) : canManage ? (
+            <form noValidate onSubmit={save} className="space-y-3">
+              <Input id={`key-name-${item.id}`} label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+              <PasswordInput
+                id={`key-${item.id}`}
+                label="API key"
+                autoComplete="off"
+                placeholder="Paste the key here"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+              />
+              <Button type="submit" size="sm" loading={saving} loadingText="Saving…">
+                Save key securely
+              </Button>
+              <p className="flex items-center gap-1.5 text-[11px] text-subtle">
+                <Lock aria-hidden="true" className="size-3" /> The key is encrypted and stored for this workspace. It never appears in the
+                chat and Baba never sees it. Remove it any time in Integrations.
+              </p>
+            </form>
+          ) : (
+            <p className="text-xs text-muted">Only owners and admins can add keys. Ask one of them to add it.</p>
+          )}
+          {error && <Alert variant="error">{error}</Alert>}
+        </div>
+      </div>
+    </section>
+  );
+}

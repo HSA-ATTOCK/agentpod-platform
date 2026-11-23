@@ -74,6 +74,22 @@ export function createTranscript(conversationId: string, userItem: ChatItem) {
         case "error":
           items.push({ id: crypto.randomUUID(), type: "error", text: event.message });
           break;
+        case "connect_request":
+          items.push({ id: `connect_request-${event.id}`, type: "connect_request", service: event.service, reason: event.reason, status: "pending" });
+          break;
+        case "key_request":
+          items.push({
+            id: `key_request-${event.id}`,
+            type: "key_request",
+            serviceName: event.serviceName,
+            apiHost: event.apiHost,
+            headerName: event.headerName,
+            headerPrefix: event.headerPrefix,
+            queryParam: event.queryParam,
+            instructions: event.instructions,
+            status: "pending",
+          });
+          break;
         case "done": {
           const p = items.find((i) => i.id === progressId) as Extract<ChatItem, { type: "progress" }> | undefined;
           if (event.reason === "budget_reached") {
