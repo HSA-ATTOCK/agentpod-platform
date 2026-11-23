@@ -30,35 +30,46 @@ export function NotificationsMenu({ workspaceId, className }: { workspaceId: str
   useEffect(() => {
     let cancelled = false;
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
-    getSupabaseBrowser()
-      .from("tasks")
-      .select("id, request, status, started_at, finished_at, conversation_id")
-      .eq("workspace_id", workspaceId)
-      .in("status", ["succeeded", "failed", "paused", "needs_approval"])
-      .gte("started_at", since)
-      .order("started_at", { ascending: false })
-      .limit(8)
-      .then(({ data }) => {
-        if (cancelled) return;
-        setSeen(readSeen());
-        setNotes(
-          (data ?? []).map((t) => ({
-            id: t.id,
-            title:
-              t.status === "succeeded"
-                ? "Task finished"
-                : t.status === "failed"
-                  ? "Task failed"
-                  : t.status === "needs_approval"
-                    ? "Needs your approval"
-                    : "Paused at spending cap",
-            text: t.request,
-            at: t.finished_at ?? t.started_at,
-            href: t.conversation_id ? `${routes.ask}?c=${t.conversation_id}` : routes.activity,
-            tone: t.status === "succeeded" ? "success" : t.status === "failed" ? "danger" : "warning",
-          })),
-        );
-      });
+    const supabase = getSupabaseBrowser();
+    Promise.all([
+      supabase
+        .from("tasks")
+        .select("id, request, status, started_at, finished_at, conversation_id")
+        .eq("workspace_id", workspaceId)
+        .in("status", ["succeeded", "failed", "paused", "needs_approval"])
+        .gte("started_at", since)
+        .order("started_at", { ascending: false })
+        .limit(8),
+      // Personal notifications (account, registrations for admins, platform messages)
+      supabase.from("notifications").select("id, kind, title, body, link, created_at, read_at").gte("created_at", since).order("created_at", { ascending: false }).limit(8),
+    ]).then(([{ data }, { data: inbox }]) => {
+      if (cancelled) return;
+      setSeen(readSeen());
+      const taskNotes: Note[] = (data ?? []).map((t) => ({
+        id: t.id,
+        title:
+          t.status === "succeeded"
+            ? "Task finished"
+            : t.status === "failed"
+              ? "Task failed"
+              : t.status === "needs_approval"
+                ? "Needs your approval"
+                : "Paused at spending cap",
+        text: t.request,
+        at: t.finished_at ?? t.started_at,
+        href: t.conversation_id ? `${routes.ask}?c=${t.conversation_id}` : routes.activity,
+        tone: t.status === "succeeded" ? "success" : t.status === "failed" ? "danger" : "warning",
+      }));
+      const inboxNotes: Note[] = (inbox ?? []).map((n) => ({
+        id: n.id,
+        title: n.title,
+        text: n.body,
+        at: n.created_at,
+        href: n.link ?? routes.dashboard,
+        tone: n.kind === "success" ? "success" : n.kind === "danger" ? "danger" : "warning",
+      }));
+      setNotes([...inboxNotes, ...taskNotes].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 10));
+    });
     return () => {
       cancelled = true;
     };

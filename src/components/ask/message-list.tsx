@@ -17,7 +17,7 @@ import {
   ThinkingIndicator,
   UserMessage,
 } from "./chat-items";
-import { ConnectRequestCard, GoogleAppCard, KeyRequestCard } from "./connect-cards";
+import { ConnectRequestCard, GoogleAppCard, KeyRequestCard, DatabaseRequestCard } from "./connect-cards";
 import { MarkdownReply } from "./markdown-reply";
 import { MessageActions } from "./message-actions";
 import { ToolApprovalCard } from "./tool-approval-card";
@@ -79,6 +79,8 @@ function renderItem(
       return <KeyRequestCard item={item} {...cardProps} />;
     case "google_app_request":
       return <GoogleAppCard item={item} {...cardProps} />;
+    case "db_request":
+      return <DatabaseRequestCard item={item} {...cardProps} />;
     case "budget_paused":
       return <BudgetPausedCard item={item} cost={cost} busy={working} onContinue={() => onContinue(item.id)} />;
     case "user":

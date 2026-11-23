@@ -196,11 +196,32 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
     if (!error) router.refresh();
   }
 
+  async function webhook(wf: WorkflowRecord, action: "create" | "remove") {
+    if (action === "create" && wf.hasWebhook && !window.confirm("Replace the webhook link? The old link stops working.")) return;
+    const res = await fetch("/api/workflows/webhook", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflowId: wf.id, action }) });
+    const data = (await res.json().catch(() => ({}))) as { url?: string | null; error?: string };
+    if (!res.ok) {
+      showToast(data.error ?? "That didn't work.");
+      return;
+    }
+    if (data.url) {
+      // Shown once: only a hash is stored
+      window.prompt("Copy this webhook link now — it won't be shown again. POST JSON or text to it to run the workflow (the workflow must be On):", data.url);
+    } else {
+      showToast("Webhook link removed.");
+    }
+    router.refresh();
+  }
+
   function actions(wf: WorkflowRecord) {
     const list: { label: string; onSelect: () => void; danger?: boolean }[] = [];
     if (canWrite) list.push({ label: "Run now", onSelect: () => router.push(runPrompt(wf)) });
     if (canChange(wf)) list.push({ label: "Edit", onSelect: () => openEdit(wf) });
     if (canWrite) list.push({ label: "Duplicate", onSelect: () => void duplicate(wf) });
+    if (canChange(wf)) {
+      list.push({ label: wf.hasWebhook ? "New webhook link" : "Create webhook link", onSelect: () => void webhook(wf, "create") });
+      if (wf.hasWebhook) list.push({ label: "Remove webhook link", onSelect: () => void webhook(wf, "remove") });
+    }
     if (canChange(wf)) list.push({ label: "Delete", danger: true, onSelect: () => void remove(wf) });
     return list;
   }

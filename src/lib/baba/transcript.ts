@@ -93,6 +93,9 @@ export function createTranscript(conversationId: string, userItem: ChatItem) {
             status: "pending",
           });
           break;
+        case "db_request":
+          items.push({ id: `db_request-${event.id}`, type: "db_request", engine: event.engine, reason: event.reason, status: "pending" });
+          break;
         case "done": {
           const p = items.find((i) => i.id === progressId) as Extract<ChatItem, { type: "progress" }> | undefined;
           if (event.reason === "budget_reached") {

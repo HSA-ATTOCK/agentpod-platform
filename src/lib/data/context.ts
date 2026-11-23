@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { cache } from "react";
 import { routes } from "@/config/routes";
 import { getAccount, getPlatformSettings } from "@/lib/platform/account";
+import { platformLimits, stricter, type PlatformLimits } from "@/lib/platform/limits";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import type { UserProfile, Workspace } from "@/types";
 import type { Enums } from "@/types/database";
@@ -17,6 +18,9 @@ export type CurrentWorkspace = Workspace & {
   taskCapUsd: number;
   monthlyLimitUsd: number;
   logoUrl: string | null;
+  /** Set by the platform administrator (plan / overrides); null = no daily limit. */
+  dailyLimitUsd: number | null;
+  limits: PlatformLimits;
 };
 
 export type AppContext = {
@@ -70,6 +74,8 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
   const chosenId = (await cookies()).get(WORKSPACE_COOKIE)?.value;
   const current = usable.find((m) => m.workspaces!.id === chosenId) ?? usable[0];
   const ws = current.workspaces!;
+  // The platform admin's plan and limits; the stricter of theirs and the workspace's own settings applies
+  const limits = await platformLimits(supabase, ws.id);
 
   return {
     supabase,
@@ -84,9 +90,11 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
       name: ws.name,
       slug: ws.slug,
       role: current.role,
-      taskCapUsd: Number(ws.task_cap_usd),
-      monthlyLimitUsd: Number(ws.monthly_limit_usd),
+      taskCapUsd: stricter(Number(ws.task_cap_usd), limits.taskCapUsd),
+      monthlyLimitUsd: stricter(Number(ws.monthly_limit_usd), limits.monthlyLimitUsd),
       logoUrl: ws.logo_url,
+      dailyLimitUsd: limits.dailyLimitUsd,
+      limits,
     },
     workspaces: usable.map((m) => ({ id: m.workspaces!.id, name: m.workspaces!.name, role: m.role })),
     isPlatformAdmin: account.isAdmin,

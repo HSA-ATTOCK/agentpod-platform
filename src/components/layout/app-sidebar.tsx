@@ -1,4 +1,5 @@
-import { LogOut } from "lucide-react";
+import { LogOut, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import { Logo } from "@/components/ui/logo";
 import { routes } from "@/config/routes";
@@ -32,6 +33,15 @@ export function AppSidebar({ workspace, workspaces, invites, user }: AppSidebarP
       <div className="space-y-1 border-t border-border p-3">
         <nav aria-label="Account" className="space-y-1">
           <SidebarNav group="secondary" />
+          {user.isPlatformAdmin && (
+            <Link
+              href={routes.admin}
+              className="flex items-center gap-3 rounded-control border border-transparent px-3 py-2 text-sm font-medium text-warning transition-colors hover:bg-surface-raised"
+            >
+              <ShieldCheck aria-hidden="true" className="size-4" />
+              <span>Platform admin</span>
+            </Link>
+          )}
         </nav>
 
         <div className="mt-1 border-t border-border pt-2">

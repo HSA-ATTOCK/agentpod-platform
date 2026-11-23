@@ -51,6 +51,8 @@ export type WorkflowRecord = {
   capUsd: number;
   enabled: boolean;
   createdBy: string | null;
+  /** A secret webhook link can start it (only a hash is stored). */
+  hasWebhook: boolean;
   runs: { status: TaskStatus; startedAt: string; costCents: number; error: string | null; conversationId: string | null }[];
 };
 

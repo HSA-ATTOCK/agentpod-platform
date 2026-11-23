@@ -349,3 +349,104 @@ export function GoogleAppCard({ item, ...shared }: Shared & { item: GoogleAppIte
     </section>
   );
 }
+
+type DbItem = Extract<ChatItem, { type: "db_request" }>;
+
+/** Secure form for a read-only database connection. The password goes to our server only. */
+export function DatabaseRequestCard({ item, canManage, onUpdate, onSend, busy }: Shared & { item: DbItem }) {
+  const [form, setForm] = useState({
+    name: "",
+    engine: item.engine,
+    host: "",
+    port: item.engine === "mysql" ? "3306" : "5432",
+    database: "",
+    user: "",
+    password: "",
+    ssl: true,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value });
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/integrations/databases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Couldn't connect.");
+      setForm((f) => ({ ...f, password: "" }));
+      onUpdate({ status: "saved", name: form.name } as Partial<ChatItem>);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't connect.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section aria-label="Connect a database" className="rounded-card border border-border bg-surface-raised p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-control border border-info/20 bg-info/10 text-info">
+          <Lock aria-hidden="true" className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Connect a database (read-only)</h3>
+            {item.reason && <p className="text-xs text-muted">{item.reason}</p>}
+          </div>
+          {item.status === "saved" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-success">
+                <CircleCheck aria-hidden="true" className="size-4" /> {item.name ?? "Database"} connected
+              </p>
+              <Button size="sm" disabled={busy} onClick={() => onSend(`I've connected the database "${item.name ?? ""}". Please continue.`)}>
+                Continue
+              </Button>
+            </div>
+          ) : canManage ? (
+            <form noValidate onSubmit={save} className="space-y-3">
+              {error && <Alert variant="error">{error}</Alert>}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input id={`db-name-${item.id}`} label="Name" placeholder="e.g. Sales DB" value={form.name} onChange={set("name")} />
+                <label className="block space-y-1.5">
+                  <span className="text-sm font-medium text-foreground">Type</span>
+                  <select
+                    className="h-10 w-full rounded-control border border-border bg-surface px-3 text-sm text-foreground"
+                    value={form.engine}
+                    onChange={(e) => setForm({ ...form, engine: e.target.value as "postgres" | "mysql", port: e.target.value === "mysql" ? "3306" : "5432" })}
+                  >
+                    <option value="postgres">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                  </select>
+                </label>
+                <Input id={`db-host-${item.id}`} label="Host" placeholder="db.example.com" autoComplete="off" value={form.host} onChange={set("host")} />
+                <Input id={`db-port-${item.id}`} label="Port" inputMode="numeric" value={form.port} onChange={set("port")} />
+                <Input id={`db-db-${item.id}`} label="Database" autoComplete="off" value={form.database} onChange={set("database")} />
+                <Input id={`db-user-${item.id}`} label="Username" autoComplete="off" value={form.user} onChange={set("user")} />
+              </div>
+              <PasswordInput id={`db-pass-${item.id}`} label="Password" autoComplete="new-password" value={form.password} onChange={set("password")} />
+              <label className="flex items-center gap-2 text-sm text-muted">
+                <input type="checkbox" checked={form.ssl} onChange={(e) => setForm({ ...form, ssl: e.target.checked })} /> Use SSL (recommended)
+              </label>
+              <Button type="submit" size="sm" loading={saving} loadingText="Testing connection…">
+                Test and save
+              </Button>
+              <p className="flex items-start gap-1.5 text-[11px] text-subtle">
+                <Lock aria-hidden="true" className="mt-0.5 size-3 shrink-0" /> Best practice: use a database user that can only read. Baba can only run read
+                queries anyway (read-only transaction, 15-second limit). The password is encrypted, never shown in the chat and never sent to the AI.
+              </p>
+            </form>
+          ) : (
+            <p className="text-sm text-muted">Only workspace owners and admins can connect a database. Ask one of them to continue.</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}

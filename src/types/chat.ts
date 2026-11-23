@@ -120,6 +120,8 @@ export type ChatItem =
       instructions: string;
       status: "pending" | "saved";
     }
+  /** A secure form for connecting a database (read-only; the password goes to the server only). */
+  | { id: string; type: "db_request"; engine: "postgres" | "mysql"; reason: string; status: "pending" | "saved"; name?: string }
   /** Shown when the conversation hits its spending cap; "Continue" resumes the same task. */
   | { id: string; type: "budget_paused"; status: "paused" | "resumed" };
 

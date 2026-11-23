@@ -39,6 +39,8 @@ type TurnOptions = {
    * stop here and record the task as waiting, instead of waiting on the stream.
    */
   headless?: boolean;
+  /** Specialists this workspace may not use: if Baba starts one, the turn is stopped. */
+  blockedAgents?: string[];
 };
 
 type Finished = BabaStreamEvent & { type: "done" };
@@ -55,7 +57,7 @@ type RunOptions = Omit<TurnOptions, "request"> & {
  * passes translated events to `emit` until the turn ends, then reports output files.
  * Used by the browser stream below and by scheduled workflow runs (no browser).
  */
-export async function runTurn({ logName, prepare, kickoff, catchUp, track, customTools, headless, emit: rawEmit, signal }: RunOptions) {
+export async function runTurn({ logName, prepare, kickoff, catchUp, track, customTools, headless, blockedAgents, emit: rawEmit, signal }: RunOptions) {
   const claude = getClaude();
   const emit = (event: BabaStreamEvent) => {
     if (event.type !== "ping") track?.event(event);
@@ -111,6 +113,12 @@ export async function runTurn({ logName, prepare, kickoff, catchUp, track, custo
     if (!finished) {
       for await (const event of events) {
         if ("id" in event && typeof event.id === "string" && seen.has(event.id)) continue;
+        // Enforced here, not left to the AI: a specialist that's off for this workspace stops the task
+        if (event.type === "session.thread_created" && blockedAgents?.includes(event.agent_name)) {
+          await claude.beta.sessions.events.send(sessionId, { events: [{ type: "user.interrupt" }] }).catch(() => {});
+          emit({ type: "error", message: `${event.agent_name} isn't available on this workspace's plan, so the task was stopped. Ask an administrator to enable it.` });
+          continue;
+        }
         const result = translate(event);
         result.out.forEach(emit);
         await onCustomTool(event);

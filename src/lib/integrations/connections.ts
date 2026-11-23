@@ -2,6 +2,7 @@ import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 import { decrypt, encrypt } from "./crypto";
+import { listDatabases } from "./databases";
 import { listGoogleAccounts, workspaceGoogleAppId } from "./google/oauth";
 
 /**
@@ -112,7 +113,12 @@ export function connectionNeedsApproval(name: string, input: Input) {
 }
 
 export async function listConnectionsText(workspaceId: string) {
-  const [google, keys, ownApp] = await Promise.all([listGoogleAccounts(workspaceId), listApiKeys(workspaceId), workspaceGoogleAppId(workspaceId)]);
+  const [google, keys, ownApp, databases] = await Promise.all([
+    listGoogleAccounts(workspaceId),
+    listApiKeys(workspaceId),
+    workspaceGoogleAppId(workspaceId),
+    listDatabases(workspaceId),
+  ]);
   const lines: string[] = [];
   lines.push(
     google.length
@@ -126,6 +132,11 @@ export async function listConnectionsText(workspaceId: string) {
     keys.length
       ? `Services connected with an API key:\n${keys.map((k) => `- ${k.name} (host: ${k.config.host})`).join("\n")}`
       : "No services connected with an API key.",
+  );
+  lines.push(
+    databases.length
+      ? `Databases (read-only, use db_query):\n${databases.map((d) => `- ${d.name} (${d.config.engine}, database ${d.config.database})`).join("\n")}`
+      : "No databases connected. Use request_database_connection to show the secure form.",
   );
   lines.push("Coming soon (sign-in): Slack, Microsoft Outlook/Teams, X (Twitter), HubSpot, Notion, Shopify.");
   return lines.join("\n\n");

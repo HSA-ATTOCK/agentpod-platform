@@ -32,6 +32,8 @@ export type BabaStreamEvent =
       queryParam: string | null;
       instructions: string;
     }
+  /** Baba asks for a database connection: show the secure form (the password never goes to Claude). */
+  | { type: "db_request"; id: string; engine: "postgres" | "mysql"; reason: string }
   | { type: "error"; message: string }
   /** Keep-alive sent every few seconds; the UI ignores it. */
   | { type: "ping" }

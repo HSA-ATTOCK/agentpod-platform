@@ -11,6 +11,7 @@
  * Needs ANTHROPIC_API_KEY in .env.local. The key is only read here, never printed.
  */
 import Anthropic from "@anthropic-ai/sdk";
+import { createClient } from "@supabase/supabase-js";
 import { existsSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { PROFILE, baba, babaMultiagent, environment, specialists } from "../baba/team.mjs";
 
@@ -23,6 +24,32 @@ if (!process.env.ANTHROPIC_API_KEY) {
 }
 
 const client = new Anthropic();
+
+// The agent registry in Supabase (admin page → Agents). Optional: skipped without the secret key.
+const db =
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SECRET_KEY
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } })
+    : null;
+
+/** Which agents the platform admin switched off (they are left out of Baba's team). */
+async function disabledAgentKeys() {
+  if (!db) return new Set();
+  const { data, error } = await db.from("agent_registry").select("key").eq("enabled", false);
+  if (error) {
+    console.warn(`  (Couldn't read the agent registry: ${error.message})`);
+    return new Set();
+  }
+  return new Set(data.map((r) => r.key));
+}
+
+async function registerAgent(key, config, agent, category, sort) {
+  if (!db) return;
+  const { error } = await db.from("agent_registry").upsert(
+    { key, name: config.name, description: config.description ?? "", category, claude_agent_id: agent.id, claude_agent_version: agent.version, sort },
+    { onConflict: "key", ignoreDuplicates: false },
+  );
+  if (error) console.warn(`  (Couldn't register ${config.name}: ${error.message})`);
+}
 const lock = existsSync(LOCK_FILE) ? JSON.parse(readFileSync(LOCK_FILE, "utf8")) : { agents: {} };
 
 function saveLock() {
@@ -68,15 +95,20 @@ async function main() {
   }
 
   // 2. Specialists first (Baba's roster refers to their IDs)
+  const disabled = await disabledAgentKeys();
   const specialistIds = [];
-  for (const { key, ...config } of specialists) {
+  for (const [index, { key, ...config }] of specialists.entries()) {
     const agent = await syncAgent(key, config);
-    specialistIds.push(agent.id);
+    await registerAgent(key, config, agent, "specialist", index + 1);
+    if (disabled.has(key)) console.log(`  ${config.name} is switched off in the admin page: not added to Baba's team.`);
+    else specialistIds.push(agent.id);
   }
 
   // 3. Baba, the main agent
   const { key, ...babaConfig } = baba;
   const main = await syncAgent(key, { ...babaConfig, multiagent: babaMultiagent(specialistIds) });
+  await registerAgent(key, babaConfig, main, "orchestrator", 0);
+  if (!db) console.log("  (Add SUPABASE_SECRET_KEY to .env.local to list the agents on the admin page.)");
 
   // 4. IDs the Next.js server needs
   setEnvVar("BABA_AGENT_ID", main.id);

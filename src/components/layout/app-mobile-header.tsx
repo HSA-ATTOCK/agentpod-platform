@@ -116,6 +116,11 @@ export function AppMobileHeader({ workspace, workspaces, invites, user }: AppMob
                     {item.label}
                   </Link>
                 ))}
+                {user.isPlatformAdmin && (
+                  <Link href={routes.admin} className="flex items-center rounded-md px-3 py-2.5 font-medium text-warning hover:bg-border">
+                    Platform admin
+                  </Link>
+                )}
               </nav>
               <div className="my-1 border-t border-border" />
               <form action={routes.signOut} method="post">

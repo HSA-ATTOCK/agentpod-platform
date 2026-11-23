@@ -114,7 +114,7 @@ export async function listWorkflows(ctx: AppContext): Promise<WorkflowRecord[]> 
   const { data, error } = await ctx.supabase
     .from("workflows")
     .select(
-      "id, name, instruction, frequency, day_of_week, time_of_day, cap_usd, enabled, created_by, tasks (status, started_at, cost_cents, error, conversation_id)",
+      "id, name, instruction, frequency, day_of_week, time_of_day, cap_usd, enabled, created_by, webhook_token_hash, tasks (status, started_at, cost_cents, error, conversation_id)",
     )
     .eq("workspace_id", ctx.workspace.id)
     .order("created_at", { ascending: false })
@@ -132,6 +132,7 @@ export async function listWorkflows(ctx: AppContext): Promise<WorkflowRecord[]> 
     capUsd: Number(w.cap_usd),
     enabled: w.enabled,
     createdBy: w.created_by,
+    hasWebhook: Boolean(w.webhook_token_hash),
     runs: w.tasks.map((t) => ({
       status: t.status,
       startedAt: t.started_at,
