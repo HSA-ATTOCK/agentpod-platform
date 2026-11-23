@@ -8,7 +8,7 @@ import {
   connectionNeedsApproval,
   listConnectionsText,
 } from "@/lib/integrations/connections";
-import { isGoogleConfigured } from "@/lib/integrations/google/oauth";
+import { googleClientFor } from "@/lib/integrations/google/oauth";
 import {
   approvalSummary as googleApprovalSummary,
   GOOGLE_TOOL_NAMES,
@@ -68,25 +68,6 @@ function summary(name: string, input: Input) {
   return googleApprovalSummary(name, input);
 }
 
-/** What Baba tells the user when Google sign-in hasn't been set up on this server. */
-function googleNotSetUpMessage(isManager: boolean) {
-  const redirect = `${serverOrigin()}/api/integrations/google/callback`;
-  const base =
-    "Google sign-in hasn't been set up on this Baba server yet. It's a ONE-TIME setup by whoever runs this Baba server " +
-    "(the platform owner), not something each customer does. Do NOT call it 'coming soon'.";
-  if (!isManager) return `${base} Tell the user to ask the workspace owner or the Baba administrator.`;
-  return `${base}
-If this user runs the server, give them these steps as a short numbered list (keep the exact address):
-1. Go to console.cloud.google.com and create a project (e.g. "Baba").
-2. APIs & Services → Library: enable Gmail API, Google Drive API and Google Calendar API.
-3. OAuth consent screen: External; add their own Gmail under Test users.
-4. Credentials → Create credentials → OAuth client ID → Web application. Under "Authorised redirect URIs" add exactly:
-   ${redirect}
-5. Copy the Client ID and Client secret into the server's .env.local file as GOOGLE_CLIENT_ID=... and GOOGLE_CLIENT_SECRET=...
-   (NOT into this chat), then restart the app (stop and run npm run dev again).
-6. Come back and say "connect my Gmail" again.`;
-}
-
 /** Runs a tool that doesn't need the chat UI, as the person in `ctx`. */
 async function runTool(name: string, input: Input, scope: { workspaceId: string; sessionId: string; ctx: AppContext }) {
   if (APP_TOOL_NAMES.has(name)) return runAppTool(name, input, scope.ctx);
@@ -140,8 +121,30 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
         await sendResult(sessionId, event.id, "Only \"google\" can be connected with a button so far.", true);
         return "handled";
       }
-      if (!isGoogleConfigured()) {
-        await sendResult(sessionId, event.id, googleNotSetUpMessage(scope.ctx.workspace.role === "owner" || scope.ctx.workspace.role === "admin"), true);
+      if (!(await googleClientFor(scope.workspaceId))) {
+        const isManager = scope.ctx.workspace.role === "owner" || scope.ctx.workspace.role === "admin";
+        if (!isManager) {
+          await sendResult(sessionId, event.id, "This workspace hasn't set up Google yet, and only an owner or admin can do it. Tell the user to ask one of them to say \"connect my Gmail\" to Baba.", true);
+          return "handled";
+        }
+        // No Google app for this workspace yet: show the secure setup card (Client ID + secret, then Connect)
+        emit({
+          type: "google_app_request",
+          id: event.id,
+          redirectUri: `${serverOrigin()}/api/integrations/google/callback`,
+          reason: str(input, "reason"),
+        });
+        await sendResult(
+          sessionId,
+          event.id,
+          "This workspace doesn't have its Google app yet, so a secure setup card is now shown in the chat. It has the step-by-step " +
+            "instructions (create a Google Cloud project, enable the Gmail/Drive/Calendar APIs, set up the consent screen with the user as a " +
+            "test user, create an OAuth client ID with the redirect address shown on the card) and two boxes for the Client ID and secret. " +
+            "Briefly say this is a one-time setup of about 10 minutes, that the ID and secret go ONLY in the card (never in the chat), and " +
+            "that once saved the card turns into a Connect Google button. Offer to explain any step. Then stop and wait.",
+          false,
+        );
+        emit({ type: "step", id: stepId, label: "Setting up Google for this workspace", status: "done" });
         return "handled";
       }
       emit({ type: "connect_request", id: event.id, service: "google", reason: str(input, "reason") });

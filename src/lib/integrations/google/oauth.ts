@@ -5,8 +5,12 @@ import { decrypt, encrypt } from "../crypto";
 
 /**
  * "Connect Google": each workspace can connect one or more Google accounts.
- * GOOGLE_CLIENT_ID / SECRET identify Baba (the app) to Google, set once by the platform
- * owner. Each customer just signs in; their tokens are stored encrypted, server-only.
+ *
+ * Signing in needs a Google "OAuth app" (Client ID + secret). Each workspace can add its own
+ * from the chat (secure card) or the Integrations page; it's stored encrypted for that
+ * workspace only. Optionally the platform can provide one shared app with GOOGLE_CLIENT_ID /
+ * GOOGLE_CLIENT_SECRET, used when a workspace hasn't added its own.
+ * Account tokens are stored encrypted, server-only.
  */
 
 export const GOOGLE_PROVIDER = "google";
@@ -22,8 +26,94 @@ export const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
 ];
 
+/** A shared Google app provided by the platform (optional). */
 export function isGoogleConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+}
+
+export const GOOGLE_APP_PROVIDER = "google_app";
+
+export type GoogleClient = { id: string; secret: string; source: "workspace" | "platform" };
+
+const CLIENT_ID = /^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/i;
+
+/** The workspace's own Google app, if it added one. */
+async function workspaceGoogleApp(workspaceId: string): Promise<GoogleClient | null> {
+  const admin = getSupabaseAdmin();
+  const { data: row } = await admin
+    .from("integrations")
+    .select("id, config")
+    .eq("workspace_id", workspaceId)
+    .eq("provider", GOOGLE_APP_PROVIDER)
+    .maybeSingle();
+  if (!row) return null;
+  const { data: cred } = await admin.from("integration_credentials").select("secret_enc").eq("integration_id", row.id).maybeSingle();
+  const id = (row.config as { client_id?: string } | null)?.client_id;
+  if (!cred || !id) return null;
+  return { id, secret: decrypt(cred.secret_enc), source: "workspace" };
+}
+
+/**
+ * Which Google app to sign in with for a workspace: its own (if added), else the platform's.
+ * `prefer` keeps using the app an account was connected with (its tokens only work with that app).
+ */
+export async function googleClientFor(workspaceId: string, prefer?: "workspace" | "platform"): Promise<GoogleClient | null> {
+  const platform: GoogleClient | null = isGoogleConfigured()
+    ? { id: process.env.GOOGLE_CLIENT_ID!, secret: process.env.GOOGLE_CLIENT_SECRET!, source: "platform" }
+    : null;
+  if (prefer === "platform") return platform;
+  const own = await workspaceGoogleApp(workspaceId);
+  if (prefer === "workspace") return own;
+  return own ?? platform;
+}
+
+/** Saves (or replaces) the workspace's own Google app. */
+export async function saveGoogleApp(input: { workspaceId: string; userId: string; clientId: string; clientSecret: string }) {
+  const clientId = input.clientId.trim();
+  const secret = input.clientSecret.trim();
+  if (!CLIENT_ID.test(clientId)) throw new Error("That Client ID doesn't look right. It ends with .apps.googleusercontent.com.");
+  if (secret.length < 10 || secret.length > 200 || /\s/.test(secret)) throw new Error("That Client secret doesn't look right. It usually starts with GOCSPX-.");
+  const admin = getSupabaseAdmin();
+  const { data: existing } = await admin
+    .from("integrations")
+    .select("id")
+    .eq("workspace_id", input.workspaceId)
+    .eq("provider", GOOGLE_APP_PROVIDER)
+    .maybeSingle();
+  const values = {
+    workspace_id: input.workspaceId,
+    provider: GOOGLE_APP_PROVIDER,
+    label: "Google app",
+    status: "connected",
+    connected_by: input.userId,
+    config: { client_id: clientId },
+  };
+  const { data: row, error } = existing
+    ? await admin.from("integrations").update(values).eq("id", existing.id).select("id").single()
+    : await admin.from("integrations").insert(values).select("id").single();
+  if (error || !row) throw new Error(`Couldn't save the Google app: ${error?.message ?? "unknown error"}`);
+  const { error: credError } = await admin.from("integration_credentials").upsert({
+    integration_id: row.id,
+    workspace_id: input.workspaceId,
+    secret_enc: encrypt(secret),
+    updated_at: new Date().toISOString(),
+  });
+  if (credError) throw new Error(`Couldn't save the Google app: ${credError.message}`);
+}
+
+export async function removeGoogleApp(workspaceId: string) {
+  await getSupabaseAdmin().from("integrations").delete().eq("workspace_id", workspaceId).eq("provider", GOOGLE_APP_PROVIDER);
+}
+
+/** The workspace's own Google app's Client ID (never the secret), for showing on screen. */
+export async function workspaceGoogleAppId(workspaceId: string) {
+  const { data } = await getSupabaseAdmin()
+    .from("integrations")
+    .select("config")
+    .eq("workspace_id", workspaceId)
+    .eq("provider", GOOGLE_APP_PROVIDER)
+    .maybeSingle();
+  return (data?.config as { client_id?: string } | null)?.client_id ?? null;
 }
 
 export function redirectUri(origin: string) {
@@ -40,10 +130,15 @@ export type OAuthState = {
   popup?: boolean;
   /** Same-tab fallback: where to go back to (an in-app path). */
   returnTo?: string;
+  /** Which Google app the sign-in used. */
+  client?: "workspace" | "platform";
 };
 
 function stateKey() {
-  return createHmac("sha256", "baba-oauth-state").update(process.env.GOOGLE_CLIENT_SECRET ?? "").digest();
+  // A server secret that doesn't depend on any particular Google app
+  const secret = process.env.INTEGRATIONS_ENCRYPTION_KEY || process.env.SUPABASE_SECRET_KEY || process.env.GOOGLE_CLIENT_SECRET;
+  if (!secret) throw new Error("No server secret to sign the Google sign-in with (set SUPABASE_SECRET_KEY).");
+  return createHmac("sha256", "baba-oauth-state").update(secret).digest();
 }
 
 export function signState(state: OAuthState) {
@@ -69,9 +164,9 @@ export function newNonce() {
   return randomBytes(16).toString("base64url");
 }
 
-export function authorizeUrl(origin: string, state: string) {
+export function authorizeUrl(origin: string, state: string, client: GoogleClient) {
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  url.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID!);
+  url.searchParams.set("client_id", client.id);
   url.searchParams.set("redirect_uri", redirectUri(origin));
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", GOOGLE_SCOPES.join(" "));
@@ -92,13 +187,13 @@ type TokenResponse = {
   error_description?: string;
 };
 
-async function tokenRequest(params: Record<string, string>) {
+async function tokenRequest(client: GoogleClient, params: Record<string, string>) {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      client_id: client.id,
+      client_secret: client.secret,
       ...params,
     }),
   });
@@ -108,8 +203,16 @@ async function tokenRequest(params: Record<string, string>) {
 }
 
 /** Finishes the sign-in: swaps the code for tokens and saves the account for the workspace. */
-export async function completeConnection(input: { code: string; origin: string; workspaceId: string; userId: string }) {
-  const tokens = await tokenRequest({
+export async function completeConnection(input: {
+  code: string;
+  origin: string;
+  workspaceId: string;
+  userId: string;
+  client?: "workspace" | "platform";
+}) {
+  const client = await googleClientFor(input.workspaceId, input.client);
+  if (!client) throw new Error("This workspace's Google app is missing. Add it again and reconnect.");
+  const tokens = await tokenRequest(client, {
     code: input.code,
     grant_type: "authorization_code",
     redirect_uri: redirectUri(input.origin),
@@ -150,6 +253,8 @@ export async function completeConnection(input: { code: string; origin: string; 
     account_email: email,
     label: email,
     scopes: tokens.scope.split(" "),
+    // Tokens only work with the app that issued them
+    config: { oauth_client: client.source },
     // The first Google account is the default one
     is_default: same ? same.is_default : (existing ?? []).length === 0,
   };
@@ -170,18 +275,24 @@ export async function completeConnection(input: { code: string; origin: string; 
   return email;
 }
 
-export type GoogleAccount = { id: string; email: string; isDefault: boolean; status: string };
+export type GoogleAccount = { id: string; email: string; isDefault: boolean; status: string; client: "workspace" | "platform" };
 
 /** The workspace's connected Google accounts, default first. */
 export async function listGoogleAccounts(workspaceId: string): Promise<GoogleAccount[]> {
   const { data } = await getSupabaseAdmin()
     .from("integrations")
-    .select("id, account_email, is_default, status, created_at")
+    .select("id, account_email, is_default, status, created_at, config")
     .eq("workspace_id", workspaceId)
     .eq("provider", GOOGLE_PROVIDER)
     .order("is_default", { ascending: false })
     .order("created_at", { ascending: true });
-  return (data ?? []).map((r) => ({ id: r.id, email: r.account_email ?? "", isDefault: r.is_default, status: r.status }));
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    email: r.account_email ?? "",
+    isDefault: r.is_default,
+    status: r.status,
+    client: (r.config as { oauth_client?: "workspace" | "platform" } | null)?.oauth_client ?? "platform",
+  }));
 }
 
 /**
@@ -210,7 +321,9 @@ export async function googleAccessToken(workspaceId: string, accountEmail?: stri
   }
 
   try {
-    const tokens = await tokenRequest({ grant_type: "refresh_token", refresh_token: decrypt(data.secret_enc) });
+    const client = await googleClientFor(workspaceId, account.client);
+    if (!client) throw new Error("the Google app this account was connected with was removed");
+    const tokens = await tokenRequest(client, { grant_type: "refresh_token", refresh_token: decrypt(data.secret_enc) });
     await admin
       .from("integration_credentials")
       .update({

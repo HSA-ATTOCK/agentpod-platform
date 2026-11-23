@@ -35,6 +35,8 @@ export type ApiKeyRow = { id: string; name: string; host: string; connectedBy: s
 
 type IntegrationsViewProps = {
   googleAccounts: GoogleAccountRow[];
+  /** The workspace's own Google app (Client ID only; the secret is never sent to the browser). */
+  googleApp: { clientId: string | null; platformAvailable: boolean; redirectUri: string };
   apiKeys: ApiKeyRow[];
   googleConfigured: boolean;
   keysAvailable: boolean;
@@ -59,7 +61,7 @@ function Monogram({ name, muted }: { name: string; muted?: boolean }) {
 
 const CONNECT_GOOGLE = `/api/integrations/google/connect?return=${encodeURIComponent(routes.integrations)}`;
 
-export function IntegrationsView({ googleAccounts, apiKeys, googleConfigured, keysAvailable, canManage, flash }: IntegrationsViewProps) {
+export function IntegrationsView({ googleAccounts, googleApp, apiKeys, googleConfigured, keysAvailable, canManage, flash }: IntegrationsViewProps) {
   const router = useRouter();
   const { toast, showToast } = useToast();
   const [filter, setFilter] = useState<Filter>("all");
@@ -69,6 +71,9 @@ export function IntegrationsView({ googleAccounts, apiKeys, googleConfigured, ke
   const [keyFormOpen, setKeyFormOpen] = useState(false);
   const [keyForm, setKeyForm] = useState({ name: "", host: "", header: "Authorization", prefix: "Bearer ", key: "" });
   const [keyError, setKeyError] = useState<string | null>(null);
+  const [appOpen, setAppOpen] = useState(false);
+  const [appForm, setAppForm] = useState({ clientId: "", secret: "" });
+  const [appError, setAppError] = useState<string | null>(null);
 
   const googleConnected = googleAccounts.some((a) => a.status === "connected");
   const googleBroken = googleAccounts.filter((a) => a.status === "error");
@@ -104,6 +109,37 @@ export function IntegrationsView({ googleAccounts, apiKeys, googleConfigured, ke
       router.refresh();
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Couldn't remove the key.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function saveGoogleApp(event: FormEvent) {
+    event.preventDefault();
+    setAppError(null);
+    setBusy("google-app");
+    try {
+      await post("/api/integrations/google/app", "POST", { clientId: appForm.clientId.trim(), clientSecret: appForm.secret.trim() });
+      setAppOpen(false);
+      setAppForm({ clientId: "", secret: "" });
+      showToast("Google app saved. You can now connect Google accounts.");
+      router.refresh();
+    } catch (e) {
+      setAppError(e instanceof Error ? e.message : "Couldn't save.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function removeGoogleApp() {
+    if (!window.confirm("Remove this workspace's Google app? Google accounts connected with it will stop working until it's added again.")) return;
+    setBusy("google-app-remove");
+    try {
+      await post("/api/integrations/google/app", "DELETE", {});
+      showToast("Google app removed.");
+      router.refresh();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Couldn't remove it.");
     } finally {
       setBusy(null);
     }
@@ -181,9 +217,35 @@ export function IntegrationsView({ googleAccounts, apiKeys, googleConfigured, ke
                 </a>
               )}
             </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-border bg-surface-raised px-3 py-2 text-xs">
+              <span className="min-w-0 text-muted">
+                Google app:{" "}
+                {googleApp.clientId ? (
+                  <span className="text-foreground">yours (…{googleApp.clientId.split("-")[0].slice(-6)})</span>
+                ) : googleApp.platformAvailable ? (
+                  <span className="text-foreground">Baba&apos;s shared app</span>
+                ) : (
+                  <span className="text-warning">not set up yet</span>
+                )}
+              </span>
+              {canManage && keysAvailable && (
+                <span className="flex gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => { setAppError(null); setAppOpen(true); }}>
+                    {googleApp.clientId ? "Replace" : "Set up"}
+                  </Button>
+                  {googleApp.clientId && (
+                    <Button size="sm" variant="ghost" className="text-danger" loading={busy === "google-app-remove"} onClick={removeGoogleApp}>
+                      Remove
+                    </Button>
+                  )}
+                </span>
+              )}
+            </div>
             {googleAccounts.length === 0 ? (
               <p className="rounded-control border border-dashed border-border p-4 text-center text-sm text-subtle">
-                {googleConfigured ? "No Google accounts connected yet." : "Google sign-in isn't available on this server yet."}
+                {googleConfigured
+                  ? "No Google accounts connected yet."
+                  : "Set up this workspace's Google app first (one time), or just ask Baba \u201cconnect my Gmail\u201d and it will guide you."}
               </p>
             ) : (
               <ul className="divide-y divide-border rounded-control border border-border">
@@ -390,7 +452,10 @@ export function IntegrationsView({ googleAccounts, apiKeys, googleConfigured, ke
                   Calendar.
                 </Alert>
               ) : !googleConfigured ? (
-                <Alert variant="info">Google sign-in isn&apos;t available on this server yet.</Alert>
+                <Alert variant="info">
+                  This workspace needs its Google app first (one time, about 10 minutes). Use Set up in the Google accounts box above, or
+                  ask Baba &ldquo;connect my Gmail&rdquo; to be guided step by step.
+                </Alert>
               ) : !canManage ? (
                 <Alert variant="info">Only owners and admins can connect tools. Ask one of them to connect Google.</Alert>
               ) : (
@@ -406,6 +471,25 @@ export function IntegrationsView({ googleAccounts, apiKeys, googleConfigured, ke
             )}
           </div>
         )}
+      </Sheet>
+
+      {/* ---- The workspace's Google app (secure form) ---- */}
+      <Sheet open={appOpen} onClose={() => setAppOpen(false)} side="center" title="This workspace's Google app">
+        <form noValidate onSubmit={saveGoogleApp} className="space-y-4 p-4">
+          <p className="text-sm text-muted">
+            Create an OAuth client in Google Cloud (Web application) with this exact authorised redirect URI, then paste its Client ID
+            and secret here. Want step-by-step help? Ask Baba &ldquo;connect my Gmail&rdquo;.
+          </p>
+          <code className="block break-all rounded-control border border-border bg-surface-raised p-3 text-xs text-foreground">{googleApp.redirectUri}</code>
+          {appError && <Alert variant="error">{appError}</Alert>}
+          <Input id="g-client-id" label="Client ID" autoComplete="off" placeholder="…apps.googleusercontent.com" value={appForm.clientId} onChange={(e) => setAppForm({ ...appForm, clientId: e.target.value })} />
+          <PasswordInput id="g-client-secret" label="Client secret" autoComplete="off" placeholder="GOCSPX-…" value={appForm.secret} onChange={(e) => setAppForm({ ...appForm, secret: e.target.value })} />
+          <p className="text-[11px] text-subtle">Saved encrypted for this workspace only; the secret is never shown again.</p>
+          <div className="flex justify-end gap-2 border-t border-border pt-4">
+            <Button variant="secondary" onClick={() => setAppOpen(false)}>Cancel</Button>
+            <Button type="submit" loading={busy === "google-app"} loadingText="Saving…">Save</Button>
+          </div>
+        </form>
       </Sheet>
 
       {/* ---- Add API key (secure form) ---- */}

@@ -209,3 +209,143 @@ export function KeyRequestCard({ item, canManage, onUpdate, onSend, busy }: Shar
     </section>
   );
 }
+
+type GoogleAppItem = Extract<ChatItem, { type: "google_app_request" }>;
+
+const GOOGLE_STEPS = [
+  "Go to console.cloud.google.com and sign in. Create a project (top bar → project menu → New project), e.g. \"Baba\".",
+  "APIs & Services → Library: search for and Enable the Gmail API, Google Drive API and Google Calendar API.",
+  "APIs & Services → OAuth consent screen (Google Auth Platform): choose External, app name \"Baba\", your email as support and developer contact. Under Audience → Test users, add every Gmail address you want to connect.",
+  "Credentials → Create credentials → OAuth client ID → Application type: Web application.",
+  "Under Authorised redirect URIs, click Add URI and paste the address below exactly. Then click Create.",
+  "Copy the Client ID and Client secret Google shows you into the boxes here (not into the chat).",
+];
+
+/**
+ * One-time setup of the workspace's own Google app (Client ID + secret), entered in this card
+ * only: they go straight to the server, encrypted. Once saved, the card becomes the Connect button.
+ */
+export function GoogleAppCard({ item, ...shared }: Shared & { item: GoogleAppItem }) {
+  const { canManage, onUpdate } = shared;
+  const [clientId, setClientId] = useState("");
+  const [secret, setSecret] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  if (item.status === "saved") {
+    // Now it's just the Connect button
+    return (
+      <ConnectRequestCard
+        {...shared}
+        item={{ id: item.id, type: "connect_request", service: "google", reason: item.reason, status: item.connectStatus ?? "pending", account: item.account }}
+        onUpdate={(patch) => {
+          const p = patch as { status?: "pending" | "connected"; account?: string };
+          onUpdate({ connectStatus: p.status, account: p.account } as Partial<ChatItem>);
+        }}
+      />
+    );
+  }
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (!clientId.trim().endsWith(".apps.googleusercontent.com")) {
+      setError("The Client ID ends with .apps.googleusercontent.com. Copy it again from Google.");
+      return;
+    }
+    if (secret.trim().length < 10) {
+      setError("Paste the whole Client secret (it usually starts with GOCSPX-).");
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch("/api/integrations/google/app", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: clientId.trim(), clientSecret: secret.trim() }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Couldn't save.");
+      setSecret("");
+      onUpdate({ status: "saved", connectStatus: "pending" } as Partial<ChatItem>);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section aria-label="Set up Google for this workspace" className="rounded-card border border-border bg-surface-raised p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-control border border-info/20 bg-info/10 text-info">
+          <Link2 aria-hidden="true" className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Set up Google for this workspace (one time)</h3>
+            <p className="text-xs text-muted">
+              About 10 minutes. After this, connecting any Gmail, Calendar or Drive is one click{item.reason ? ` (${item.reason})` : ""}.
+            </p>
+          </div>
+          {canManage ? (
+            <>
+              <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-foreground">
+                {GOOGLE_STEPS.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+              <div className="rounded-control border border-border bg-surface p-3">
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-subtle">Authorised redirect URI</p>
+                <div className="flex items-center gap-2">
+                  <code className="min-w-0 flex-1 break-all text-xs text-foreground">{item.redirectUri}</code>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() =>
+                      void navigator.clipboard?.writeText(item.redirectUri).then(() => {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      })
+                    }
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                </div>
+              </div>
+              <form noValidate onSubmit={save} className="space-y-3">
+                <Input
+                  id={`gid-${item.id}`}
+                  label="Client ID"
+                  autoComplete="off"
+                  placeholder="1234567890-abc….apps.googleusercontent.com"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                />
+                <PasswordInput
+                  id={`gsecret-${item.id}`}
+                  label="Client secret"
+                  autoComplete="off"
+                  placeholder="GOCSPX-…"
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
+                />
+                <Button type="submit" size="sm" loading={saving} loadingText="Saving…">
+                  Save and continue
+                </Button>
+                <p className="flex items-center gap-1.5 text-[11px] text-subtle">
+                  <Lock aria-hidden="true" className="size-3" /> Saved encrypted for this workspace only. It never appears in the chat
+                  and Baba never sees it. You can replace or remove it in Integrations.
+                </p>
+              </form>
+            </>
+          ) : (
+            <p className="text-xs text-muted">Only owners and admins can set this up. Ask one of them to say &ldquo;connect my Gmail&rdquo; to Baba.</p>
+          )}
+          {error && <Alert variant="error">{error}</Alert>}
+        </div>
+      </div>
+    </section>
+  );
+}

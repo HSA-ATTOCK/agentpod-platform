@@ -317,12 +317,15 @@ export function AskBaba({
           ]);
           break;
         case "connect_request":
+        case "google_app_request":
         case "key_request": {
           const itemId = `${event.type}-${event.id}`;
           const item: ChatItem =
             event.type === "connect_request"
               ? { id: itemId, type: "connect_request", service: event.service, reason: event.reason, status: "pending" }
-              : {
+              : event.type === "google_app_request"
+                ? { id: itemId, type: "google_app_request", redirectUri: event.redirectUri, reason: event.reason, status: "pending" }
+                : {
                   id: itemId,
                   type: "key_request",
                   serviceName: event.serviceName,

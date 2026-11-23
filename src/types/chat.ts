@@ -98,6 +98,16 @@ export type ChatItem =
       status: "pending" | "connected";
       account?: string;
     }
+  /** Secure setup card for the workspace's own Google app, then its Connect button. */
+  | {
+      id: string;
+      type: "google_app_request";
+      redirectUri: string;
+      reason: string;
+      status: "pending" | "saved";
+      connectStatus?: "pending" | "connected";
+      account?: string;
+    }
   /** A secure box for pasting an API key (the key is sent to the server only, never into the chat). */
   | {
       id: string;
