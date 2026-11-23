@@ -119,6 +119,9 @@ async function runAs(wf: DueWorkflow) {
   const owner = members?.find((m) => m.role === "owner");
   const member = creator ?? owner;
   if (!member) return null;
+  // Only approved accounts can run anything (the same rule the database applies to people)
+  const { data: account } = await admin.from("platform_accounts").select("status").eq("user_id", member.user_id).maybeSingle();
+  if (account?.status !== "approved") return null;
   const { data: profile } = await admin.from("profiles").select("id, email, full_name").eq("id", member.user_id).maybeSingle();
   return profile ? { ...profile, role: member.role } : null;
 }
@@ -139,6 +142,7 @@ function contextFor(wf: DueWorkflow, person: { id: string; email: string; full_n
       logoUrl: ws.logo_url,
     },
     workspaces: [],
+    isPlatformAdmin: false,
   };
 }
 

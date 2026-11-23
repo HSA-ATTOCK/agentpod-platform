@@ -16,6 +16,10 @@ const PROTECTED = [
   routes.profile,
   routes.resetPassword,
   routes.twoFactor,
+  routes.memory,
+  routes.sites,
+  routes.pending,
+  routes.admin,
 ];
 
 // Pages a signed-in user doesn't need (sent on to the app instead)

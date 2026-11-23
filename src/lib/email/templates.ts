@@ -80,3 +80,61 @@ export function taskEmail(input: { to: string; kind: TaskEmailKind; request: str
     text: `${copy.heading}\n\n${copy.line}\n"${request}"\n${input.detail ? `\n${input.detail}\n` : ""}\n${copy.button}: ${input.url}`,
   };
 }
+
+/** To platform administrators: someone new is waiting for approval. */
+export function registrationRequestEmail(input: { to: string; name: string; email: string; url: string }): Email {
+  return {
+    to: input.to,
+    subject: `New Baba registration: ${input.email}`,
+    html: layout({
+      heading: "A new account is waiting for approval",
+      paragraphs: [
+        `<strong>${escape(input.name)}</strong> (${escape(input.email)}) signed up and confirmed their email.`,
+        "They can't use Baba until you approve the account.",
+      ],
+      button: { label: "Review registration", url: input.url },
+    }),
+    text: `${input.name} (${input.email}) signed up and is waiting for approval.\n\nReview: ${input.url}`,
+  };
+}
+
+const DECISION_COPY = {
+  approved: {
+    subject: "Your Baba account is approved",
+    heading: "You're in",
+    line: "Your Baba account has been approved. You can now sign in and start giving Baba work.",
+    button: "Open Baba",
+  },
+  rejected: {
+    subject: "Your Baba registration",
+    heading: "Your registration wasn't approved",
+    line: "Thanks for your interest in Baba. We weren't able to approve your account at this time.",
+    button: "Contact us",
+  },
+  suspended: {
+    subject: "Your Baba account is suspended",
+    heading: "Your account is suspended",
+    line: "Your Baba account has been suspended, so you can't sign in to the workspace for now.",
+    button: "Contact us",
+  },
+} as const;
+
+/** To the person: the platform admin approved, rejected or suspended their account. */
+export function accountDecisionEmail(input: {
+  to: string;
+  decision: keyof typeof DECISION_COPY;
+  url: string;
+  reason?: string | null;
+}): Email {
+  const copy = DECISION_COPY[input.decision];
+  return {
+    to: input.to,
+    subject: copy.subject,
+    html: layout({
+      heading: copy.heading,
+      paragraphs: [copy.line, ...(input.reason ? [`Note from the team: ${escape(input.reason)}`] : [])],
+      button: { label: copy.button, url: input.url },
+    }),
+    text: `${copy.heading}\n\n${copy.line}${input.reason ? `\n\nNote from the team: ${input.reason}` : ""}\n\n${copy.button}: ${input.url}`,
+  };
+}

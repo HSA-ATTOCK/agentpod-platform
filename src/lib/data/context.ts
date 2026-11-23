@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { cache } from "react";
 import { routes } from "@/config/routes";
+import { getAccount, getPlatformSettings } from "@/lib/platform/account";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import type { UserProfile, Workspace } from "@/types";
 import type { Enums } from "@/types/database";
@@ -24,6 +25,8 @@ export type AppContext = {
   workspace: CurrentWorkspace;
   /** Every workspace this user belongs to (for the switcher). */
   workspaces: { id: string; name: string; role: WorkspaceRole }[];
+  /** A platform (master) administrator — separate from workspace roles. */
+  isPlatformAdmin: boolean;
 };
 
 const MEMBERSHIPS =
@@ -43,6 +46,9 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
   if (!userId) return null;
   // If two-step verification is on but wasn't done in this session, the database (RLS)
   // returns no profile below, so this returns null and requireAppContext asks for the code.
+  // Accounts that aren't approved get nothing from the database either (see platform_admin migration).
+  const account = await getAccount(supabase);
+  if (!account || account.status !== "approved") return null;
 
   const loadMemberships = () =>
     supabase.from("workspace_members").select(MEMBERSHIPS).eq("user_id", userId).order("created_at", { ascending: true });
@@ -83,6 +89,7 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
       logoUrl: ws.logo_url,
     },
     workspaces: usable.map((m) => ({ id: m.workspaces!.id, name: m.workspaces!.name, role: m.role })),
+    isPlatformAdmin: account.isAdmin,
   };
 });
 
@@ -103,9 +110,14 @@ export async function requireAppContext(): Promise<AppContext> {
   const context = await getAppContext();
   if (!context) {
     const supabase = await getSupabaseServer();
+    const account = await getAccount(supabase);
+    // Signed in but not approved (waiting, rejected, suspended): the status screen
+    if (account && account.status !== "approved") redirect(routes.pending);
     if (await mfaPending(supabase)) redirect(routes.twoFactor);
     redirect(routes.signIn);
   }
+  // Maintenance mode lets only platform administrators in
+  if (!context.isPlatformAdmin && (await getPlatformSettings(context.supabase))?.maintenanceMode) redirect(routes.pending);
   return context;
 }
 

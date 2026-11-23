@@ -27,6 +27,12 @@ export const routes = {
   activity: "/activity",
   settings: "/settings",
   profile: "/profile",
+  memory: "/memory",
+  sites: "/sites",
+  pending: "/pending",
+
+  // Platform administration (master administrators only)
+  admin: "/admin",
 } as const;
 
 export type AppRoute = (typeof routes)[keyof typeof routes];

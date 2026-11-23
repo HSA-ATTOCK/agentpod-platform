@@ -4,6 +4,8 @@ import { routes } from "@/config/routes";
 import { getAppContext, type AppContext } from "@/lib/data/context";
 import { sendEmail } from "@/lib/email/mailer";
 import { taskEmail, type TaskEmailKind } from "@/lib/email/templates";
+import { getAccount, getPlatformSettings } from "@/lib/platform/account";
+import { getSupabaseServer } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 import { fileKindFromName } from "./client";
 import type { BabaStreamEvent } from "./protocol";
@@ -37,7 +39,17 @@ export async function babaGate({ write }: { write: boolean }): Promise<Gate> {
   if (unavailable) return { ok: false, response: unavailable };
 
   const ctx = await getAppContext();
-  if (!ctx) return { ok: false, response: Response.json({ error: "Please sign in again." }, { status: 401 }) };
+  if (!ctx) {
+    const account = await getAccount(await getSupabaseServer());
+    if (account && account.status !== "approved") {
+      return { ok: false, response: Response.json({ error: "Your account isn't approved yet." }, { status: 403 }) };
+    }
+    return { ok: false, response: Response.json({ error: "Please sign in again." }, { status: 401 }) };
+  }
+  const settings = await getPlatformSettings(ctx.supabase);
+  if (settings?.maintenanceMode && !ctx.isPlatformAdmin) {
+    return { ok: false, response: Response.json({ error: settings.maintenanceMessage }, { status: 503 }) };
+  }
   if (write && ctx.workspace.role === "viewer") {
     return {
       ok: false,
