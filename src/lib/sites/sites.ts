@@ -5,7 +5,7 @@ import { getClaude } from "@/lib/baba/server";
 import type { AppContext } from "@/lib/data/context";
 import { serverOrigin } from "@/lib/origin";
 import { audit } from "@/lib/platform/account";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 
 /**
@@ -51,7 +51,7 @@ export const CONTENT_TYPES: Record<string, string> = {
 
 export const contentTypeFor = (path: string) => CONTENT_TYPES[path.split(".").pop()?.toLowerCase() ?? ""] ?? null;
 
-export const previewUrl = (slug: string) => `${serverOrigin()}/preview/${slug}/`;
+export const previewUrl = (slug: string) => `${serverOrigin()}/preview/${slug}`;
 
 /** Safe relative path inside the site, or null. */
 function cleanPath(raw: string) {
@@ -63,7 +63,7 @@ function cleanPath(raw: string) {
 
 type SiteFile = { path: string; bytes: Uint8Array; type: string };
 
-function unpack(zip: Uint8Array): SiteFile[] {
+export function unpack(zip: Uint8Array): SiteFile[] {
   let entries: Record<string, Uint8Array>;
   try {
     entries = unzipSync(zip, { filter: (f) => !f.name.endsWith("/") && f.originalSize <= MAX_FILE_BYTES });
@@ -241,7 +241,7 @@ export async function listSitesText(ctx: AppContext) {
 
 /** Reads one file of the live version (for the preview route). */
 export async function readSiteFile(slug: string, path: string) {
-  if (!/^[a-z0-9]{16,40}$/.test(slug)) return null;
+  if (!/^[a-z0-9]{16,40}$/.test(slug) || !isAdminConfigured()) return null;
   const db = getSupabaseAdmin();
   const { data: site } = await db.from("sites").select("id, current_version, status, expires_at").eq("slug", slug).maybeSingle();
   if (!site || site.status === "disabled" || !site.current_version || Date.parse(site.expires_at) < Date.now()) return null;
