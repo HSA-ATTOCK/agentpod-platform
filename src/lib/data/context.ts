@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 import { routes } from "@/config/routes";
 import { getSupabaseServer } from "@/lib/supabase/server";
@@ -34,12 +35,14 @@ const MEMBERSHIPS =
  * user's Supabase client, so Row Level Security always applies.
  */
 export const getAppContext = cache(async (): Promise<AppContext | null> => {
+  // Signed-in data is per request (and checking the session reads the clock), so never prerender it
+  await connection();
   const supabase = await getSupabaseServer();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims.sub;
   if (!userId) return null;
-  // Two-step verification switched on but not done in this session: no data access yet
-  if (await mfaPending(supabase)) return null;
+  // If two-step verification is on but wasn't done in this session, the database (RLS)
+  // returns no profile below, so this returns null and requireAppContext asks for the code.
 
   const loadMemberships = () =>
     supabase.from("workspace_members").select(MEMBERSHIPS).eq("user_id", userId).order("created_at", { ascending: true });
@@ -85,8 +88,11 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
 
 /** True when the user has two-step verification on but hasn't entered a code this session. */
 export async function mfaPending(supabase: Awaited<ReturnType<typeof getSupabaseServer>>) {
-  const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  return data?.nextLevel === "aal2" && data.currentLevel !== "aal2";
+  const { data: claims } = await supabase.auth.getClaims();
+  if (!claims?.claims.sub || claims.claims.aal === "aal2") return false;
+  // Asks Supabase Auth (verified) rather than trusting the cookie
+  const { data } = await supabase.auth.mfa.listFactors();
+  return Boolean(data?.totp.some((factor) => factor.status === "verified"));
 }
 
 /**
@@ -97,8 +103,7 @@ export async function requireAppContext(): Promise<AppContext> {
   const context = await getAppContext();
   if (!context) {
     const supabase = await getSupabaseServer();
-    const { data } = await supabase.auth.getClaims();
-    if (data?.claims.sub && (await mfaPending(supabase))) redirect(routes.twoFactor);
+    if (await mfaPending(supabase)) redirect(routes.twoFactor);
     redirect(routes.signIn);
   }
   return context;

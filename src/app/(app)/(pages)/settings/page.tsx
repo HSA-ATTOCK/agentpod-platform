@@ -4,10 +4,12 @@ import type { NotificationPrefs } from "@/config/notifications";
 import { isEmailConfigured } from "@/lib/email/mailer";
 import { requireAppContext } from "@/lib/data/context";
 import { getWorkspaceSettings, listInvites, listMembers, modelInfo, monthStart } from "@/lib/data/pages";
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 export const metadata: Metadata = { title: "Settings" };
 
-export default async function SettingsPage() {
+async function SettingsPageContent() {
   const ctx = await requireAppContext();
   const [settings, members, invites, monthTasks, prefs, claims] = await Promise.all([
     getWorkspaceSettings(ctx),
@@ -40,5 +42,14 @@ export default async function SettingsPage() {
       signInMethods={appMetadata?.providers ?? ["email"]}
       emailConfigured={isEmailConfigured()}
     />
+  );
+}
+
+/** Shows a placeholder straight away while this page's data loads. */
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <SettingsPageContent />
+    </Suspense>
   );
 }

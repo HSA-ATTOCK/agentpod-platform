@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { routes } from "@/config/routes";
+import { publicUrl } from "@/lib/origin";
 import { refreshSession } from "@/lib/supabase/proxy";
 
 // Pages that need a signed-in user
@@ -33,18 +34,13 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   if (!userId && matches(path, PROTECTED)) {
-    const url = request.nextUrl.clone();
-    url.pathname = routes.signIn;
-    url.search = "";
+    const url = publicUrl(request, routes.signIn);
     url.searchParams.set("next", path + request.nextUrl.search);
     return NextResponse.redirect(url);
   }
 
   if (userId && matches(path, GUEST_ONLY)) {
-    const url = request.nextUrl.clone();
-    url.pathname = routes.ask;
-    url.search = "";
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(publicUrl(request, routes.ask));
   }
 
   return response;

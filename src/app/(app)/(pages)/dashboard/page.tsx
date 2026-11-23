@@ -9,6 +9,8 @@ import { requireAppContext } from "@/lib/data/context";
 import { daysAgo, listTasks, listWorkflows, modelInfo, monthStart } from "@/lib/data/pages";
 import { formatCents } from "@/lib/format";
 import type { TaskRecord } from "@/types/app-data";
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -37,7 +39,7 @@ function activityFrom(tasks: TaskRecord[]): ActivityItem[] {
   return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6);
 }
 
-export default async function DashboardPage() {
+async function DashboardPageContent() {
   await connection();
   const ctx = await requireAppContext();
   const [tasks, workflows] = await Promise.all([listTasks(ctx, { days: 31 }), listWorkflows(ctx)]);
@@ -92,5 +94,14 @@ export default async function DashboardPage() {
 
       <RecentExecutions tasks={tasks.slice(0, 5)} />
     </div>
+  );
+}
+
+/** Shows a placeholder straight away while this page's data loads. */
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <DashboardPageContent />
+    </Suspense>
   );
 }

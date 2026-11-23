@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { AskBaba } from "@/components/ask/ask-baba";
 import { requireAppContext } from "@/lib/data/context";
 import { listConversations } from "@/lib/data/conversations";
+import { Suspense } from "react";
+import { AskSkeleton } from "@/components/ui/page-skeleton";
 
 export const metadata: Metadata = { title: "Ask Baba" };
 
@@ -9,7 +11,7 @@ function one(value: string | string[] | undefined) {
   return typeof value === "string" ? value : undefined;
 }
 
-export default async function AskBabaPage({ searchParams }: PageProps<"/ask">) {
+async function AskBabaPageContent({ searchParams }: PageProps<"/ask">) {
   const [ctx, params] = await Promise.all([requireAppContext(), searchParams]);
   const conversations = await listConversations(ctx);
 
@@ -26,5 +28,14 @@ export default async function AskBabaPage({ searchParams }: PageProps<"/ask">) {
         workflowId={one(params.workflow)}
       />
     </main>
+  );
+}
+
+/** Shows a placeholder straight away while this page's data loads. */
+export default function AskBabaPage(props: PageProps<"/ask">) {
+  return (
+    <Suspense fallback={<AskSkeleton />}>
+      <AskBabaPageContent {...props} />
+    </Suspense>
   );
 }

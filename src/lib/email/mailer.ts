@@ -51,13 +51,4 @@ export async function sendEmail(email: Email): Promise<boolean> {
 }
 
 /** The app's public address for links in emails. */
-export function appOrigin(request: Request) {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL;
-  if (configured) return configured.replace(/\/$/, "");
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  if (forwardedHost) {
-    const proto = request.headers.get("x-forwarded-proto") ?? "https";
-    return `${proto}://${forwardedHost.split(",")[0].trim()}`;
-  }
-  return new URL(request.url).origin;
-}
+export { publicOrigin as appOrigin } from "@/lib/origin";

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "baba:setup": "node --env-file=.env.local scripts/setup-baba.mjs"
+    "baba:setup": "node --env-file=.env.local scripts/setup-baba.mjs",
+    "email:test": "node --env-file=.env.local scripts/test-email.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",

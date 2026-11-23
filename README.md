@@ -19,7 +19,8 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open the app: in Codespaces, use the forwarded **port 3000** link from the Ports tab (on your own computer it's http://localhost:3000).
+On a live domain, set `NEXT_PUBLIC_SITE_URL=https://your-domain` so emails and redirects always use it.
 
 ## Connecting Baba to Claude
 
