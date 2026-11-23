@@ -134,7 +134,7 @@ export function MessageList({
         role="log"
         aria-live="polite"
         aria-label="Conversation"
-        className="h-full overflow-y-auto px-4 py-6 lg:px-8"
+        className="relative h-full overflow-y-auto px-4 py-6 lg:px-8"
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
           {items.map((item, index) => {

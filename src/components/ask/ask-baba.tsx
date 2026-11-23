@@ -86,17 +86,34 @@ export function AskBaba({
   const [draft, setDraft] = useState(initialPrompt ?? "");
   // Only the first message after "Run now" belongs to the workflow
   const workflowRef = useRef(workflowId);
-  const [working, setWorking] = useState(false);
+  // Conversations with a task in progress (each keeps running in the background when you switch)
+  const [runningIds, setRunningIds] = useState<ReadonlySet<string>>(new Set());
 
   const [taskPanelOpen, setTaskPanelOpen] = useState(true); // wide screens
   const [taskSheetOpen, setTaskSheetOpen] = useState(false); // small screens
   const [conversationsSheetOpen, setConversationsSheetOpen] = useState(false);
 
-  const abortRef = useRef<AbortController | null>(null);
-  const runningConversationRef = useRef<string | undefined>(undefined);
+  const runsRef = useRef(new Map<string, AbortController>());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
+  /** Whether the conversation on screen has a task in progress. */
+  const working = active ? runningIds.has(active.id) : false;
+
+  function markRunning(id: string, running: boolean) {
+    setRunningIds((prev) => {
+      const next = new Set(prev);
+      if (running) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  // Leaving the page only stops listening; the task carries on (and is caught up on return)
+  useEffect(() => {
+    const runs = runsRef.current;
+    return () => runs.forEach((controller) => controller.abort());
+  }, []);
 
   // ---- Keeping the list fresh ----
   // Conversations can be created elsewhere (scheduled workflows, teammates, other tabs):
@@ -194,15 +211,17 @@ export function AskBaba({
     }));
   }
 
-  function stop() {
-    const controller = abortRef.current;
+  /** The Stop button: stops the task in the conversation on screen. */
+  function stop(id = activeId) {
+    if (!id) return;
+    const controller = runsRef.current.get(id);
     if (controller) {
       // Tell Claude to stop the task, then stop listening
-      if (runningConversationRef.current) void interruptBaba(runningConversationRef.current);
+      void interruptBaba(id);
       controller.abort();
+      runsRef.current.delete(id);
     }
-    abortRef.current = null;
-    setWorking(false);
+    markRunning(id, false);
   }
 
   // ---- Talking to Baba ----
@@ -270,10 +289,11 @@ export function AskBaba({
     /** Continue an existing progress block (after "Continue") instead of starting a new one. */
     existingProgressId?: string,
   ) {
+    // Already following this conversation: don't start a second listener
+    if (runsRef.current.has(conversationId)) return;
     const controller = new AbortController();
-    abortRef.current = controller;
-    runningConversationRef.current = conversationId;
-    setWorking(true);
+    runsRef.current.set(conversationId, controller);
+    markRunning(conversationId, true);
     const progressId = existingProgressId ?? crypto.randomUUID();
     let currentSessionId = sessionId;
     let pausedAtCap = false;
@@ -421,9 +441,9 @@ export function AskBaba({
     } finally {
       if (pausedAtCap) pauseProgress(conversationId, progressId);
       else finishProgress(conversationId, progressId);
-      if (abortRef.current === controller) {
-        abortRef.current = null;
-        setWorking(false);
+      if (runsRef.current.get(conversationId) === controller) {
+        runsRef.current.delete(conversationId);
+        markRunning(conversationId, false);
       }
     }
   }
@@ -551,6 +571,16 @@ export function AskBaba({
         .then((items) => {
           rememberSaved(items);
           updateConversation(id, (c) => ({ ...c, items: [...items, ...c.items], loaded: true }));
+          // It was still working when we last saw it (you switched page or reloaded):
+          // catch up on what happened since, and keep following it live
+          const lastProgress = [...items].reverse().find((i) => i.type === "progress");
+          const last = items[items.length - 1];
+          const unfinished =
+            (lastProgress?.type === "progress" && lastProgress.title === "Working on it") || last?.type === "user";
+          if (conversation.sessionId && unfinished && !conversation.paused) {
+            const sessionId = conversation.sessionId;
+            void runBaba(id, sessionId, (options) => watchBaba(id, options), lastProgress?.id);
+          }
         })
         .catch((error) => {
           updateConversation(id, (c) => ({
@@ -562,7 +592,7 @@ export function AskBaba({
   }
 
   function selectConversation(id: string) {
-    stop();
+    // Switching doesn't stop anything: a running task keeps going in the background
     setActiveId(id);
     setConversationsSheetOpen(false);
     loadIfNeeded(id);
@@ -577,7 +607,6 @@ export function AskBaba({
   }, []);
 
   function startNewChat() {
-    stop();
     setActiveId(null);
     setDraft("");
     setConversationsSheetOpen(false);
@@ -588,7 +617,7 @@ export function AskBaba({
   function deleteActive() {
     if (!activeId) return;
     const id = activeId;
-    stop();
+    stop(id);
     setConversations((prev) => prev.filter((c) => c.id !== id));
     setActiveId(null);
     deleteConversation(id).catch((error) => {
@@ -628,7 +657,7 @@ export function AskBaba({
           value={draft}
           onChange={setDraft}
           onSend={send}
-          onStop={stop}
+          onStop={() => stop()}
           working={working}
           size={size}
           textareaRef={textareaRef}
@@ -648,11 +677,12 @@ export function AskBaba({
       activeId={activeId}
       onSelect={selectConversation}
       onNewChat={startNewChat}
+      runningIds={runningIds}
     />
   );
 
   return (
-    <div className="flex h-full min-h-0 w-full">
+    <div className="flex h-full min-h-0 w-full overflow-hidden">
       {/* Conversations column (large screens) */}
       <aside aria-label="Conversations" className="hidden w-72 shrink-0 border-r border-border bg-surface lg:block">
         {conversationList}
@@ -710,7 +740,7 @@ export function AskBaba({
               <X aria-hidden="true" className="size-4" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="relative min-h-0 flex-1 overflow-y-auto">
             <TaskDetails conversation={active} />
           </div>
         </aside>

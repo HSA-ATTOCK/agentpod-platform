@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, Plus, Search } from "lucide-react";
+import { Loader2, MessageSquare, Plus, Search } from "lucide-react";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LocalTime } from "@/components/ui/local-time";
@@ -26,10 +26,12 @@ type ConversationListProps = {
   activeId: string | null;
   onSelect: (id: string) => void;
   onNewChat: () => void;
+  /** Conversations with a task still running (shown with a spinner). */
+  runningIds?: ReadonlySet<string>;
 };
 
 /** "New chat" button, search box and grouped list of past conversations. */
-export function ConversationList({ conversations, activeId, onSelect, onNewChat }: ConversationListProps) {
+export function ConversationList({ conversations, activeId, onSelect, onNewChat, runningIds }: ConversationListProps) {
   const [query, setQuery] = useState("");
   const searchId = useId();
 
@@ -65,7 +67,7 @@ export function ConversationList({ conversations, activeId, onSelect, onNewChat 
         />
       </div>
 
-      <nav aria-label="Conversations" className="-mx-1 min-h-0 flex-1 space-y-5 overflow-y-auto px-1">
+      <nav aria-label="Conversations" className="relative -mx-1 min-h-0 flex-1 space-y-5 overflow-y-auto px-1">
         {filtered.length === 0 && <p className="px-2 text-sm text-subtle">No conversations found.</p>}
         {[...groups.entries()].map(([label, items]) => (
           <div key={label}>
@@ -84,7 +86,11 @@ export function ConversationList({ conversations, activeId, onSelect, onNewChat 
                         active ? "bg-surface-hover text-foreground" : "text-muted hover:bg-surface-raised hover:text-foreground",
                       )}
                     >
-                      <MessageSquare aria-hidden="true" className={cn("size-4 shrink-0", active ? "text-accent" : "text-subtle")} />
+                      {runningIds?.has(conversation.id) ? (
+                        <Loader2 aria-label="Working" className="size-4 shrink-0 animate-spin text-accent" />
+                      ) : (
+                        <MessageSquare aria-hidden="true" className={cn("size-4 shrink-0", active ? "text-accent" : "text-subtle")} />
+                      )}
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm">{conversation.title}</span>
                         <LocalTime iso={conversation.updatedAt} format={groupLabel(conversation.updatedAt) === "Today" ? "time" : "date"} className="block text-[11px] text-subtle" />

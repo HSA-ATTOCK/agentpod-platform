@@ -155,7 +155,10 @@ export async function runTurn({ logName, prepare, kickoff, catchUp, track, custo
 /**
  * Streams one turn to the browser as newline-delimited JSON (see runTurn).
  */
-export function streamTurn({ request, ...options }: TurnOptions): Response {
+export function streamTurn(turn: TurnOptions): Response {
+  // The browser's request isn't used to stop the turn (see below)
+  const { request: _browserRequest, ...options } = turn;
+  void _browserRequest;
   const encoder = new TextEncoder();
 
   const body = new ReadableStream<Uint8Array>({
@@ -171,7 +174,10 @@ export function streamTurn({ request, ...options }: TurnOptions): Response {
       };
       const heartbeat = setInterval(() => emit({ type: "ping" }), HEARTBEAT_MS);
       try {
-        await runTurn({ ...options, emit, signal: request.signal });
+        // Not tied to the browser's connection: if the person switches chat or page, the server keeps
+        // following the turn to the end (running connected tools, recording cost, files and outcome).
+        // The Stop button is what stops a task (it sends an interrupt to Claude).
+        await runTurn({ ...options, emit });
       } finally {
         clearInterval(heartbeat);
         closed = true;

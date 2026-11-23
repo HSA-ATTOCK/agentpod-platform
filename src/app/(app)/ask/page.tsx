@@ -17,7 +17,7 @@ async function AskBabaPageContent({ searchParams }: PageProps<"/ask">) {
 
   return (
     // Fills the screen between the top bar and (on phones) the bottom tab bar
-    <main className="flex h-[calc(100dvh-7rem-1px-env(safe-area-inset-bottom))] min-h-0 lg:h-[calc(100dvh-4rem)]">
+    <main className="flex h-[calc(100dvh-7rem-1px-env(safe-area-inset-bottom))] min-h-0 overflow-hidden lg:h-[calc(100dvh-4rem)]">
       <AskBaba
         initialConversations={conversations}
         workspaceId={ctx.workspace.id}
