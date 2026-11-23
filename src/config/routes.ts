@@ -39,6 +39,7 @@ export const routes = {
   profile: "/profile",
   memory: "/memory",
   sites: "/sites",
+  usage: "/usage",
   pending: "/pending",
 
   // Platform administration (master administrators only)

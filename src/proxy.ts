@@ -18,6 +18,7 @@ const PROTECTED = [
   routes.twoFactor,
   routes.memory,
   routes.sites,
+  routes.usage,
   routes.pending,
   routes.admin,
 ];

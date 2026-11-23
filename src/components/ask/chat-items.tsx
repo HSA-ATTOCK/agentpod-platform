@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, CircleAlert, Download, FileText } from "lucide-react";
+import { ChevronDown, CircleAlert, Download, FileText, Pencil } from "lucide-react";
 import { useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -12,9 +12,20 @@ import { StepStatusIcon } from "./step-status-icon";
 type ItemOf<T extends ChatItem["type"]> = Extract<ChatItem, { type: T }>;
 
 /** The user's message, on the right. */
-export function UserMessage({ item }: { item: ItemOf<"user"> }) {
+export function UserMessage({ item, onEdit }: { item: ItemOf<"user">; onEdit?: () => void }) {
   return (
-    <div className="flex w-full justify-end">
+    <div className="group flex w-full items-start justify-end gap-1">
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label="Edit this message"
+          title="Edit and send again"
+          className="mt-2 rounded-lg p-1.5 text-subtle transition-colors hover:bg-surface-raised hover:text-foreground lg:opacity-0 lg:group-hover:opacity-100 lg:focus:opacity-100"
+        >
+          <Pencil aria-hidden="true" className="size-4" />
+        </button>
+      )}
       <div className="flex max-w-[85%] flex-col gap-2 rounded-card border border-border bg-surface-raised p-4 sm:max-w-2xl">
         {item.attachments.length > 0 && (
           <ul className="flex flex-wrap gap-1.5" aria-label="Attached files">

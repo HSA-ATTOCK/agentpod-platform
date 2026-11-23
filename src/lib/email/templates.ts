@@ -175,3 +175,21 @@ export function contactEmail(input: { to: string; name: string; email: string; c
     }\n\n${input.message}`,
   };
 }
+
+/** To workspace owners/admins: AI spend reached 80% or 100% of the monthly limit. */
+export function spendAlertEmail(input: { to: string; workspaceName: string; percent: number; spent: string; limit: string; url: string }): Email {
+  const full = input.percent >= 100;
+  return {
+    to: input.to,
+    subject: full ? `${input.workspaceName} reached its monthly Baba limit` : `${input.workspaceName} has used ${input.percent}% of its monthly Baba limit`,
+    html: layout({
+      heading: full ? "Monthly spending limit reached" : "Heads-up: spending is getting close to the limit",
+      paragraphs: [
+        `<strong>${escape(input.workspaceName)}</strong> has spent ${escape(input.spent)} of its ${escape(input.limit)} monthly limit on Baba.`,
+        full ? "New tasks are paused until next month, unless an owner or admin raises the limit." : "Tasks keep running until the limit is reached.",
+      ],
+      button: { label: "View usage", url: input.url },
+    }),
+    text: `${input.workspaceName} has spent ${input.spent} of its ${input.limit} monthly limit.${full ? " New tasks are paused until next month unless the limit is raised." : ""}\n\nView usage: ${input.url}`,
+  };
+}

@@ -6,6 +6,8 @@ import { sendEmail } from "@/lib/email/mailer";
 import { taskEmail, type TaskEmailKind } from "@/lib/email/templates";
 import { memoryForPrompt } from "@/lib/knowledge/knowledge";
 import { getAccount, getPlatformSettings } from "@/lib/platform/account";
+import { checkSpendAlerts } from "@/lib/platform/spend-alerts";
+import { rateLimited, tooManyRequests } from "@/lib/rate-limit";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 import { fileKindFromName } from "./client";
@@ -46,6 +48,11 @@ export async function babaGate({ write }: { write: boolean }): Promise<Gate> {
       return { ok: false, response: Response.json({ error: "Your account isn't approved yet." }, { status: 403 }) };
     }
     return { ok: false, response: Response.json({ error: "Please sign in again." }, { status: 401 }) };
+  }
+  // Per person: at most 20 Baba requests a minute and 300 an hour (stops runaway loops and abuse)
+  if (write) {
+    const wait = rateLimited(`baba:min:${ctx.user.id}`, 20, 60_000) ?? rateLimited(`baba:hour:${ctx.user.id}`, 300, 3_600_000);
+    if (wait) return { ok: false, response: tooManyRequests(wait) };
   }
   const settings = await getPlatformSettings(ctx.supabase);
   if (settings?.maintenanceMode && !ctx.isPlatformAdmin) {
@@ -251,6 +258,7 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
         if (result?.error) console.error("[baba/track]", result.error.message);
       }
       if (spent !== undefined) conversation.cost_cents = spent;
+      if (spent !== undefined) await checkSpendAlerts(ctx);
 
       // Email once per change of outcome (a reconnect replaying the same ending sends nothing)
       const kind = EMAIL_FOR[status];

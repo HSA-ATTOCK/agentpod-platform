@@ -39,8 +39,8 @@ NOT_STARTED.
 |---|---|---|
 | Public website: Home, Features, AI Agents, Integrations, Use cases, Pricing, About, Contact, Sign up/in, Privacy, Terms | VERIFIED | All return 200. Contact form emails `CONTACT_EMAIL`. Legal pages contain placeholders. |
 | Chat with streaming, attachments, files, approvals, task progress, history, rename/delete | VERIFIED | Tasks keep running when you switch chats. |
-| Conversation search | PARTIAL | Global search in the top bar; no full-text search inside messages. |
-| Regenerate / edit responses | NOT_STARTED | |
+| Conversation search | VERIFIED | Top-bar search covers titles, tasks, files, workflows and words inside messages. |
+| Retry / edit the last message | VERIFIED | Retry re-sends; Edit puts the text back in the box (a Claude session can't be rewound, so it continues the conversation). |
 | In-app notifications | VERIFIED | Bell shows task events + `notifications` table. Preferences for emails exist. |
 | Responsive layouts | VERIFIED | Checked at 390 px. |
 
@@ -109,6 +109,9 @@ NOT_STARTED (mobile builds, app store) except the extra agents listed in Phase 3
 | Per-task cap, monthly limit, daily limit, plan limits | IMPLEMENTED | Checked on the server before every task; the stricter of workspace and platform limits applies. |
 | Plans configurable by the admin (no hard-coded prices) | IMPLEMENTED | `subscription_plans`, `/admin/plans`. |
 | Admin cost dashboard | IMPLEMENTED | `/admin/usage` (by user, workspace, agent). |
+| Workspace Usage & billing page | VERIFIED | Spend vs limits, plan allowances, daily chart, by person. |
+| Plan quotas (workflows, connections, previews) | VERIFIED | Enforced by database triggers (workflows, connections) and on publish (previews). |
+| Spending warnings at 80% / 100% | IMPLEMENTED | Bell + email to owners/admins, once per month each. |
 | Payments, invoices (Stripe) | BLOCKED | Needs a Stripe account; deferred by the owner. |
 
 ### Phase 11 — Teams, memory, knowledge
@@ -124,9 +127,13 @@ NOT_STARTED (mobile builds, app store) except the extra agents listed in Phase 3
 |---|---|---|
 | Audit log (append-only, tamper-resistant) | VERIFIED | Updates and deletes refused by the database. |
 | Maintenance mode, announcements, system health | IMPLEMENTED | |
-| Rate limiting | PARTIAL | Contact form and webhooks. No global API rate limit. |
+| Rate limiting | PARTIAL | Baba requests (20/min, 300/hour per person), contact form, webhooks. In-memory per server instance. |
+| Security headers | VERIFIED | nosniff, frame-deny, referrer, permissions and HSTS on every page. |
+| Data export / account deletion | VERIFIED | Profile → Download my data (no secrets included); delete account; sign out of all devices. |
 | Monitoring, backups, disaster recovery, load tests | NOT_STARTED | Supabase provides daily backups on paid plans. |
-| Docker, Terraform, CI/CD | NOT_STARTED | |
+| CI | IMPLEMENTED | GitHub Actions: typecheck, lint, unit tests, build on every push. |
+| Automated tests | PARTIAL | `npm test`: SQL safety, host blocking, Google links, website unpacking, chunking, limits, schedules. Browser tests run manually. |
+| Docker, Terraform | NOT_STARTED | |
 
 ## What's needed from the owner to continue
 

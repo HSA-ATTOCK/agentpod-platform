@@ -35,6 +35,8 @@ type MessageListProps = {
   canManage: boolean;
   conversationId: string;
   onSend: (text: string) => void;
+  /** Puts the last message back in the box to change and send again. */
+  onEdit?: (text: string) => void;
 };
 
 type Handlers = Pick<
@@ -100,7 +102,9 @@ export function MessageList({
   canManage,
   conversationId,
   onSend,
+  onEdit,
 }: MessageListProps) {
+  const lastUserId = [...items].reverse().find((i) => i.type === "user")?.id;
   const scrollRef = useRef<HTMLDivElement>(null);
   const nearBottomRef = useRef(true);
   const [showJump, setShowJump] = useState(false);
@@ -140,7 +144,10 @@ export function MessageList({
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
           {items.map((item, index) => {
-            if (item.type === "user") return <UserMessage key={item.id} item={item} />;
+            if (item.type === "user") {
+              const editable = onEdit && !working && item.id === lastUserId && item.text;
+              return <UserMessage key={item.id} item={item} onEdit={editable ? () => onEdit(item.text) : undefined} />;
+            }
             const previous = items[index - 1];
             const showAvatar = !NO_AVATAR.has(item.type) || previous?.type === "user";
             return (

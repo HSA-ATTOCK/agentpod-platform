@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "baba:setup": "node --env-file=.env.local scripts/setup-baba.mjs",
     "email:test": "node --env-file=.env.local scripts/test-email.mjs",
-    "admin:bootstrap": "node --env-file=.env.local scripts/bootstrap-admin.mjs"
+    "admin:bootstrap": "node --env-file=.env.local scripts/bootstrap-admin.mjs",
+    "test": "tsx --conditions=react-server --test tests/unit/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",
@@ -39,6 +40,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

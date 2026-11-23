@@ -575,6 +575,8 @@ export type Database = {
           task_cap_usd: number
           timezone: string
           updated_at: string
+          spend_alert_level: number
+          spend_alert_month: string | null
         }
         Insert: {
           business_context?: string
@@ -591,6 +593,8 @@ export type Database = {
           task_cap_usd?: number
           timezone?: string
           updated_at?: string
+          spend_alert_level?: number
+          spend_alert_month?: string | null
         }
         Update: {
           business_context?: string
@@ -607,6 +611,8 @@ export type Database = {
           task_cap_usd?: number
           timezone?: string
           updated_at?: string
+          spend_alert_level?: number
+          spend_alert_month?: string | null
         }
         Relationships: []
       }

@@ -3,6 +3,7 @@ import {
   Bot,
   Brain,
   FolderOpen,
+  Gauge,
   GitBranch,
   Globe,
   LayoutDashboard,
@@ -35,6 +36,7 @@ export const appNavigation: NavItem[] = [
   { label: "Memory", href: routes.memory, icon: Brain },
   { label: "Integrations", shortLabel: "Apps", href: routes.integrations, icon: PlugZap },
   { label: "Activity", href: routes.activity, icon: Activity, inTabBar: true },
+  { label: "Usage & billing", shortLabel: "Usage", href: routes.usage, icon: Gauge },
 ];
 
 /** Secondary items shown at the bottom of the sidebar and in the mobile user menu. */

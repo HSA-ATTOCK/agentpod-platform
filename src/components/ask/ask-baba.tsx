@@ -719,6 +719,7 @@ export function AskBaba({
               canManage={canManage}
               conversationId={active.id}
               onSend={(text) => void send(text, [])}
+              onEdit={(text) => setDraft(text)}
             />
             <div className="shrink-0 px-4 pb-3 pt-1 lg:px-8">
               <div className="mx-auto max-w-3xl">{composer("normal")}</div>
