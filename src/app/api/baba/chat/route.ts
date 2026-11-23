@@ -1,3 +1,4 @@
+import { syncSessionTools } from "@/lib/baba/agent-sync";
 import { createCustomToolHandler } from "@/lib/baba/custom-tools";
 import {
   babaGate,
@@ -129,6 +130,8 @@ export async function POST(request: Request) {
           .eq("id", conversation.id);
         if (error) throw new Error(`Couldn't link the conversation: ${error.message}`);
       }
+      // An older conversation: give it Baba's latest tools (e.g. after npm run baba:setup)
+      else await syncSessionTools(sessionId);
       emit({ type: "session", sessionId });
       return sessionId;
     },
