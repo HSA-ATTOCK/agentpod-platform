@@ -18,6 +18,7 @@ import {
 } from "@/lib/integrations/google/tools";
 import { APP_LABELS, APP_TOOL_NAMES, appApprovalSummary, appToolNeedsApproval, runAppTool } from "@/lib/app-tools/tools";
 import type { AppContext } from "@/lib/data/context";
+import { serverOrigin } from "@/lib/origin";
 import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 import type { BabaStreamEvent } from "./protocol";
@@ -65,6 +66,25 @@ function summary(name: string, input: Input) {
   if (name === "api_request") return apiRequestSummary(input);
   if (APP_TOOL_NAMES.has(name)) return appApprovalSummary(name, input);
   return googleApprovalSummary(name, input);
+}
+
+/** What Baba tells the user when Google sign-in hasn't been set up on this server. */
+function googleNotSetUpMessage(isManager: boolean) {
+  const redirect = `${serverOrigin()}/api/integrations/google/callback`;
+  const base =
+    "Google sign-in hasn't been set up on this Baba server yet. It's a ONE-TIME setup by whoever runs this Baba server " +
+    "(the platform owner), not something each customer does. Do NOT call it 'coming soon'.";
+  if (!isManager) return `${base} Tell the user to ask the workspace owner or the Baba administrator.`;
+  return `${base}
+If this user runs the server, give them these steps as a short numbered list (keep the exact address):
+1. Go to console.cloud.google.com and create a project (e.g. "Baba").
+2. APIs & Services → Library: enable Gmail API, Google Drive API and Google Calendar API.
+3. OAuth consent screen: External; add their own Gmail under Test users.
+4. Credentials → Create credentials → OAuth client ID → Web application. Under "Authorised redirect URIs" add exactly:
+   ${redirect}
+5. Copy the Client ID and Client secret into the server's .env.local file as GOOGLE_CLIENT_ID=... and GOOGLE_CLIENT_SECRET=...
+   (NOT into this chat), then restart the app (stop and run npm run dev again).
+6. Come back and say "connect my Gmail" again.`;
 }
 
 /** Runs a tool that doesn't need the chat UI, as the person in `ctx`. */
@@ -121,7 +141,7 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
         return "handled";
       }
       if (!isGoogleConfigured()) {
-        await sendResult(sessionId, event.id, "Google sign-in hasn't been set up on this Baba server yet. This is a one-time setup by whoever runs this Baba (the platform owner adds Google's client ID and secret; see the README section \"One-time platform setup\"). Tell the user exactly that; do NOT say Gmail is 'coming soon'. Customers never need to do this themselves.", true);
+        await sendResult(sessionId, event.id, googleNotSetUpMessage(scope.ctx.workspace.role === "owner" || scope.ctx.workspace.role === "admin"), true);
         return "handled";
       }
       emit({ type: "connect_request", id: event.id, service: "google", reason: str(input, "reason") });
