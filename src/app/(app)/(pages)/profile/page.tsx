@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { ProfileView, type ProfileUsage } from "@/components/pages/profile-view";
 import { requireAppContext } from "@/lib/data/context";
 import { getProfile, monthStart } from "@/lib/data/pages";
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 export const metadata: Metadata = { title: "Profile" };
 
-export default async function Page() {
+async function PageContent() {
   const ctx = await requireAppContext();
   const [profile, { data: myTasks }] = await Promise.all([
     getProfile(ctx),
@@ -28,4 +30,13 @@ export default async function Page() {
   };
 
   return <ProfileView profile={profile} role={ctx.workspace.role} usage={usage} />;
+}
+
+/** Shows a placeholder straight away while this page's data loads. */
+export default function Page() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <PageContent />
+    </Suspense>
+  );
 }

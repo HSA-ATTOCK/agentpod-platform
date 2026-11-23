@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { routes } from "@/config/routes";
 import { safeNext } from "@/lib/auth/safe-next";
+import { publicUrl } from "@/lib/origin";
 import { getSupabaseServer } from "@/lib/supabase/server";
 
 /**
@@ -16,11 +17,17 @@ export async function GET(request: Request) {
   if (code) {
     const supabase = await getSupabaseServer();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(new URL(next, url.origin));
+    if (!error) return NextResponse.redirect(publicUrl(request, next));
     console.error("[auth/callback]", error.message);
   }
 
-  const failed = new URL(routes.signIn, url.origin);
-  failed.searchParams.set("error", url.searchParams.get("error_description") ?? "That link is invalid or has expired.");
+  const failed = publicUrl(request, routes.signIn);
+  const expired = url.searchParams.get("error_code") === "otp_expired" || !code;
+  failed.searchParams.set(
+    "error",
+    expired
+      ? "That email link has expired or was already used. If you already confirmed your email, just sign in. Otherwise request a new link."
+      : (url.searchParams.get("error_description") ?? "That link didn't work. Please try again."),
+  );
   return NextResponse.redirect(failed);
 }
