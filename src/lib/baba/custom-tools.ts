@@ -16,6 +16,8 @@ import {
   runGoogleTool,
   TOOL_LABELS as GOOGLE_LABELS,
 } from "@/lib/integrations/google/tools";
+import { APP_LABELS, APP_TOOL_NAMES, appApprovalSummary, appToolNeedsApproval, runAppTool } from "@/lib/app-tools/tools";
+import type { AppContext } from "@/lib/data/context";
 import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 import type { BabaStreamEvent } from "./protocol";
@@ -41,7 +43,7 @@ type Input = Record<string, unknown>;
 const str = (input: Input, key: string) => (typeof input[key] === "string" ? (input[key] as string).trim() : "");
 
 function needsApproval(name: string, input: Input) {
-  return GOOGLE_NEEDS_APPROVAL.has(name) || connectionNeedsApproval(name, input);
+  return GOOGLE_NEEDS_APPROVAL.has(name) || connectionNeedsApproval(name, input) || appToolNeedsApproval(name);
 }
 
 function label(name: string, input: Input) {
@@ -55,16 +57,19 @@ function label(name: string, input: Input) {
     case "api_request":
       return `Calling ${str(input, "service_name") || "a connected service"}`;
     default:
-      return GOOGLE_LABELS[name] ?? name;
+      return APP_LABELS[name] ?? GOOGLE_LABELS[name] ?? name;
   }
 }
 
 function summary(name: string, input: Input) {
-  return name === "api_request" ? apiRequestSummary(input) : googleApprovalSummary(name, input);
+  if (name === "api_request") return apiRequestSummary(input);
+  if (APP_TOOL_NAMES.has(name)) return appApprovalSummary(name, input);
+  return googleApprovalSummary(name, input);
 }
 
-/** Runs a tool that doesn't need the chat UI. */
-async function runTool(name: string, input: Input, scope: { workspaceId: string; sessionId: string }) {
+/** Runs a tool that doesn't need the chat UI, as the person in `ctx`. */
+async function runTool(name: string, input: Input, scope: { workspaceId: string; sessionId: string; ctx: AppContext }) {
+  if (APP_TOOL_NAMES.has(name)) return runAppTool(name, input, scope.ctx);
   if (GOOGLE_TOOL_NAMES.has(name)) return runGoogleTool(name, input, scope);
   if (name === "list_connections") return { text: await listConnectionsText(scope.workspaceId), isError: false };
   if (name === "api_request") return apiRequest(scope.workspaceId, input);
@@ -88,7 +93,7 @@ async function sendResult(sessionId: string, toolUseId: string, text: string, is
 const store = globalThis as unknown as { __babaToolCalls?: Set<string> };
 const inFlight = (store.__babaToolCalls ??= new Set<string>());
 
-export function createCustomToolHandler(scope: { workspaceId: string; conversationId: string }): CustomToolHandler {
+export function createCustomToolHandler(scope: { workspaceId: string; conversationId: string; ctx: AppContext }): CustomToolHandler {
   return async (event, sessionId, emit) => {
     const input = (event.input ?? {}) as Input;
     const approval = needsApproval(event.name, input);
@@ -100,12 +105,12 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
     const stepLabel = label(event.name, input);
     const stepId = `custom-${event.id}`;
 
-    if (!GOOGLE_TOOL_NAMES.has(event.name) && !CONNECTION_TOOL_NAMES.has(event.name)) {
+    if (!GOOGLE_TOOL_NAMES.has(event.name) && !CONNECTION_TOOL_NAMES.has(event.name) && !APP_TOOL_NAMES.has(event.name)) {
       await sendResult(sessionId, event.id, `Unknown tool "${event.name}".`, true);
       return "handled";
     }
-    if (!isAdminConfigured()) {
-      await sendResult(sessionId, event.id, "Connected tools aren't set up on this server yet (the server's secret key is missing).", true);
+    if (!isAdminConfigured() && !APP_TOOL_NAMES.has(event.name)) {
+      await sendResult(sessionId, event.id, "Connected tools aren't set up on this server yet (the server's SUPABASE_SECRET_KEY is missing). This is a one-time setup by the platform owner.", true);
       return "handled";
     }
 
@@ -116,7 +121,7 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
         return "handled";
       }
       if (!isGoogleConfigured()) {
-        await sendResult(sessionId, event.id, "Google sign-in isn't available on this server yet. Tell the user it's coming soon.", true);
+        await sendResult(sessionId, event.id, "Google sign-in hasn't been set up on this Baba server yet. This is a one-time setup by whoever runs this Baba (the platform owner adds Google's client ID and secret; see the README section \"One-time platform setup\"). Tell the user exactly that; do NOT say Gmail is 'coming soon'. Customers never need to do this themselves.", true);
         return "handled";
       }
       emit({ type: "connect_request", id: event.id, service: "google", reason: str(input, "reason") });
@@ -157,6 +162,10 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
     }
 
     // ---- Changes outside Baba: wait for a person's OK ----
+    if (approval && !isAdminConfigured()) {
+      await sendResult(sessionId, event.id, "Changes that need approval can't be made on this server yet (SUPABASE_SECRET_KEY is missing). This is a one-time setup by the platform owner.", true);
+      return "handled";
+    }
     if (approval) {
       const admin = getSupabaseAdmin();
       await admin.from("tool_approvals").upsert(
@@ -182,7 +191,7 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
 
     // ---- Everything else runs straight away ----
     emit({ type: "step", id: stepId, label: stepLabel, status: "running" });
-    const result = await runTool(event.name, input, { workspaceId: scope.workspaceId, sessionId });
+    const result = await runTool(event.name, input, { workspaceId: scope.workspaceId, sessionId, ctx: scope.ctx });
     await sendResult(sessionId, event.id, result.text, result.isError);
     emit({
       type: "step",
@@ -205,14 +214,15 @@ export async function decidePendingTool(input: {
   sessionId: string;
   toolUseId: string;
   allow: boolean;
-  userId: string;
+  /** The person deciding: the action runs with their permissions. */
+  ctx: AppContext;
 }) {
   if (!isAdminConfigured()) return null;
   const admin = getSupabaseAdmin();
   // Claim it (only one decision counts, even with two clicks)
   const { data: claimed } = await admin
     .from("tool_approvals")
-    .update({ status: input.allow ? "approved" : "rejected", decided_by: input.userId, decided_at: new Date().toISOString() })
+    .update({ status: input.allow ? "approved" : "rejected", decided_by: input.ctx.user.id, decided_at: new Date().toISOString() })
     .eq("tool_use_id", input.toolUseId)
     .eq("conversation_id", input.conversationId)
     .eq("workspace_id", input.workspaceId)
@@ -233,6 +243,7 @@ export async function decidePendingTool(input: {
   const result = await runTool(claimed.tool_name, claimed.input as Input, {
     workspaceId: input.workspaceId,
     sessionId: input.sessionId,
+    ctx: input.ctx,
   });
   if (result.isError) await admin.from("tool_approvals").update({ status: "failed" }).eq("tool_use_id", input.toolUseId);
   await sendResult(input.sessionId, input.toolUseId, result.text, result.isError);

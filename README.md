@@ -95,6 +95,15 @@ the workspace's monthly limit, and emails the person who created the workflow if
 When the app is hosted (e.g. Vercel), call `GET /api/cron/workflows` every minute with
 `Authorization: Bearer <CRON_SECRET>` from a scheduler, and set `BABA_SCHEDULER=off`.
 
+## Everything from the chat
+
+Anything you can do on Baba's pages you can also ask for in Ask Baba: look up workflows, activity, files,
+team and settings; create/change/delete workflows; update your profile, workspace details, business
+instructions, spending limits and notification emails; invite people, change roles, remove members; manage
+connections. Every change shows an **Approve / Reject** card first and runs with the approving person's role.
+For safety, password, email, two-step verification, deleting the account/workspace and transferring ownership
+stay on their pages (Baba links to them). Tools: `baba/app-tools.mjs`, server code: `src/lib/app-tools/`.
+
 ## Connected tools
 
 Customers connect their own tools from the chat ("connect my Gmail") or the Integrations page.

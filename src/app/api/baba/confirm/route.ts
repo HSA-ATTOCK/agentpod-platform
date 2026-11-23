@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       sessionId: conversation.claude_session_id,
       toolUseId,
       allow,
-      userId: gate.ctx.user.id,
+      ctx: gate.ctx,
     });
     if (decided) {
       return decided.ok

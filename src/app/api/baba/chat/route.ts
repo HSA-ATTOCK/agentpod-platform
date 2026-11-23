@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     request,
     logName: "baba/chat",
     track: trackTurn(ctx, conversation, task.id, appOrigin(request)),
-    customTools: createCustomToolHandler({ workspaceId: conversation.workspace_id, conversationId: conversation.id }),
+    customTools: createCustomToolHandler({ workspaceId: conversation.workspace_id, conversationId: conversation.id, ctx }),
     async prepare(emit) {
       // One Claude session per conversation, with a spending cap
       let sessionId = conversation.claude_session_id;
