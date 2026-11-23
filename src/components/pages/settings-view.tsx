@@ -16,10 +16,13 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import { routes } from "@/config/routes";
 import type { WorkspaceRole } from "@/lib/data/context";
+import { ImageUpload } from "@/components/ui/image-upload";
+import { TwoFactorSettings } from "./two-factor-settings";
 import { formatCents } from "@/lib/format";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { isValidEmail } from "@/lib/validation";
+import { emailEnabled, notificationEvents, type NotificationPrefs } from "@/config/notifications";
 import type { InviteRecord, MemberRecord, ModelInfo, WorkspaceSettings } from "@/types/app-data";
 import type { Json } from "@/types/database";
 
@@ -42,14 +45,7 @@ const ROLE_DESCRIPTION: Record<WorkspaceRole, string> = {
   viewer: "Read conversations, activity and files. Can't start tasks.",
 };
 
-const NOTIFICATION_EVENTS = [
-  { key: "task_finished", label: "Task finished" },
-  { key: "task_failed", label: "Task failed" },
-  { key: "paused_at_cap", label: "Paused at spending cap" },
-  { key: "approval_needed", label: "Approval needed" },
-  { key: "weekly_summary", label: "Weekly summary email" },
-] as const;
-export type NotificationPrefs = Record<string, { email: boolean; app: boolean }>;
+
 
 const TIMEZONES = ["UTC", "Europe/London", "Europe/Paris", "Asia/Karachi", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Australia/Sydney", "America/New_York", "America/Chicago", "America/Los_Angeles"];
 
@@ -90,6 +86,8 @@ type SettingsViewProps = {
   monthTasks: number;
   notificationPrefs: NotificationPrefs;
   signInMethods: string[];
+  /** True when Gmail sending is set up on the server. */
+  emailConfigured: boolean;
 };
 
 export function SettingsView({
@@ -103,6 +101,7 @@ export function SettingsView({
   monthTasks,
   notificationPrefs,
   signInMethods,
+  emailConfigured,
 }: SettingsViewProps) {
   const router = useRouter();
   const supabase = getSupabaseBrowser();
@@ -132,10 +131,8 @@ export function SettingsView({
   const [inviteError, setInviteError] = useState<string | null>(null);
 
   // Notifications
-  const [notify, setNotify] = useState<NotificationPrefs>(() =>
-    Object.fromEntries(
-      NOTIFICATION_EVENTS.map(({ key }) => [key, notificationPrefs[key] ?? { email: true, app: key !== "weekly_summary" }]),
-    ),
+  const [notify, setNotify] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(notificationEvents.map(({ key }) => [key, emailEnabled(notificationPrefs, key)])),
   );
 
   // Delete workspace
@@ -215,18 +212,39 @@ export function SettingsView({
     }
     setInviteError(null);
     setBusy("invite");
-    const { error } = await supabase
-      .from("workspace_invites")
-      .insert({ workspace_id: settings.id, email, role: invite.role, invited_by: myId });
+    const result = await postInvite({ email, role: invite.role });
     setBusy(null);
-    if (error) {
-      setInviteError(error.code === "23505" ? "There's already a pending invite for that email." : "Couldn't create the invite.");
+    if ("error" in result) {
+      setInviteError(result.error);
       return;
     }
     setInviteOpen(false);
     setInvite({ email: "", role: "member" });
-    showToast("Invite created. Share the sign-up link with them.");
+    showToast(result.emailSent ? `Invite emailed to ${email}.` : "Invite created. Use Copy link to send it to them.");
     router.refresh();
+  }
+
+  async function postInvite(
+    body: { email: string; role: WorkspaceRole } | { resendId: string },
+  ): Promise<{ emailSent: boolean } | { error: string }> {
+    try {
+      const response = await fetch("/api/team/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await response.json()) as { error?: string; emailSent?: boolean };
+      return response.ok ? { emailSent: Boolean(data.emailSent) } : { error: data.error ?? "Couldn't create the invite." };
+    } catch {
+      return { error: "Couldn't reach the server. Check your connection." };
+    }
+  }
+
+  async function resendInvite(id: string, email: string) {
+    setBusy(`resend-${id}`);
+    const result = await postInvite({ resendId: id });
+    setBusy(null);
+    showToast("error" in result ? result.error : result.emailSent ? `Invite emailed to ${email} again.` : "Email isn't set up, so nothing was sent. Use Copy link.");
   }
 
   function copySignUpLink(email: string) {
@@ -243,7 +261,12 @@ export function SettingsView({
       () =>
         supabase
           .from("notification_preferences")
-          .upsert({ user_id: myId, workspace_id: settings.id, prefs: notify as unknown as Json, updated_at: new Date().toISOString() }),
+          .upsert({
+            user_id: myId,
+            workspace_id: settings.id,
+            prefs: Object.fromEntries(Object.entries(notify).map(([key, email]) => [key, { email }])) as unknown as Json,
+            updated_at: new Date().toISOString(),
+          }),
       "Notification choices saved.",
       "Couldn't save notification choices.",
     );
@@ -312,12 +335,30 @@ export function SettingsView({
             <Section title="Workspace" description="General information about your company. Baba can use it to tailor its work.">
               <form noValidate onSubmit={saveWorkspace} className="space-y-6">
                 <div className="flex items-center gap-4 border-b border-border pb-6">
-                  <span aria-hidden="true" className="flex size-16 items-center justify-center rounded-card border border-border-strong bg-surface-raised text-2xl font-bold text-accent">
-                    {(ws.name.trim()[0] ?? "W").toUpperCase()}
+                  <span aria-hidden="true" className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-card border border-border-strong bg-surface-raised text-2xl font-bold text-accent">
+                    {settings.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- uploaded workspace logo
+                      <img src={settings.logoUrl} alt="" className="size-full object-cover" />
+                    ) : (
+                      (ws.name.trim()[0] ?? "W").toUpperCase()
+                    )}
                   </span>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{settings.name}</p>
-                    <p className="text-xs text-subtle">Your role: {ROLE_LABEL[myRole]}</p>
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-medium text-foreground">
+                      Workspace logo <span className="text-xs font-normal text-subtle">· Your role: {ROLE_LABEL[myRole]}</span>
+                    </p>
+                    {canManage && (
+                      <ImageUpload
+                        bucket="logos"
+                        folder={settings.id}
+                        hasImage={Boolean(settings.logoUrl)}
+                        label="Upload workspace logo"
+                        onError={showToast}
+                        onChange={async (url) => {
+                          await run("logo", () => supabase.from("workspaces").update({ logo_url: url }).eq("id", settings.id), url ? "Logo updated." : "Logo removed.", "Couldn't save the logo.");
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
                 <fieldset disabled={!canManage} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -380,7 +421,7 @@ export function SettingsView({
                   return (
                     <li key={m.userId} className="flex flex-wrap items-center justify-between gap-3 p-3.5">
                       <div className="flex min-w-0 items-center gap-3">
-                        <Avatar name={m.name} />
+                        <Avatar name={m.name} src={m.avatarUrl} />
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-foreground">
                             {m.name} {isMe && <span className="text-xs text-subtle">(you)</span>}
@@ -460,6 +501,11 @@ export function SettingsView({
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge tone="neutral">{ROLE_LABEL[i.role]}</Badge>
                       <Badge tone="warning">Pending</Badge>
+                      {emailConfigured && (
+                        <Button size="sm" variant="ghost" loading={busy === `resend-${i.id}`} loadingText="Sending…" onClick={() => void resendInvite(i.id, i.email)}>
+                          Resend
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => copySignUpLink(i.email)}>
                         <Copy aria-hidden="true" className="size-3.5" />
                         Copy link
@@ -478,9 +524,11 @@ export function SettingsView({
               </ul>
               {canManage && (
                 <p className="text-xs text-subtle">
-                  Invite emails aren&apos;t sent automatically yet. Share the sign-up link: when they sign up with the invited
-                  email they join this workspace. If they already have a Baba account, they&apos;ll find the invite in their
-                  workspace menu.
+                  {emailConfigured
+                    ? "Invites are emailed with a sign-up link. "
+                    : "Email sending isn't set up on the server, so share the invite with Copy link. "}
+                  When they sign up with the invited email they join this workspace. If they already have a Baba account,
+                  they&apos;ll find the invite in their workspace menu.
                 </p>
               )}
               <div>
@@ -568,35 +616,21 @@ export function SettingsView({
           )}
 
           {tab === "notifications" && (
-            <Section title="Notifications" description="Choose how Baba lets you know what's happening. These are your personal choices.">
-              <Alert variant="info">Your choices are saved now. Emails and in-app alerts start once notification sending is switched on.</Alert>
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-xs text-subtle">
-                    <th scope="col" className="pb-3 font-medium">Event</th>
-                    <th scope="col" className="w-16 pb-3 text-center font-medium">Email</th>
-                    <th scope="col" className="w-16 pb-3 text-center font-medium">In-app</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {NOTIFICATION_EVENTS.map(({ key, label }) => (
-                    <tr key={key}>
-                      <td className="py-3 pr-3 text-foreground">{label}</td>
-                      {(["email", "app"] as const).map((channel) => (
-                        <td key={channel} className="py-3 text-center">
-                          <input
-                            type="checkbox"
-                            aria-label={`${label} by ${channel === "email" ? "email" : "in-app notification"}`}
-                            checked={notify[key][channel]}
-                            onChange={(e) => setNotify({ ...notify, [key]: { ...notify[key], [channel]: e.target.checked } })}
-                            className="size-4 accent-accent"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <Section title="Notifications" description="Which emails Baba sends you about tasks you start. The bell at the top always shows recent activity.">
+              {!emailConfigured && (
+                <Alert variant="info">Email sending isn&apos;t set up on the server yet, so these are saved but no emails go out.</Alert>
+              )}
+              <ul className="divide-y divide-border rounded-xl border border-border">
+                {notificationEvents.map(({ key, label, description }) => (
+                  <li key={key} className="flex items-center justify-between gap-4 p-3.5">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{label}</p>
+                      <p className="text-xs text-muted">{description}</p>
+                    </div>
+                    <Switch checked={notify[key]} onChange={(on) => setNotify({ ...notify, [key]: on })} label={`Email me: ${label}`} />
+                  </li>
+                ))}
+              </ul>
               <div className="flex justify-end">
                 <Button onClick={saveNotifications} loading={busy === "notifications"} loadingText="Saving…">Save notifications</Button>
               </div>
@@ -617,13 +651,8 @@ export function SettingsView({
                     <span className="text-sm text-foreground">Google</span>
                     {signInMethods.includes("google") ? <Badge tone="success">On</Badge> : <Badge tone="neutral">Not linked</Badge>}
                   </li>
-                  <li className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-raised p-3.5">
-                    <span className="text-sm text-foreground">
-                      Two-step verification <span className="text-xs text-subtle">· Off</span>
-                    </span>
-                    <Badge tone="neutral">Coming soon</Badge>
-                  </li>
                 </ul>
+                <TwoFactorSettings />
               </Section>
               <Section title="Sessions" description="Signed in on a shared or lost device? Sign it out from here.">
                 <Button variant="secondary" onClick={signOutOthers} loading={busy === "sessions"} loadingText="Signing out…">

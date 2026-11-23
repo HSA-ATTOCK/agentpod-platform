@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { routes } from "@/config/routes";
-import { signInWithPassword, type AuthResult } from "@/lib/auth/client";
+import { needsTwoFactor, signInWithPassword, type AuthResult } from "@/lib/auth/client";
 import { safeNext } from "@/lib/auth/safe-next";
 import { isValidEmail } from "@/lib/validation";
 import { AuthDivider } from "./auth-divider";
@@ -51,8 +51,11 @@ export function SignInForm() {
     setLoading(true);
     const response = await signInWithPassword(email, password);
     if (response.ok) {
+      const next = safeNext(new URLSearchParams(window.location.search).get("next"));
       // Full page load so every server page sees the new session cookie
-      window.location.assign(safeNext(new URLSearchParams(window.location.search).get("next")));
+      window.location.assign(
+        (await needsTwoFactor()) ? `${routes.twoFactor}?next=${encodeURIComponent(next)}` : next,
+      );
       return;
     }
     setResult(response);

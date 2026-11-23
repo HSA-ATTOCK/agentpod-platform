@@ -8,6 +8,7 @@ import {
 } from "@/lib/baba/conversations";
 import { errorMessage, getClaude } from "@/lib/baba/server";
 import { streamTurn } from "@/lib/baba/stream-turn";
+import { appOrigin } from "@/lib/email/mailer";
 
 export const maxDuration = 300;
 
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
   return streamTurn({
     request,
     logName: "baba/resume",
-    track: trackTurn(ctx, conversation, task?.id),
+    track: trackTurn(ctx, conversation, task?.id, appOrigin(request)),
     async prepare() {
       return sessionId;
     },

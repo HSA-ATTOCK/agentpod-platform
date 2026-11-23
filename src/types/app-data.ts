@@ -60,6 +60,7 @@ export type MemberRecord = {
   email: string;
   role: WorkspaceRole;
   joinedAt: string;
+  avatarUrl: string | null;
 };
 
 export type InviteRecord = {
@@ -79,6 +80,7 @@ export type WorkspaceSettings = {
   taskCapUsd: number;
   monthlyLimitUsd: number;
   businessContext: string;
+  logoUrl: string | null;
 };
 
 export type ProfileRecord = {
@@ -90,6 +92,7 @@ export type ProfileRecord = {
   language: string;
   timezone: string;
   createdAt: string;
+  avatarUrl: string | null;
 };
 
 /** Which Claude model the agents run on, from BABA_PROFILE. */

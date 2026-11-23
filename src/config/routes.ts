@@ -4,6 +4,8 @@
  */
 export const routes = {
   home: "/",
+  terms: "/terms",
+  privacy: "/privacy",
 
   // Auth
   signIn: "/sign-in",
@@ -11,6 +13,7 @@ export const routes = {
   forgotPassword: "/forgot-password",
   verifyEmail: "/verify-email",
   resetPassword: "/reset-password",
+  twoFactor: "/two-factor",
   authCallback: "/auth/callback",
   signOut: "/auth/sign-out",
 

@@ -146,7 +146,7 @@ export async function listMembers(ctx: AppContext): Promise<MemberRecord[]> {
 
   const { data: profiles } = await ctx.supabase
     .from("profiles")
-    .select("id, email, full_name")
+    .select("id, email, full_name, avatar_url")
     .in(
       "id",
       members.map((m) => m.user_id),
@@ -161,6 +161,7 @@ export async function listMembers(ctx: AppContext): Promise<MemberRecord[]> {
       email: p?.email ?? "",
       role: m.role,
       joinedAt: m.created_at,
+      avatarUrl: p?.avatar_url ?? null,
     };
   });
 }
@@ -192,7 +193,7 @@ export async function listMyInvites(ctx: AppContext) {
 export async function getWorkspaceSettings(ctx: AppContext): Promise<WorkspaceSettings> {
   const { data, error } = await ctx.supabase
     .from("workspaces")
-    .select("id, name, industry, company_size, timezone, task_cap_usd, monthly_limit_usd, business_context")
+    .select("id, name, industry, company_size, timezone, task_cap_usd, monthly_limit_usd, business_context, logo_url")
     .eq("id", ctx.workspace.id)
     .single();
   if (error) fail("workspace settings", error);
@@ -205,13 +206,14 @@ export async function getWorkspaceSettings(ctx: AppContext): Promise<WorkspaceSe
     taskCapUsd: Number(data.task_cap_usd),
     monthlyLimitUsd: Number(data.monthly_limit_usd),
     businessContext: data.business_context,
+    logoUrl: data.logo_url,
   };
 }
 
 export async function getProfile(ctx: AppContext): Promise<ProfileRecord> {
   const { data, error } = await ctx.supabase
     .from("profiles")
-    .select("id, email, full_name, job_title, phone, language, timezone, created_at")
+    .select("id, email, full_name, job_title, phone, language, timezone, created_at, avatar_url")
     .eq("id", ctx.user.id)
     .single();
   if (error) fail("profile", error);
@@ -224,6 +226,7 @@ export async function getProfile(ctx: AppContext): Promise<ProfileRecord> {
     language: data.language,
     timezone: data.timezone,
     createdAt: data.created_at,
+    avatarUrl: data.avatar_url,
   };
 }
 

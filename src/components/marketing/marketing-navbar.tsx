@@ -7,9 +7,9 @@ import { Logo } from "@/components/ui/logo";
 import { routes } from "@/config/routes";
 
 const sectionLinks = [
-  { label: "Features", href: "#features" },
-  { label: "Use cases", href: "#use-cases" },
-  { label: "How it works", href: "#how-it-works" },
+  { label: "Features", href: "/#features" },
+  { label: "Use cases", href: "/#use-cases" },
+  { label: "How it works", href: "/#how-it-works" },
 ];
 
 export function MarketingNavbar() {

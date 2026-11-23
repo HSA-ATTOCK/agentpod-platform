@@ -63,7 +63,7 @@ export function AppMobileHeader({ workspace, workspaces, invites, user }: AppMob
             aria-controls="mobile-user-menu"
             className="flex size-11 items-center justify-center rounded-full"
           >
-            <Avatar name={user.fullName} />
+            <Avatar name={user.fullName} src={user.avatarUrl} />
           </button>
 
           {open && (

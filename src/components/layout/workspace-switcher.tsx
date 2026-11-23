@@ -7,7 +7,7 @@ import { switchWorkspace } from "@/lib/data/workspace-cookie";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
-export type SwitcherWorkspace = { id: string; name: string; role: WorkspaceRole };
+export type SwitcherWorkspace = { id: string; name: string; role: WorkspaceRole; logoUrl?: string | null };
 export type PendingInvite = { id: string; workspaceName: string; role: WorkspaceRole };
 
 type Props = {
@@ -61,8 +61,13 @@ export function WorkspaceSwitcher({ current, workspaces, invites }: Props) {
         className="flex w-full items-center justify-between gap-2 rounded-control border border-border bg-surface-raised p-2.5 text-left transition-colors hover:bg-surface-hover"
       >
         <span className="flex min-w-0 items-center gap-2.5">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/20 text-xs font-bold text-accent">
-            {current.name[0]?.toUpperCase()}
+          <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-accent/20 text-xs font-bold text-accent">
+            {current.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- uploaded workspace logo
+              <img src={current.logoUrl} alt="" className="size-full object-cover" />
+            ) : (
+              current.name[0]?.toUpperCase()
+            )}
           </span>
           <span className="truncate text-xs font-semibold text-foreground">{current.name}</span>
         </span>

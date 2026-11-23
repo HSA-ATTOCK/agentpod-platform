@@ -1,5 +1,6 @@
 import { babaGate, loadConversation, notFound, trackTurn } from "@/lib/baba/conversations";
 import { streamTurn } from "@/lib/baba/stream-turn";
+import { appOrigin } from "@/lib/email/mailer";
 
 export const maxDuration = 300;
 
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     logName: "baba/watch",
     catchUp: true,
     // Viewers may watch, but only people who can write record the result
-    track: ctx.workspace.role === "viewer" ? undefined : trackTurn(ctx, conversation),
+    track: ctx.workspace.role === "viewer" ? undefined : trackTurn(ctx, conversation, undefined, appOrigin(request)),
     async prepare() {
       return sessionId;
     },

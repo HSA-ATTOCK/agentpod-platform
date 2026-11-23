@@ -13,7 +13,7 @@ async function AppFrame({ children }: { children: ReactNode }) {
   const { user, workspace, workspaces } = ctx;
   // Invites to other workspaces (not the one they're in)
   const invites = (await listMyInvites(ctx)).filter((i) => !workspaces.some((w) => w.name === i.workspaceName));
-  const current = { id: workspace.id, name: workspace.name, role: workspace.role };
+  const current = { id: workspace.id, name: workspace.name, role: workspace.role, logoUrl: workspace.logoUrl };
   return (
     <div className="flex min-h-screen flex-1 flex-col">
       <AppSidebar workspace={current} workspaces={workspaces} invites={invites} user={user} />

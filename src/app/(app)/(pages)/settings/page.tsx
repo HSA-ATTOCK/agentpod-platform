@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { SettingsView, type NotificationPrefs } from "@/components/pages/settings-view";
+import { SettingsView } from "@/components/pages/settings-view";
+import type { NotificationPrefs } from "@/config/notifications";
+import { isEmailConfigured } from "@/lib/email/mailer";
 import { requireAppContext } from "@/lib/data/context";
 import { getWorkspaceSettings, listInvites, listMembers, modelInfo, monthStart } from "@/lib/data/pages";
 
@@ -36,6 +38,7 @@ export default async function SettingsPage() {
       monthTasks={tasks.length}
       notificationPrefs={(prefs.data?.prefs as NotificationPrefs | null) ?? {}}
       signInMethods={appMetadata?.providers ?? ["email"]}
+      emailConfigured={isEmailConfigured()}
     />
   );
 }

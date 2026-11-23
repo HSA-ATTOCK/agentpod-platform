@@ -63,6 +63,26 @@ signs up would be spending your API credit.
 
 The schema is in `supabase/migrations/` (already applied to the project).
 
+## Email (Gmail)
+
+Baba sends invite emails and task notifications through your Gmail account with Nodemailer.
+
+1. Turn on 2-Step Verification for the Google account, then create an **App password**
+   (Google Account → Security → App passwords).
+2. Add `GMAIL_USER` and `GMAIL_APP_PASSWORD` to `.env.local` and restart.
+3. Recommended: send Supabase's sign-up and password-reset emails through the same Gmail too
+   (Supabase → Authentication → Emails → SMTP Settings: host `smtp.gmail.com`, port `465`,
+   username = your Gmail address, password = the app password). Supabase's built-in sender only
+   allows a few emails per hour and is meant for testing.
+
+Gmail allows about 500 emails a day, which is fine while you grow; move to a dedicated
+sending service later if you need more.
+
+## Legal pages
+
+`/terms` and `/privacy` are drafts. Fill in your details in `src/config/legal.ts` and have them
+reviewed by a lawyer before launch.
+
 ## Scripts
 
 | Command | What it does |

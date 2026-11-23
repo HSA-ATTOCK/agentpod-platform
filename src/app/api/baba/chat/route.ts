@@ -9,6 +9,8 @@ import {
 import type { BabaChatRequest } from "@/lib/baba/protocol";
 import { babaConfig, getClaude } from "@/lib/baba/server";
 import { streamTurn } from "@/lib/baba/stream-turn";
+import { MAX_ATTACHMENTS, safeFileName, verifyUpload } from "@/lib/baba/uploads";
+import { appOrigin } from "@/lib/email/mailer";
 
 // Long tasks stream for a while. (Vercel caps this by plan.)
 export const maxDuration = 300;
@@ -29,7 +31,26 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
-  const text = typeof body.text === "string" ? body.text.trim() : "";
+  const rawAttachments = Array.isArray(body.attachments) ? body.attachments : [];
+  if (rawAttachments.length > MAX_ATTACHMENTS) {
+    return Response.json({ error: `You can attach up to ${MAX_ATTACHMENTS} files at a time.` }, { status: 400 });
+  }
+  // Only files this workspace uploaded (checked with the signed token from /api/baba/uploads)
+  const attachments = rawAttachments.filter(
+    (a) =>
+      a &&
+      typeof a.fileId === "string" &&
+      typeof a.token === "string" &&
+      typeof a.name === "string" &&
+      verifyUpload(a.fileId, ctx.workspace.id, a.token),
+  );
+  if (attachments.length !== rawAttachments.length) {
+    return Response.json({ error: "One of the attached files couldn't be verified. Please attach it again." }, { status: 400 });
+  }
+
+  const text =
+    (typeof body.text === "string" ? body.text.trim() : "") ||
+    (attachments.length > 0 ? "Please look at the attached file(s) and tell me what's in them." : "");
   if (!text) return Response.json({ error: "Message is empty." }, { status: 400 });
   if (text.length > 20_000) return Response.json({ error: "Message is too long." }, { status: 413 });
 
@@ -85,7 +106,7 @@ export async function POST(request: Request) {
   return streamTurn({
     request,
     logName: "baba/chat",
-    track: trackTurn(ctx, conversation, task.id),
+    track: trackTurn(ctx, conversation, task.id, appOrigin(request)),
     async prepare(emit) {
       // One Claude session per conversation, with a spending cap
       let sessionId = conversation.claude_session_id;
@@ -121,8 +142,23 @@ export async function POST(request: Request) {
           message = `About my business (${ws.name}), from my Baba settings:\n${ws.business_context.trim()}\n\n---\n\n${text}`;
         }
       }
+      // Attached files: mounted in the agents' workspace (for code and the specialists),
+      // and images/PDFs also shown to Baba directly
+      type Block = { type: "text"; text: string } | { type: "image" | "document"; source: { type: "file"; file_id: string } };
+      const blocks: Block[] = [];
+      if (attachments.length > 0) {
+        const paths: string[] = [];
+        for (const file of attachments) {
+          const path = `/mnt/session/uploads/${file.fileId.slice(-8)}-${safeFileName(file.name)}`;
+          await claude.beta.sessions.resources.add(sessionId, { type: "file", file_id: file.fileId, mount_path: path });
+          paths.push(`- ${file.name}: ${path}`);
+          if (file.mimeType.startsWith("image/")) blocks.push({ type: "image", source: { type: "file", file_id: file.fileId } });
+          else if (file.mimeType === "application/pdf") blocks.push({ type: "document", source: { type: "file", file_id: file.fileId } });
+        }
+        message += `\n\n[Files I attached, available in your workspace (read-only; copy before editing):\n${paths.join("\n")}]`;
+      }
       await claude.beta.sessions.events.send(sessionId, {
-        events: [{ type: "user.message", content: [{ type: "text", text: message }] }],
+        events: [{ type: "user.message", content: [...blocks, { type: "text", text: message }] }],
       });
     },
   });
