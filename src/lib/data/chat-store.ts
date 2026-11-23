@@ -2,7 +2,7 @@
 
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import type { Json } from "@/types/database";
-import type { ChatItem } from "@/types/chat";
+import type { ChatItem, Conversation } from "@/types/chat";
 
 /**
  * Saving and loading Ask Baba conversations from the browser.
@@ -55,4 +55,26 @@ export async function renameConversation(conversationId: string, title: string) 
 export async function deleteConversation(conversationId: string) {
   const { error } = await getSupabaseBrowser().from("conversations").delete().eq("id", conversationId);
   if (error) throw new Error("Couldn't delete the conversation.");
+}
+
+/** The workspace's most recent conversations (same as the server's first load). */
+export async function listRecentConversations(workspaceId: string, limit = 50): Promise<Conversation[]> {
+  const { data, error } = await getSupabaseBrowser()
+    .from("conversations")
+    .select("id, title, updated_at, claude_session_id, cost_cents, cap_cents, paused")
+    .eq("workspace_id", workspaceId)
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return data.map((row) => ({
+    id: row.id,
+    title: row.title,
+    updatedAt: row.updated_at,
+    sessionId: row.claude_session_id ?? undefined,
+    cost: row.claude_session_id ? { cents: row.cost_cents, capCents: row.cap_cents } : undefined,
+    paused: row.paused,
+    tools: [],
+    items: [],
+    loaded: false,
+  }));
 }
