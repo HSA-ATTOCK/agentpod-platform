@@ -7,7 +7,20 @@ function escape(text: string) {
   return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-function layout({ heading, paragraphs, button }: { heading: string; paragraphs: string[]; button?: { label: string; url: string } }) {
+const ACCOUNT_FOOTER =
+  "You're getting this email because of your Baba account. You can change which emails you get in Settings → Notifications.";
+
+function layout({
+  heading,
+  paragraphs,
+  button,
+  footer = ACCOUNT_FOOTER,
+}: {
+  heading: string;
+  paragraphs: string[];
+  button?: { label: string; url: string };
+  footer?: string;
+}) {
   const body = paragraphs.map((p) => `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#3f3f46">${p}</p>`).join("");
   const cta = button
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px"><tr><td style="background:#a3e635;border-radius:10px">
@@ -22,7 +35,7 @@ function layout({ heading, paragraphs, button }: { heading: string; paragraphs: 
         <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#0a0a0a">Baba</p>
         <h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;color:#0a0a0a">${heading}</h1>
         ${body}${cta}
-        <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa">You're getting this email because of your Baba account. You can change which emails you get in Settings → Notifications.</p>
+        <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa">${footer}</p>
       </td></tr>
     </table>
   </td></tr></table></body></html>`;
@@ -136,5 +149,29 @@ export function accountDecisionEmail(input: {
       button: { label: copy.button, url: input.url },
     }),
     text: `${copy.heading}\n\n${copy.line}${input.reason ? `\n\nNote from the team: ${input.reason}` : ""}\n\n${copy.button}: ${input.url}`,
+  };
+}
+
+/** A message sent through the public website's contact form, to the team's inbox. */
+export function contactEmail(input: { to: string; name: string; email: string; company?: string; message: string }): Email {
+  const from = input.company ? `${input.name} (${input.company})` : input.name;
+  const message = escape(input.message).replace(/\r?\n/g, "<br>");
+  return {
+    to: input.to,
+    replyTo: input.email,
+    subject: `Contact form: ${from}`.slice(0, 150),
+    html: layout({
+      heading: "New message from the website",
+      paragraphs: [
+        `<strong>Name:</strong> ${escape(input.name)}<br><strong>Email:</strong> ${escape(input.email)}${
+          input.company ? `<br><strong>Company:</strong> ${escape(input.company)}` : ""
+        }`,
+        message,
+      ],
+      footer: "Sent from the contact form on the Baba website. Reply to this email to answer the sender.",
+    }),
+    text: `New message from the website\n\nName: ${input.name}\nEmail: ${input.email}${
+      input.company ? `\nCompany: ${input.company}` : ""
+    }\n\n${input.message}`,
   };
 }

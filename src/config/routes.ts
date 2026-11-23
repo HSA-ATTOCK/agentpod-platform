@@ -7,6 +7,16 @@ export const routes = {
   terms: "/terms",
   privacy: "/privacy",
 
+  // Public website
+  features: "/features",
+  aiAgents: "/ai-agents",
+  /** Public integrations overview. Not `/integrations`, which is the signed-in app page. */
+  connections: "/connections",
+  useCases: "/use-cases",
+  pricing: "/pricing",
+  about: "/about",
+  contact: "/contact",
+
   // Auth
   signIn: "/sign-in",
   signUp: "/sign-up",
