@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import {
@@ -77,6 +78,7 @@ export function AskBaba({
   initialPrompt,
   workflowId,
 }: AskBabaProps) {
+  const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
   const [activeId, setActiveId] = useState<string | null>(
     initialActiveId && initialConversations.some((c) => c.id === initialActiveId) ? initialActiveId : null,
@@ -517,6 +519,8 @@ export function AskBaba({
     if (!active?.sessionId) throw new Error("This conversation isn't connected to Baba.");
     await confirmBabaTool(active.id, toolUseId, allow);
     updateItem(itemId, { status: allow ? "approved" : "rejected" });
+    // An approved change (workspace name, team, settings…) may show elsewhere on screen
+    if (allow) router.refresh();
     // Nothing is listening (e.g. a scheduled run waiting for this OK, or the page was reloaded):
     // follow Baba as it carries on
     if (!working) {

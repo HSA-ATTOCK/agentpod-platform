@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     customTools:
       ctx.workspace.role === "viewer"
         ? undefined
-        : createCustomToolHandler({ workspaceId: conversation.workspace_id, conversationId: conversation.id }),
+        : createCustomToolHandler({ workspaceId: conversation.workspace_id, conversationId: conversation.id, ctx }),
     async prepare() {
       return sessionId;
     },

@@ -119,7 +119,9 @@ export async function listConnectionsText(workspaceId: string) {
       ? `Google accounts (Gmail, Drive, Sheets, Calendar):\n${google
           .map((a) => `- ${a.email}${a.isDefault ? " (default)" : ""}${a.status === "error" ? " — needs reconnecting" : ""}`)
           .join("\n")}`
-      : `Google: not connected${isGoogleConfigured() ? " (use request_connection to add it)" : " (not available on this server yet)"}.`,
+      : isGoogleConfigured()
+        ? "Google: not connected yet (use request_connection to show a Connect button)."
+        : "Google: can't be connected yet: Google sign-in hasn't been set up on this Baba server (a one-time setup by the platform owner, not the customer). Don't call it 'coming soon'.",
   );
   lines.push(
     keys.length

@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     request,
     logName: "baba/resume",
     track: trackTurn(ctx, conversation, task?.id, appOrigin(request)),
-    customTools: createCustomToolHandler({ workspaceId: conversation.workspace_id, conversationId: conversation.id }),
+    customTools: createCustomToolHandler({ workspaceId: conversation.workspace_id, conversationId: conversation.id, ctx }),
     async prepare() {
       return sessionId;
     },

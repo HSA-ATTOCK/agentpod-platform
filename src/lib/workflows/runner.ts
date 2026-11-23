@@ -227,7 +227,7 @@ async function runWorkflow(wf: DueWorkflow, slotIso: string) {
       logName: `workflow:${wf.name}`,
       track: trackTurn(ctx, conversation, task.id, serverOrigin()),
       emit: (event) => transcript.add(event),
-      customTools: createCustomToolHandler({ workspaceId: wf.workspace_id, conversationId }),
+      customTools: createCustomToolHandler({ workspaceId: wf.workspace_id, conversationId, ctx }),
       // Nobody is watching: a send that needs approval waits in the conversation (and you get an email)
       headless: true,
       async prepare() {

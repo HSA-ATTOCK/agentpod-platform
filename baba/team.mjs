@@ -1,3 +1,4 @@
+import { APP_RULES, appTools } from "./app-tools.mjs";
 import { CONNECTION_RULES, connectionTools } from "./connection-tools.mjs";
 import { GOOGLE_RULES, googleTools } from "./google-tools.mjs";
 /**
@@ -158,8 +159,9 @@ export const baba = {
     RESEARCH_RULES,
     GOOGLE_RULES,
     CONNECTION_RULES,
+    APP_RULES,
   ].join("\n"),
-  tools: [toolset({ web: true }), ...googleTools, ...connectionTools],
+  tools: [toolset({ web: true }), ...googleTools, ...connectionTools, ...appTools],
 };
 
 /** Builds Baba's multiagent block from the specialists' stored agent IDs. */
