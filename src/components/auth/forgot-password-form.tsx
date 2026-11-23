@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { requestPasswordReset, type AuthResult } from "@/lib/auth/placeholder";
+import { requestPasswordReset, type AuthResult } from "@/lib/auth/client";
 import { isValidEmail } from "@/lib/validation";
 
 export function ForgotPasswordForm() {

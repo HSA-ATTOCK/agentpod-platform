@@ -1,5 +1,4 @@
 import { ChevronsUpDown, LogOut } from "lucide-react";
-import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import { Logo } from "@/components/ui/logo";
 import { routes } from "@/config/routes";
@@ -16,7 +15,7 @@ export function AppSidebar({ workspace, user }: AppSidebarProps) {
         <Logo size="sm" href={routes.dashboard} />
       </div>
 
-      {/* Workspace switcher (visual only until workspaces arrive in Phase 2) */}
+      {/* Workspace switcher (one workspace per account for now; switching comes with team invites) */}
       <div className="p-3">
         <button
           type="button"
@@ -49,14 +48,16 @@ export function AppSidebar({ workspace, user }: AppSidebarProps) {
               <p className="truncate text-xs font-semibold text-foreground">{user.fullName}</p>
               <p className="truncate text-[11px] text-subtle">{user.email}</p>
             </div>
-            <Link
-              href={routes.signIn}
-              aria-label="Sign out"
-              title="Sign out"
-              className="rounded-md p-1.5 text-subtle transition-colors hover:text-danger"
-            >
-              <LogOut aria-hidden="true" className="size-4" />
-            </Link>
+            <form action={routes.signOut} method="post">
+              <button
+                type="submit"
+                aria-label="Sign out"
+                title="Sign out"
+                className="rounded-md p-1.5 text-subtle transition-colors hover:text-danger"
+              >
+                <LogOut aria-hidden="true" className="size-4" />
+              </button>
+            </form>
           </div>
         </div>
       </div>

@@ -86,13 +86,15 @@ export function AppMobileHeader({ workspace, user }: AppMobileHeaderProps) {
                 ))}
               </nav>
               <div className="my-1 border-t border-border" />
-              <Link
-                href={routes.signIn}
-                className="flex items-center gap-2.5 rounded-md px-3 py-2.5 text-danger hover:bg-border"
-              >
-                <LogOut aria-hidden="true" className="size-4" />
-                Sign out
-              </Link>
+              <form action={routes.signOut} method="post">
+                <button
+                  type="submit"
+                  className="flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-danger hover:bg-border"
+                >
+                  <LogOut aria-hidden="true" className="size-4" />
+                  Sign out
+                </button>
+              </form>
             </div>
           )}
         </div>

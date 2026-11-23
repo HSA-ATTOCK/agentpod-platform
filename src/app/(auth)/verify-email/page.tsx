@@ -1,6 +1,7 @@
 import { ArrowLeft, Mail, MailCheck } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { AuthSplitLayout } from "@/components/auth/auth-split-layout";
 import { ResendVerification } from "@/components/auth/resend-verification";
 import { routes } from "@/config/routes";
@@ -28,7 +29,9 @@ export default function VerifyEmailPage() {
           account and open your Baba workspace.
         </p>
 
-        <ResendVerification />
+        <Suspense fallback={null}>
+          <ResendVerification />
+        </Suspense>
 
         <div className="border-t border-border pt-4 text-xs">
           <Link

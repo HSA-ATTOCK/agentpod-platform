@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import {
   confirmBabaTool,
@@ -15,7 +15,13 @@ import {
   type StreamOptions,
 } from "@/lib/baba/client";
 import type { BabaStreamEvent } from "@/lib/baba/protocol";
-import { sampleConversations } from "@/lib/sample-chat";
+import {
+  createConversation,
+  deleteConversation,
+  loadConversationItems,
+  renameConversation,
+  saveConversationItems,
+} from "@/lib/data/chat-store";
 import type { ChatAttachment, ChatItem, Conversation } from "@/types/chat";
 import { ChatHeader } from "./chat-header";
 import { Composer } from "./composer";
@@ -27,6 +33,9 @@ import { TaskDetails } from "./task-details";
 // How many times to reconnect automatically if the connection drops mid-task
 const MAX_RECONNECTS = 5;
 
+// Wait this long after the last change before saving a conversation's messages
+const SAVE_DELAY_MS = 800;
+
 // The Task details panel sits beside the chat from this width; below it, it opens as a sheet.
 const WIDE_SCREEN_QUERY = "(min-width: 1280px)";
 
@@ -35,13 +44,22 @@ function titleFrom(text: string, attachments: ChatAttachment[]) {
   return source.length > 48 ? `${source.slice(0, 47)}…` : source;
 }
 
+type AskBabaProps = {
+  /** The workspace's recent conversations (messages load when one is opened). */
+  initialConversations: Conversation[];
+  workspaceId: string;
+  userId: string;
+  /** Viewers can read conversations but not give Baba tasks. */
+  canWrite: boolean;
+};
+
 /**
  * The Ask Baba screen. Holds the conversations and the chat state on the client.
  * Messages go to our /api/baba routes, which talk to Claude Managed Agents.
- * Conversations live in memory only for now (no database yet), so they reset on reload.
+ * Conversations and their messages are saved to the database as they change.
  */
-export function AskBaba() {
-  const [conversations, setConversations] = useState<Conversation[]>(sampleConversations);
+export function AskBaba({ initialConversations, workspaceId, userId, canWrite }: AskBabaProps) {
+  const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [working, setWorking] = useState(false);
@@ -51,10 +69,42 @@ export function AskBaba() {
   const [conversationsSheetOpen, setConversationsSheetOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
-  const runningSessionRef = useRef<string | undefined>(undefined);
+  const runningConversationRef = useRef<string | undefined>(undefined);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
+
+  // ---- Saving to the database ----
+
+  // What was last saved for each item (by item id), so only changes are sent
+  const savedRef = useRef(new Map<string, string>());
+  const [saveError, setSaveError] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      for (const c of conversations) {
+        if (!c.loaded) continue;
+        const changed = c.items.filter((item) => savedRef.current.get(item.id) !== JSON.stringify(item));
+        if (changed.length === 0) continue;
+        const snapshot = changed.map((item) => [item.id, JSON.stringify(item)] as const);
+        saveConversationItems(c.id, workspaceId, changed)
+          .then(() => {
+            snapshot.forEach(([id, json]) => savedRef.current.set(id, json));
+            setSaveError(false);
+          })
+          .catch((error) => {
+            console.error("Saving the conversation failed", error);
+            setSaveError(true);
+          });
+      }
+    }, SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [conversations, workspaceId]);
+
+  /** Marks items as already saved (they just came from the database). */
+  function rememberSaved(items: ChatItem[]) {
+    items.forEach((item) => savedRef.current.set(item.id, JSON.stringify(item)));
+  }
 
   // ---- Conversation helpers ----
 
@@ -78,7 +128,7 @@ export function AskBaba() {
     const controller = abortRef.current;
     if (controller) {
       // Tell Claude to stop the task, then stop listening
-      if (runningSessionRef.current) void interruptBaba(runningSessionRef.current);
+      if (runningConversationRef.current) void interruptBaba(runningConversationRef.current);
       controller.abort();
     }
     abortRef.current = null;
@@ -146,13 +196,13 @@ export function AskBaba() {
   async function runBaba(
     conversationId: string,
     sessionId: string | undefined,
-    open: (sessionId: string | undefined, options: StreamOptions) => Promise<void>,
+    open: (options: StreamOptions) => Promise<void>,
     /** Continue an existing progress block (after "Continue") instead of starting a new one. */
     existingProgressId?: string,
   ) {
     const controller = new AbortController();
     abortRef.current = controller;
-    runningSessionRef.current = sessionId;
+    runningConversationRef.current = conversationId;
     setWorking(true);
     const progressId = existingProgressId ?? crypto.randomUUID();
     let currentSessionId = sessionId;
@@ -169,7 +219,6 @@ export function AskBaba() {
       switch (event.type) {
         case "session":
           currentSessionId = event.sessionId;
-          runningSessionRef.current = event.sessionId;
           updateConversation(conversationId, (c) => ({ ...c, sessionId: event.sessionId }));
           break;
         case "step":
@@ -210,7 +259,7 @@ export function AskBaba() {
                   name: f.name,
                   kind: fileKindFromName(f.name),
                   sizeLabel: formatBytes(f.sizeBytes),
-                  downloadUrl: currentSessionId ? fileDownloadUrl(f.id, currentSessionId) : undefined,
+                  downloadUrl: fileDownloadUrl(f.id, conversationId),
                 },
               }));
             return { ...c, items: [...c.items, ...added] };
@@ -239,7 +288,7 @@ export function AskBaba() {
     try {
       let lastError: unknown;
       try {
-        await open(sessionId, options);
+        await open(options);
       } catch (error) {
         if (isAbort(error)) throw error;
         lastError = error;
@@ -252,7 +301,7 @@ export function AskBaba() {
         if (controller.signal.aborted) break;
         try {
           lastError = undefined;
-          await watchBaba(currentSessionId, options);
+          await watchBaba(conversationId, options);
         } catch (error) {
           if (isAbort(error)) throw error;
           lastError = error;
@@ -286,7 +335,8 @@ export function AskBaba() {
     }
   }
 
-  function send(text: string, attachments: ChatAttachment[]) {
+  async function send(text: string, attachments: ChatAttachment[]) {
+    if (!canWrite) return;
     const userItem: ChatItem = { id: crypto.randomUUID(), type: "user", text, attachments };
     const notes: ChatItem[] =
       attachments.length > 0
@@ -314,24 +364,37 @@ export function AskBaba() {
       return;
     }
 
+    setDraft("");
+
     if (!conversationId) {
-      conversationId = crypto.randomUUID();
+      const id = crypto.randomUUID();
+      conversationId = id;
       const conversation: Conversation = {
-        id: conversationId,
+        id,
         title: titleFrom(text, attachments),
         updatedAt: new Date().toISOString(),
         tools: [],
         items: [userItem, ...notes],
+        loaded: false, // saved once the database row exists
       };
       setConversations((prev) => [conversation, ...prev]);
-      setActiveId(conversationId);
+      setActiveId(id);
+      try {
+        await createConversation({ id, workspaceId, userId, title: conversation.title });
+        updateConversation(id, (c) => ({ ...c, loaded: true }));
+      } catch (error) {
+        appendItems(id, [
+          { id: crypto.randomUUID(), type: "error", text: error instanceof Error ? error.message : String(error) },
+        ]);
+        return;
+      }
     } else {
       appendItems(conversationId, [userItem, ...notes]);
     }
 
-    setDraft("");
     if (text) {
-      void runBaba(conversationId, active?.sessionId, (sid, options) => streamBaba({ sessionId: sid, text }, options));
+      const id = conversationId;
+      void runBaba(id, active?.sessionId, (options) => streamBaba({ conversationId: id, text }, options));
     }
   }
 
@@ -356,12 +419,13 @@ export function AskBaba() {
         return i;
       }),
     }));
-    void runBaba(active.id, sessionId, (_sid, options) => resumeBaba(sessionId, options), pausedProgress?.id);
+    const id = active.id;
+    void runBaba(id, sessionId, (options) => resumeBaba(id, options), pausedProgress?.id);
   }
 
   async function decideTool(itemId: string, toolUseId: string, allow: boolean) {
     if (!active?.sessionId) throw new Error("This conversation isn't connected to Baba.");
-    await confirmBabaTool(active.sessionId, toolUseId, allow);
+    await confirmBabaTool(active.id, toolUseId, allow);
     updateItem(itemId, { status: allow ? "approved" : "rejected" });
   }
 
@@ -370,7 +434,8 @@ export function AskBaba() {
     const lastUser = [...active.items].reverse().find((i) => i.type === "user");
     if (active.paused || !lastUser || lastUser.type !== "user" || !lastUser.text) return;
     const text = lastUser.text;
-    void runBaba(active.id, active.sessionId, (sid, options) => streamBaba({ sessionId: sid, text }, options));
+    const id = active.id;
+    void runBaba(id, active.sessionId, (options) => streamBaba({ conversationId: id, text }, options));
   }
 
   // ---- Navigation between conversations ----
@@ -379,6 +444,21 @@ export function AskBaba() {
     stop();
     setActiveId(id);
     setConversationsSheetOpen(false);
+
+    const conversation = conversations.find((c) => c.id === id);
+    if (conversation && !conversation.loaded) {
+      loadConversationItems(id)
+        .then((items) => {
+          rememberSaved(items);
+          updateConversation(id, (c) => ({ ...c, items: [...items, ...c.items], loaded: true }));
+        })
+        .catch((error) => {
+          updateConversation(id, (c) => ({
+            ...c,
+            items: [{ id: `load-error-${id}`, type: "error", text: error instanceof Error ? error.message : String(error) }],
+          }));
+        });
+    }
   }
 
   function startNewChat() {
@@ -392,9 +472,24 @@ export function AskBaba() {
 
   function deleteActive() {
     if (!activeId) return;
+    const id = activeId;
     stop();
-    setConversations((prev) => prev.filter((c) => c.id !== activeId));
+    setConversations((prev) => prev.filter((c) => c.id !== id));
     setActiveId(null);
+    deleteConversation(id).catch((error) => {
+      console.error(error);
+      setSaveError(true);
+    });
+  }
+
+  function renameActive(title: string) {
+    if (!active) return;
+    const id = active.id;
+    updateConversation(id, (c) => ({ ...c, title }));
+    renameConversation(id, title).catch((error) => {
+      console.error(error);
+      setSaveError(true);
+    });
   }
 
   function toggleTaskPanel() {
@@ -408,15 +503,28 @@ export function AskBaba() {
   }
 
   const composer = (size: "normal" | "large") => (
-    <Composer
-      value={draft}
-      onChange={setDraft}
-      onSend={send}
-      onStop={stop}
-      working={working}
-      size={size}
-      textareaRef={textareaRef}
-    />
+    <>
+      {!canWrite ? (
+        <p className="rounded-card border border-border bg-surface p-4 text-center text-sm text-muted">
+          You have view-only access to this workspace, so you can read conversations but not give Baba tasks.
+        </p>
+      ) : (
+        <Composer
+          value={draft}
+          onChange={setDraft}
+          onSend={send}
+          onStop={stop}
+          working={working}
+          size={size}
+          textareaRef={textareaRef}
+        />
+      )}
+      {saveError && (
+        <p role="status" className="mt-2 text-center text-xs text-warning">
+          Some changes couldn&apos;t be saved. Check your connection; it will retry with your next change.
+        </p>
+      )}
+    </>
   );
 
   const conversationList = (
@@ -445,7 +553,7 @@ export function AskBaba() {
           taskPanelOpen={taskPanelOpen}
           onOpenConversations={() => setConversationsSheetOpen(true)}
           onToggleTaskPanel={toggleTaskPanel}
-          onRename={(title) => active && updateConversation(active.id, (c) => ({ ...c, title }))}
+          onRename={renameActive}
           onDelete={deleteActive}
         />
 

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { routes } from "@/config/routes";
-import { signInWithPassword, type AuthResult } from "@/lib/auth/placeholder";
+import { signInWithPassword, type AuthResult } from "@/lib/auth/client";
+import { safeNext } from "@/lib/auth/safe-next";
 import { isValidEmail } from "@/lib/validation";
 import { AuthDivider } from "./auth-divider";
 import { GoogleButton } from "./google-button";
@@ -48,7 +49,13 @@ export function SignInForm() {
     }
 
     setLoading(true);
-    setResult(await signInWithPassword(email, password));
+    const response = await signInWithPassword(email, password);
+    if (response.ok) {
+      // Full page load so every server page sees the new session cookie
+      window.location.assign(safeNext(new URLSearchParams(window.location.search).get("next")));
+      return;
+    }
+    setResult(response);
     setLoading(false);
   }
 
@@ -58,7 +65,7 @@ export function SignInForm() {
       <AuthDivider label="or continue with email" />
 
       <form noValidate onSubmit={handleSubmit} className="space-y-4">
-        {result && !result.ok && <Alert variant="info">{result.error}</Alert>}
+        {result && !result.ok && <Alert variant="error">{result.error}</Alert>}
 
         <Input
           id="email"

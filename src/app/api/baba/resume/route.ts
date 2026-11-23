@@ -1,22 +1,26 @@
-import { babaUnavailable, errorMessage, getClaude, sessionBudgetCents } from "@/lib/baba/server";
+import { babaGate, loadConversation, notFound, trackTurn } from "@/lib/baba/conversations";
+import { errorMessage, getClaude, sessionBudgetCents } from "@/lib/baba/server";
 import { streamTurn } from "@/lib/baba/stream-turn";
 
 export const maxDuration = 300;
 
 /**
  * POST /api/baba/resume — the "Continue" button on a conversation paused at its spending cap.
- * Body: { sessionId }
+ * Body: { conversationId }
  *
  * Raises the session's cap by one more per-conversation amount (BABA_SESSION_BUDGET_USD).
  * Claude keeps the paused session's history and workspace, so the work continues exactly
  * where it stopped — nothing is redone or paid for twice.
  */
 export async function POST(request: Request) {
-  const unavailable = babaUnavailable();
-  if (unavailable) return unavailable;
+  const gate = await babaGate({ write: true });
+  if (!gate.ok) return gate.response;
+  const { ctx } = gate;
 
-  const { sessionId } = (await request.json().catch(() => ({}))) as { sessionId?: string };
-  if (!sessionId) return Response.json({ error: "Missing sessionId." }, { status: 400 });
+  const { conversationId } = (await request.json().catch(() => ({}))) as { conversationId?: string };
+  const conversation = await loadConversation(ctx, conversationId);
+  if (!conversation?.claude_session_id) return notFound();
+  const sessionId = conversation.claude_session_id;
 
   const claude = getClaude();
 
@@ -37,9 +41,21 @@ export async function POST(request: Request) {
     return Response.json({ error: errorMessage(error) }, { status: 502 });
   }
 
+  // Mark the paused task as running again
+  await ctx.supabase.from("conversations").update({ paused: false, cap_cents: newCapCents }).eq("id", conversation.id);
+  const { data: task } = await ctx.supabase
+    .from("tasks")
+    .select("id")
+    .eq("conversation_id", conversation.id)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (task) await ctx.supabase.from("tasks").update({ status: "running", cap_cents: newCapCents }).eq("id", task.id);
+
   return streamTurn({
     request,
     logName: "baba/resume",
+    track: trackTurn(ctx, conversation, task?.id),
     async prepare() {
       return sessionId;
     },

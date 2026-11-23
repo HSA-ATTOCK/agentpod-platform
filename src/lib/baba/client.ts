@@ -21,13 +21,13 @@ export function streamBaba(request: BabaChatRequest, options: StreamOptions) {
 }
 
 /** "Continue" after the spending cap: raises the cap and streams the rest of the same task. */
-export function resumeBaba(sessionId: string, options: StreamOptions) {
-  return postAndStream("/api/baba/resume", { sessionId }, options);
+export function resumeBaba(conversationId: string, options: StreamOptions) {
+  return postAndStream("/api/baba/resume", { conversationId }, options);
 }
 
 /** Reconnects to a running task after the connection dropped (replays what was missed). */
-export function watchBaba(sessionId: string, options: StreamOptions) {
-  return postAndStream("/api/baba/watch", { sessionId }, options);
+export function watchBaba(conversationId: string, options: StreamOptions) {
+  return postAndStream("/api/baba/watch", { conversationId }, options);
 }
 
 async function postAndStream(url: string, payload: unknown, { signal, onEvent }: StreamOptions) {
@@ -57,26 +57,26 @@ async function postAndStream(url: string, payload: unknown, { signal, onEvent }:
 }
 
 /** Stop button: asks Baba to stop working on the current task. */
-export async function interruptBaba(sessionId: string) {
+export async function interruptBaba(conversationId: string) {
   await fetch("/api/baba/interrupt", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId }),
+    body: JSON.stringify({ conversationId }),
   });
 }
 
 /** Approve or deny a tool call Baba paused on. */
-export async function confirmBabaTool(sessionId: string, toolUseId: string, allow: boolean) {
+export async function confirmBabaTool(conversationId: string, toolUseId: string, allow: boolean) {
   const response = await fetch("/api/baba/confirm", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId, toolUseId, allow }),
+    body: JSON.stringify({ conversationId, toolUseId, allow }),
   });
   if (!response.ok) throw new Error(await readError(response));
 }
 
-export function fileDownloadUrl(fileId: string, sessionId: string) {
-  return `/api/baba/files/${encodeURIComponent(fileId)}?session=${encodeURIComponent(sessionId)}`;
+export function fileDownloadUrl(fileId: string, conversationId: string) {
+  return `/api/baba/files/${encodeURIComponent(fileId)}?conversation=${encodeURIComponent(conversationId)}`;
 }
 
 /** Guesses the file kind from its extension, for the icon. */

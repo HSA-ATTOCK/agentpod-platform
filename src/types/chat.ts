@@ -102,4 +102,6 @@ export type Conversation = {
   paused?: boolean;
   tools: ToolId[];
   items: ChatItem[];
+  /** False until the conversation's saved messages have been fetched. */
+  loaded?: boolean;
 };

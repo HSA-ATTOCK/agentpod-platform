@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { signInWithGoogle, type AuthResult } from "@/lib/auth/placeholder";
+import { signInWithGoogle, type AuthResult } from "@/lib/auth/client";
+import { safeNext } from "@/lib/auth/safe-next";
 
 function GoogleIcon() {
   return (
@@ -15,15 +16,18 @@ function GoogleIcon() {
   );
 }
 
-/** "Continue with Google". Reports the result to the parent form so it can show a message. */
+/** "Continue with Google". Reports errors to the parent form so it can show a message. */
 export function GoogleButton({ onResult }: { onResult: (result: AuthResult) => void }) {
   const [loading, setLoading] = useState(false);
 
   async function handleClick() {
     setLoading(true);
-    const result = await signInWithGoogle();
-    setLoading(false);
-    onResult(result);
+    const result = await signInWithGoogle(safeNext(new URLSearchParams(window.location.search).get("next")));
+    // On success the browser is already on its way to Google
+    if (!result.ok) {
+      setLoading(false);
+      onResult(result);
+    }
   }
 
   return (

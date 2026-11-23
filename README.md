@@ -48,8 +48,20 @@ Change it in `.env.local` and restart the dev server. If a task reaches the cap,
 and shows **Continue task**: that raises the cap by the same amount and the task carries on from
 where it stopped, without redoing (or re-paying for) earlier work.
 
-**Safety:** there's no login yet, so the Baba API routes are disabled in production
-(`next start` / Vercel) unless `BABA_ALLOW_PUBLIC=true`. Keep it off for public deployments.
+**Safety:** the Baba API routes need a signed-in user, and in production (`next start` /
+Vercel) they stay off unless `BABA_ALLOW_PUBLIC=true` — there's no billing yet, so anyone who
+signs up would be spending your API credit.
+
+## Database and sign-in (Supabase)
+
+1. Add to `.env.local` (Supabase dashboard → Project Settings → API):
+   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+2. Supabase dashboard → Authentication → URL Configuration: set **Site URL** to your app's
+   address and add `<your app address>/auth/callback` to **Redirect URLs**
+   (for Codespaces, the forwarded port-3000 address).
+3. Optional: Authentication → Providers → Google, to switch on "Continue with Google".
+
+The schema is in `supabase/migrations/` (already applied to the project).
 
 ## Scripts
 

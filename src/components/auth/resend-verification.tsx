@@ -1,19 +1,25 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { resendVerificationEmail, type AuthResult } from "@/lib/auth/placeholder";
+import { resendVerificationEmail, type AuthResult } from "@/lib/auth/client";
 
 /** "Resend verification email" box with loading and result messages. */
 export function ResendVerification() {
+  const email = useSearchParams().get("email") ?? "";
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AuthResult | null>(null);
 
   async function handleClick() {
     setLoading(true);
     setResult(null);
-    setResult(await resendVerificationEmail());
+    setResult(
+      email
+        ? await resendVerificationEmail(email)
+        : { ok: false, error: "We don't know which email to resend to. Sign up again or sign in." },
+    );
     setLoading(false);
   }
 
