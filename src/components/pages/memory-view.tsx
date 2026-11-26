@@ -157,9 +157,9 @@ export function MemoryView({ memory, documents, canEdit }: { memory: MemoryRow[]
         {canEdit && (
           <div className="grid gap-4 lg:grid-cols-2">
             <Card className="space-y-3 p-4">
-              <p className="text-sm font-medium text-foreground">Upload a text file</p>
-              <p className="text-xs text-muted">TXT, Markdown, CSV, JSON or HTML, up to 5 MB.</p>
-              <input ref={fileRef} type="file" accept=".txt,.md,.markdown,.csv,.tsv,.json,.html,.htm,.xml,.yaml,.yml,text/*" className="block w-full text-sm text-muted file:mr-3 file:rounded-control file:border file:border-border file:bg-surface-raised file:px-3 file:py-1.5 file:text-foreground" aria-label="Choose a file" />
+              <p className="text-sm font-medium text-foreground">Upload a document</p>
+              <p className="text-xs text-muted">PDF, Word (.docx), TXT, Markdown, CSV, JSON or HTML, up to 20 MB.</p>
+              <input ref={fileRef} type="file" accept=".pdf,.docx,.txt,.md,.markdown,.csv,.tsv,.json,.html,.htm,.xml,.yaml,.yml,text/*,application/pdf" className="block w-full text-sm text-muted file:mr-3 file:rounded-control file:border file:border-border file:bg-surface-raised file:px-3 file:py-1.5 file:text-foreground" aria-label="Choose a file" />
               <Button size="sm" loading={busy === "upload"} onClick={upload}>
                 <Upload aria-hidden="true" className="size-3.5" /> Add to knowledge base
               </Button>
@@ -167,7 +167,7 @@ export function MemoryView({ memory, documents, canEdit }: { memory: MemoryRow[]
             <Card className="p-4">
               <form onSubmit={addText} className="space-y-3">
                 <Input id="doc-title" label="Or paste text — title" value={doc.title} onChange={(e) => setDoc({ ...doc, title: e.target.value })} placeholder="e.g. Refund policy" />
-                <textarea aria-label="Document text" rows={4} className={inputClasses} value={doc.text} onChange={(e) => setDoc({ ...doc, text: e.target.value })} placeholder="Paste the text (e.g. from a PDF or Word document)" />
+                <textarea aria-label="Document text" rows={4} className={inputClasses} value={doc.text} onChange={(e) => setDoc({ ...doc, text: e.target.value })} placeholder="Paste any text" />
                 <Button type="submit" size="sm" loading={busy === "paste"} disabled={!doc.text.trim()}>
                   Add
                 </Button>

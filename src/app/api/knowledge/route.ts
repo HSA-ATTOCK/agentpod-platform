@@ -1,14 +1,13 @@
 import { getAppContext } from "@/lib/data/context";
+import { extractText, kindOf } from "@/lib/knowledge/extract";
 import { addDocument, deleteDocument, MAX_DOCUMENT_CHARS } from "@/lib/knowledge/knowledge";
 
 /**
- * POST   /api/knowledge — multipart form: file (text, Markdown, CSV, JSON, HTML) and optional title,
+ * POST   /api/knowledge — multipart form: file (PDF, Word .docx, text, Markdown, CSV, JSON, HTML) and optional title,
  *                         or JSON { title, text } for pasted text.
  * DELETE /api/knowledge — body: { id }
  */
-const TEXT_TYPES = /^(text\/|application\/(json|xml|csv|x-ndjson))/;
-const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|html?|xml|yaml|yml)$/i;
-const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_BYTES = 20 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const ctx = await getAppContext();
@@ -25,14 +24,22 @@ export async function POST(request: Request) {
       const file = form.get("file");
       title = String(form.get("title") ?? "");
       if (!(file instanceof File)) return Response.json({ error: "Choose a file." }, { status: 400 });
-      if (file.size > MAX_BYTES) return Response.json({ error: "Files can be up to 5 MB." }, { status: 413 });
-      if (!TEXT_TYPES.test(file.type) && !TEXT_EXT.test(file.name)) {
-        return Response.json({ error: "Add text files here (TXT, Markdown, CSV, JSON, HTML). For PDFs and Word files, paste the text or attach them in Ask Baba." }, { status: 415 });
+      if (file.size > MAX_BYTES) return Response.json({ error: "Files can be up to 20 MB." }, { status: 413 });
+      const kind = kindOf(file.name, file.type);
+      if (!kind) {
+        return Response.json({ error: "Add PDF, Word (.docx), text, Markdown, CSV, JSON or HTML files." }, { status: 415 });
       }
       fileName = file.name.slice(0, 200);
       mimeType = file.type || "text/plain";
-      text = await file.text();
-      if (/\.html?$/i.test(file.name)) text = text.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ");
+      try {
+        text = await extractText(await file.arrayBuffer(), kind);
+      } catch {
+        return Response.json({ error: "Couldn't read that file. If it's password-protected, remove the password and try again." }, { status: 400 });
+      }
+      // A scanned PDF has pictures of text, not text
+      if (kind === "pdf" && text.replace(/\[Page \d+\]/g, "").trim().length < 20) {
+        return Response.json({ error: "This PDF has no text layer (it's probably scanned). Attach it in Ask Baba instead; Baba can read scanned pages." }, { status: 422 });
+      }
     } else {
       const body = (await request.json()) as { title?: string; text?: string };
       title = body.title ?? "";
