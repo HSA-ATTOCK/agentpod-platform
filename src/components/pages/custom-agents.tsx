@@ -79,7 +79,7 @@ async function call(method: string, body: unknown) {
 }
 
 /** "Your own agents": create specialists with their own instructions, model, web access and cost limit. */
-export function CustomAgents({ agents, canEdit }: { agents: CustomAgentRow[]; canEdit: boolean }) {
+export function CustomAgents({ agents, canEdit, extraModels = [] }: { agents: CustomAgentRow[]; canEdit: boolean; extraModels?: { value: string; label: string }[] }) {
   const router = useRouter();
   const { toast, showToast } = useToast();
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -191,7 +191,7 @@ export function CustomAgents({ agents, canEdit }: { agents: CustomAgentRow[]; ca
                 {canEdit && <Switch checked={a.enabled} disabled={busy === a.id} label={`${a.enabled ? "Turn off" : "Turn on"} ${a.name}`} onChange={(v) => void toggle(a, v)} />}
               </div>
               <div className="flex flex-wrap gap-1.5">
-                <Badge>{a.model === "claude-haiku-5-5" ? "Haiku" : "Sonnet"}</Badge>
+                <Badge>{a.model === "claude-haiku-5-5" ? "Haiku" : a.model.startsWith("ext:") ? (extraModels.find((m) => m.value === a.model)?.label ?? "Other model") : "Sonnet"}</Badge>
                 {a.webAccess && (
                   <Badge tone="info">
                     <Globe aria-hidden="true" className="mr-1 size-3" /> Web
@@ -250,11 +250,19 @@ export function CustomAgents({ agents, canEdit }: { agents: CustomAgentRow[]; ca
                     {label}
                   </option>
                 ))}
+                {extraModels.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
               </select>
+              {draft.model.startsWith("ext:") && (
+                <span className="block text-[11px] text-subtle">Other providers can use the connected tools below but not the web or a file workspace.</span>
+              )}
             </label>
             <Input id="ca-cost" label="Cost limit per run (USD, max $10)" inputMode="decimal" value={draft.maxCostUsd} onChange={(e) => setDraft({ ...draft, maxCostUsd: e.target.value })} />
-            <label className="flex items-center gap-2 text-sm text-foreground">
-              <input type="checkbox" checked={draft.webAccess} onChange={(e) => setDraft({ ...draft, webAccess: e.target.checked })} />
+            <label className={`flex items-center gap-2 text-sm text-foreground ${draft.model.startsWith("ext:") ? "opacity-50" : ""}`}>
+              <input type="checkbox" disabled={draft.model.startsWith("ext:")} checked={draft.webAccess && !draft.model.startsWith("ext:")} onChange={(e) => setDraft({ ...draft, webAccess: e.target.checked })} />
               Can search and read the web
             </label>
             <fieldset className="space-y-2 rounded-control border border-border p-3">

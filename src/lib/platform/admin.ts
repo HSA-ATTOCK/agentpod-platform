@@ -7,7 +7,8 @@ import { sendEmail } from "@/lib/email/mailer";
 import { accountDecisionEmail } from "@/lib/email/templates";
 import { serverOrigin } from "@/lib/origin";
 import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
-import type { TablesUpdate } from "@/types/database";
+import type { ExternalModel } from "@/lib/ai/gateway";
+import type { Json, TablesUpdate } from "@/types/database";
 import { audit, notifyInApp, type AccountStatus } from "./account";
 
 /**
@@ -207,6 +208,7 @@ export type SettingsInput = {
   announcement: string | null;
   defaultMonthlyLimitUsd: number;
   defaultTaskCapUsd: number;
+  externalModels: ExternalModel[];
 };
 
 export async function saveSettings(ctx: AdminContext, input: SettingsInput) {
@@ -217,6 +219,7 @@ export async function saveSettings(ctx: AdminContext, input: SettingsInput) {
     announcement: input.announcement?.slice(0, 500) || null,
     default_monthly_limit_usd: input.defaultMonthlyLimitUsd,
     default_task_cap_usd: input.defaultTaskCapUsd,
+    external_models: input.externalModels as unknown as Json,
     updated_by: ctx.user.id,
     updated_at: new Date().toISOString(),
   };

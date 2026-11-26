@@ -12,6 +12,7 @@ import {
   setPlatformAdmin,
   setWorkspaceLimits,
 } from "@/lib/platform/admin";
+import { parseExternalModels } from "@/lib/ai/gateway";
 import type { AccountStatus } from "@/lib/platform/account";
 
 /**
@@ -134,6 +135,14 @@ export async function POST(request: Request) {
           announcement: text(body, "announcement", 500) || null,
           defaultMonthlyLimitUsd: money(body, "defaultMonthlyLimitUsd"),
           defaultTaskCapUsd: money(body, "defaultTaskCapUsd"),
+          externalModels: (() => {
+            const raw = Array.isArray(body.externalModels) ? body.externalModels : [];
+            const models = parseExternalModels(raw);
+            if (models.length !== raw.length) throw new AdminError("Each outside model needs an ID (a–z, 0–9, -), provider, model name, label and both prices.");
+            if (new Set(models.map((m) => m.id)).size !== models.length) throw new AdminError("Model IDs must be unique.");
+            for (const m of models) if (m.fallback && !models.some((x) => x.id === m.fallback && x.id !== m.id)) throw new AdminError(`Fallback "${m.fallback}" isn't another model in the list.`);
+            return models;
+          })(),
         });
         break;
       case "agent.enabled": {

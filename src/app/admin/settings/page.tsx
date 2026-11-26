@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SettingsForm } from "@/components/admin/admin-controls";
 import { AdminPage } from "@/components/admin/admin-page";
+import { parseExternalModels, providerConfigured } from "@/lib/ai/gateway";
 import { requirePlatformAdmin } from "@/lib/platform/admin";
 
 export const metadata: Metadata = { title: "Platform settings" };
@@ -18,6 +19,8 @@ async function Content() {
         announcement={s.announcement ?? ""}
         defaultMonthlyLimitUsd={Number(s.default_monthly_limit_usd)}
         defaultTaskCapUsd={Number(s.default_task_cap_usd)}
+        externalModels={parseExternalModels(s.external_models)}
+        providers={{ anthropic: providerConfigured("anthropic"), openai: providerConfigured("openai"), google: providerConfigured("google") }}
       />
     </div>
   );

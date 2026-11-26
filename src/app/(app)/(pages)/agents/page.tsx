@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AgentsView, type AgentUsage } from "@/components/pages/agents-view";
 import { CustomAgents, type CustomAgentRow } from "@/components/pages/custom-agents";
+import { externalModels } from "@/lib/custom-agents/custom-agents";
 import { canManage, requireAppContext } from "@/lib/data/context";
 import { getWorkspaceSettings, listTasks, modelInfo, monthStart } from "@/lib/data/pages";
 import { Suspense } from "react";
@@ -53,7 +54,11 @@ async function PageContent() {
       businessContext={settings.businessContext}
       canEdit={canManage(ctx.workspace.role)}
     />
-    <CustomAgents agents={customAgents} canEdit={canManage(ctx.workspace.role)} />
+    <CustomAgents
+      agents={customAgents}
+      canEdit={canManage(ctx.workspace.role)}
+      extraModels={(await externalModels()).map((m) => ({ value: `ext:${m.id}`, label: `${m.label} (${m.provider === "openai" ? "OpenAI" : m.provider === "google" ? "Google" : "Anthropic"})` }))}
+    />
     </div>
   );
 }

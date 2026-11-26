@@ -427,6 +427,8 @@ export function PlanEditor({ plan, label }: { plan?: PlanRow; label: string }) {
 // Platform settings
 // ---------------------------------------------------------------------------
 
+type OutsideModel = { id: string; provider: "anthropic" | "openai" | "google"; model: string; label: string; inputPerMTok: number; outputPerMTok: number; fallback?: string };
+
 export function SettingsForm(props: {
   requireApproval: boolean;
   maintenanceMode: boolean;
@@ -434,15 +436,28 @@ export function SettingsForm(props: {
   announcement: string;
   defaultMonthlyLimitUsd: number;
   defaultTaskCapUsd: number;
+  externalModels: OutsideModel[];
+  providers: Record<"anthropic" | "openai" | "google", boolean>;
 }) {
   const { run, busy, error, toast } = useAdminAction();
-  const [f, setF] = useState({ ...props, defaultMonthlyLimitUsd: String(props.defaultMonthlyLimitUsd), defaultTaskCapUsd: String(props.defaultTaskCapUsd) });
+  const { externalModels, providers, ...rest } = props;
+  const [f, setF] = useState({ ...rest, defaultMonthlyLimitUsd: String(props.defaultMonthlyLimitUsd), defaultTaskCapUsd: String(props.defaultTaskCapUsd) });
+  const [models, setModels] = useState(externalModels.map((m) => ({ ...m, inputPerMTok: String(m.inputPerMTok), outputPerMTok: String(m.outputPerMTok), fallback: m.fallback ?? "" })));
+  const setModel = (i: number, patch: Partial<(typeof models)[number]>) => setModels(models.map((m, j) => (j === i ? { ...m, ...patch } : m)));
   return (
     <form
       className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        void run("settings", { action: "settings.save", ...f }, "Settings saved.");
+        void run(
+          "settings",
+          {
+            action: "settings.save",
+            ...f,
+            externalModels: models.map((m) => ({ ...m, inputPerMTok: Number(m.inputPerMTok), outputPerMTok: Number(m.outputPerMTok), fallback: m.fallback || undefined })),
+          },
+          "Settings saved.",
+        );
       }}
     >
       {toast}
@@ -461,6 +476,44 @@ export function SettingsForm(props: {
         <Input id="s-monthly" label="Default monthly limit for new workspaces (USD)" inputMode="decimal" value={f.defaultMonthlyLimitUsd} onChange={(e) => setF({ ...f, defaultMonthlyLimitUsd: e.target.value })} />
         <Input id="s-cap" label="Default cost cap per task (USD)" inputMode="decimal" value={f.defaultTaskCapUsd} onChange={(e) => setF({ ...f, defaultTaskCapUsd: e.target.value })} />
       </div>
+      <fieldset className="space-y-3 rounded-control border border-border p-4">
+        <legend className="px-1 text-sm font-medium text-foreground">Other AI models for custom agents</legend>
+        <p className="text-xs text-muted">
+          Businesses can run their own agents on these. Prices (USD per million tokens) are used to enforce spending limits, so use the provider&apos;s current
+          list prices. API keys: Anthropic {providers.anthropic ? "✓" : "missing"}, OpenAI (OPENAI_API_KEY) {providers.openai ? "✓" : "missing"}, Google (GEMINI_API_KEY){" "}
+          {providers.google ? "✓" : "missing"}. Models whose key is missing are hidden from customers.
+        </p>
+        {models.map((m, i) => (
+          <div key={i} className="grid gap-2 rounded-control border border-border p-3 sm:grid-cols-4">
+            <Input id={`m-id-${i}`} label="ID" value={m.id} onChange={(e) => setModel(i, { id: e.target.value })} placeholder="gpt-main" />
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium text-foreground">Provider</span>
+              <select className={selectClasses} value={m.provider} onChange={(e) => setModel(i, { provider: e.target.value as OutsideModel["provider"] })}>
+                <option value="openai">OpenAI</option>
+                <option value="google">Google Gemini</option>
+                <option value="anthropic">Anthropic (Messages API)</option>
+              </select>
+            </label>
+            <Input id={`m-model-${i}`} label="Model name (as the provider calls it)" value={m.model} onChange={(e) => setModel(i, { model: e.target.value })} />
+            <Input id={`m-label-${i}`} label="Shown to customers as" value={m.label} onChange={(e) => setModel(i, { label: e.target.value })} />
+            <Input id={`m-in-${i}`} label="$ / 1M input tokens" inputMode="decimal" value={m.inputPerMTok} onChange={(e) => setModel(i, { inputPerMTok: e.target.value })} />
+            <Input id={`m-out-${i}`} label="$ / 1M output tokens" inputMode="decimal" value={m.outputPerMTok} onChange={(e) => setModel(i, { outputPerMTok: e.target.value })} />
+            <Input id={`m-fb-${i}`} label="Fallback model ID (optional)" value={m.fallback} onChange={(e) => setModel(i, { fallback: e.target.value })} />
+            <div className="flex items-end">
+              <Button variant="ghost" className="text-danger" onClick={() => setModels(models.filter((_, j) => j !== i))}>
+                Remove
+              </Button>
+            </div>
+          </div>
+        ))}
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => setModels([...models, { id: "", provider: "openai", model: "", label: "", inputPerMTok: "", outputPerMTok: "", fallback: "" }])}
+        >
+          Add a model
+        </Button>
+      </fieldset>
       <div className="flex justify-end border-t border-border pt-4">
         <Button type="submit" loading={busy === "settings"}>
           Save settings

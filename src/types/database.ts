@@ -882,6 +882,7 @@ export type Database = {
           require_approval: boolean
           updated_at: string
           updated_by: string | null
+          external_models: Json
         }
         Insert: {
           announcement?: string | null
@@ -893,6 +894,7 @@ export type Database = {
           require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
+          external_models?: Json
         }
         Update: {
           announcement?: string | null
@@ -904,6 +906,7 @@ export type Database = {
           require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
+          external_models?: Json
         }
         Relationships: []
       }
@@ -1126,6 +1129,7 @@ export type Database = {
           web_access: boolean
           workspace_id: string
           tools: string[]
+          provider: string
         }
         Insert: {
           claude_agent_id?: string | null
@@ -1145,6 +1149,7 @@ export type Database = {
           web_access?: boolean
           workspace_id: string
           tools?: string[]
+          provider?: string
         }
         Update: {
           claude_agent_id?: string | null
@@ -1164,6 +1169,7 @@ export type Database = {
           web_access?: boolean
           workspace_id?: string
           tools?: string[]
+          provider?: string
         }
         Relationships: []
       }
