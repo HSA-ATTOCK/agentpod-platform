@@ -163,6 +163,12 @@ after updating so Baba has the latest tools.
 - **Webhooks:** any workflow can get a secret link (Workflows → ⋯ → Create webhook link). A POST to
   it runs the workflow with the request body as data.
 
+## Guides
+
+- [Deployment](docs/DEPLOYMENT_GUIDE.md): Node, Docker, or AWS with Terraform
+- [Admin guide](docs/ADMIN_GUIDE.md) · [User guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Security](docs/SECURITY_GUIDELINES.md) · [Backup and recovery](docs/BACKUP_AND_RECOVERY.md) · [Changelog](CHANGELOG.md)
+
 See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for what's done and what's next
 against the product requirements.
 
@@ -182,6 +188,8 @@ reviewed by a lawyer before launch.
 | `npm run baba:setup` | Create or update Baba's agent team on Claude (and list them in the admin area) |
 | `npm run admin:bootstrap -- you@example.com` | Make an account a platform administrator |
 | `npm run email:test -- you@example.com` | Send a test email |
+| `npm test` | Unit tests |
+| `npm run test:load -- <url>` | Load test against public pages |
 
 ## Project structure
 

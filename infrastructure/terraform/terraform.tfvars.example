@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars (not committed) and fill in.
+region          = "eu-west-2"
+environment     = "production"
+app_domain      = "app.example.com"
+sites_domain    = "sites.example.com"
+route53_zone_id = "" # e.g. Z0123456789ABC if your domain is in Route 53
+desired_count   = 1

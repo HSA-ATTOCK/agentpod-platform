@@ -10,15 +10,16 @@ import { contentTypeFor } from "./sites";
  * Production publishing (PRD §9): copies one version of a site to S3 under "<slug>/" and
  * refreshes CloudFront, so it's live at https://<slug>.<SITES_PUBLIC_DOMAIN>.
  * The CloudFront distribution (see infrastructure/terraform) maps each subdomain to its folder.
- * Needs: AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, SITES_S3_BUCKET,
- * SITES_CLOUDFRONT_DISTRIBUTION_ID and SITES_PUBLIC_DOMAIN. Publishing always needs approval.
+ * Needs: AWS_REGION, SITES_S3_BUCKET,
+ * SITES_CLOUDFRONT_DISTRIBUTION_ID and SITES_PUBLIC_DOMAIN, plus AWS credentials (IAM role or keys).
+ * Publishing always needs approval.
  */
 
 export function isProductionConfigured() {
+  // AWS credentials come from the standard places: the container's IAM role on AWS (no keys),
+  // or AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY elsewhere
   return Boolean(
     process.env.AWS_REGION &&
-      process.env.AWS_ACCESS_KEY_ID &&
-      process.env.AWS_SECRET_ACCESS_KEY &&
       process.env.SITES_S3_BUCKET &&
       process.env.SITES_CLOUDFRONT_DISTRIBUTION_ID &&
       process.env.SITES_PUBLIC_DOMAIN,

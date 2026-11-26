@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
+  // Docker builds set NEXT_OUTPUT=standalone (a small self-contained server; see Dockerfile)
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   // Security headers for every page and API (website previews set their own, stricter ones)
   async headers() {
     return [

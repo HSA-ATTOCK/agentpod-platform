@@ -11,7 +11,8 @@
     "baba:setup": "node --env-file=.env.local scripts/setup-baba.mjs",
     "email:test": "node --env-file=.env.local scripts/test-email.mjs",
     "admin:bootstrap": "node --env-file=.env.local scripts/bootstrap-admin.mjs",
-    "test": "tsx --conditions=react-server --test tests/unit/*.test.ts"
+    "test": "tsx --conditions=react-server --test tests/unit/*.test.ts",
+    "test:load": "node tests/performance/load-test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",

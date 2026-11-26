@@ -1,151 +1,121 @@
 # Implementation status
 
-Tracks the product against the Master PRD ("Project Nexus"). Updated 23 Nov 2026.
+The product measured against the Master PRD ("Project Nexus"). Updated 26 Nov 2026.
 
-**Statuses:** VERIFIED = built and tested end to end · IMPLEMENTED = built, typechecks and builds,
-but not tested against the live external service from the dev environment · PARTIAL = part of the
-requirement is done · BLOCKED = needs something we don't have yet (credentials, accounts, budget) ·
-NOT_STARTED.
+**Statuses**
+- **VERIFIED**: built and tested end to end (browser tests against the real database, or unit/database tests).
+- **IMPLEMENTED**: built, typechecks, lints and builds, but not run against the live outside service from the development container, because that needs your keys or accounts.
+- **PARTIAL**: part of the requirement is done (the note says what's missing).
+- **NOT_STARTED**: not built.
 
-## Architecture decisions (differences from the PRD's suggested stack)
+Everything marked IMPLEMENTED turns on when its settings are added (see `.env.example` and `docs/DEPLOYMENT_GUIDE.md`).
+
+## Architecture decisions
 
 | PRD suggestion | What we use | Why |
 |---|---|---|
-| Python FastAPI backend | Next.js 16 route handlers (TypeScript) | One codebase; a modular monolith as the PRD recommends. |
+| Python FastAPI backend | Next.js 16 route handlers (TypeScript) | One codebase; a modular monolith, as the PRD recommends. |
 | LangGraph orchestration | Claude Managed Agents (multi-agent sessions) | Hosted, sandboxed execution per conversation with spending caps; no agent servers to run. |
-| Custom auth / Postgres on RDS | Supabase (Postgres + Auth + Storage) | Postgres with Row Level Security on every table; MFA; email verification. |
-| pgvector RAG | Postgres full-text search | No embeddings provider is configured yet; full-text search is real, tenant-isolated and needs no extra service. pgvector can be added later. |
-| AWS S3 / ECS / CloudFront previews | Supabase Storage + sandboxed `/preview/<id>` route | Works today without AWS. AWS deployment is BLOCKED (no AWS account/credentials). |
-| Provider-independent model gateway | Claude only | PARTIAL: agents and models are configured in `baba/team.mjs`; a second provider isn't wired. |
+| Postgres on RDS + custom auth | Supabase (Postgres, Auth, Storage, pgvector) | Row Level Security on every table, MFA, email verification. |
+| Provider-independent model gateway | Claude for agents; OpenAI or Voyage for embeddings | **PARTIAL.** Managed Agents run Claude models only (Opus, Sonnet or Haiku, chosen per agent in Admin). Embeddings sit behind a provider-independent interface. |
+| Celery/Redis queues | The workflow scheduler claims each slot in the database; Claude runs the work | Never runs a slot twice; no separate queue to operate. No dead-letter queue. |
+| AWS (ECS, S3, CloudFront, Secrets Manager, CloudWatch) | Terraform in `infrastructure/terraform` | Validated with `terraform validate`; not applied (no AWS account here). |
 
-## Phase status
+## Status by area
 
-### Phase 1 — Authentication, registration, master administration
-| Feature | Status | Notes |
-|---|---|---|
-| Registration, login, email verification, password reset | VERIFIED | Supabase Auth. |
-| Two-step verification (TOTP), enforced in the database | VERIFIED | |
-| Account states (pending, approved, rejected, suspended, deactivated) | VERIFIED | `platform_accounts`. "Pending email verification" is Supabase's own unconfirmed state. |
-| Backend enforcement for unapproved users | VERIFIED | Every table's restrictive RLS policy requires an approved account; tested: pending user sees 0 rows and can't insert. APIs return 401/403. |
-| Pending-approval screen | VERIFIED | `/pending` (also shows rejected, suspended and maintenance messages). |
-| Admin notified of new registrations | IMPLEMENTED | Bell notification + email (needs Gmail settings and the secret key). |
-| Approve / reject / suspend / reactivate, email to the user | IMPLEMENTED | `/admin/registrations`, `/admin/users`. Not clicked end to end here (no secret key in the dev container). |
-| Master admin bootstrap (no public route) | IMPLEMENTED | `npm run admin:bootstrap -- email`. |
-| Admin dashboard (separate area) | IMPLEMENTED | `/admin`: overview, registrations, users, workspaces, agents, plans, usage & costs, audit log, health, settings. Non-admins get a 404 (tested). |
-| RBAC and tenants | VERIFIED | Workspaces with owner/admin/member/viewer. Platform admin is separate from workspace roles. |
+### Accounts and administration (PRD §3, §15)
+| Feature | Status |
+|---|---|
+| Registration, email verification, password reset, two-step verification | VERIFIED |
+| Approval workflow, enforced by the database (pending users get no data) | VERIFIED |
+| Waiting screen; admin notified; approve/reject/suspend emails | VERIFIED (screen, database rules); IMPLEMENTED (emails) |
+| Master admin bootstrap (`npm run admin:bootstrap`) | IMPLEMENTED |
+| Admin area: overview, registrations, users, workspaces, agents (on/off + model), plans, usage & costs, audit log, system health, settings | IMPLEMENTED (non-admins blocked: VERIFIED) |
+| Workspaces, invitations, roles (owner/admin/member/viewer) | VERIFIED |
+| Maintenance mode, announcement banner | IMPLEMENTED |
 
-### Phase 2 — Core app and conversational workspace
-| Feature | Status | Notes |
-|---|---|---|
-| Public website: Home, Features, AI Agents, Integrations, Use cases, Pricing, About, Contact, Sign up/in, Privacy, Terms | VERIFIED | All return 200. Contact form emails `CONTACT_EMAIL`. Legal pages contain placeholders. |
-| Chat with streaming, attachments, files, approvals, task progress, history, rename/delete | VERIFIED | Tasks keep running when you switch chats. |
-| Conversation search | VERIFIED | Top-bar search covers titles, tasks, files, workflows and words inside messages. |
-| Retry / edit the last message | VERIFIED | Retry re-sends; Edit puts the text back in the box (a Claude session can't be rewound, so it continues the conversation). |
-| In-app notifications | VERIFIED | Bell shows task events + `notifications` table. Preferences for emails exist. |
-| Responsive layouts | VERIFIED | Checked at 390 px. |
+### Chat and tasks (PRD §4, §8)
+| Feature | Status |
+|---|---|
+| Streaming chat, attachments, file deliverables, approvals, progress, background tasks | VERIFIED |
+| Plan first for complex work, QA before delivery | IMPLEMENTED (Baba's instructions) |
+| Search inside messages; edit and retry the last message | VERIFIED |
+| Task statuses, cost per task, Activity | VERIFIED |
+| Voice input/output | NOT_STARTED (PRD: future release) |
 
-### Phase 3 — AI gateway, agent registry, orchestrator
-| Feature | Status | Notes |
-|---|---|---|
-| Orchestrator (Baba) delegating to specialists | IMPLEMENTED | Managed Agents multi-agent. |
-| Specialists | IMPLEMENTED | Research Analyst, Writer, Data Analyst, QA Reviewer, Website Builder, UI/UX Designer, Marketing & SEO, Finance Analyst. Run `npm run baba:setup` to publish. |
-| Plan first for complex tasks, QA before delivery | IMPLEMENTED | Instructions in Baba's system prompt (model-followed, not code-enforced). |
-| Agent registry + global on/off | IMPLEMENTED | `agent_registry`; switching off rewrites Baba's team on Claude. |
-| Per-workspace agent restrictions | IMPLEMENTED | Enforced in code: if Baba starts a blocked specialist, the task is stopped. |
-| Agent versioning | PARTIAL | Claude keeps agent versions; source of truth is `baba/team.mjs` in git. No in-app editor for instructions. |
-| Task queue / retries | PARTIAL | Claude runs the session; scheduler claims slots so runs never double-run. No dead-letter queue. |
-| Execution logs, cost per task | VERIFIED | `tasks` table, Activity page. |
-| Second AI provider / model fallback | NOT_STARTED | |
+### Agents (PRD §5, §6, §28)
+| Feature | Status |
+|---|---|
+| Baba plus 9 specialists: Research Analyst, Writer, Data Analyst, QA Reviewer, Website Builder, Mobile App Builder, UI/UX Designer, Marketing & SEO, Finance Analyst | IMPLEMENTED |
+| Agent registry; on/off and model per agent from Admin | IMPLEMENTED |
+| Per-workspace allowed agents (a disallowed specialist stops the task) | IMPLEMENTED |
+| Custom agent builder (instructions, model, web, read-only connected tools, cost limit, templates) | IMPLEMENTED (screens and validation VERIFIED) |
+| CRM/Sales, Support, Scheduling, Operations and Social Media as separate specialists | NOT_STARTED. Baba covers these with the connected tools, and businesses can create them as custom agents. |
 
-### Custom agent builder (PRD §28)
-| Feature | Status | Notes |
-|---|---|---|
-| Create / edit / switch off / delete custom agents (owners & admins) | IMPLEMENTED | AI Agents page → "Your own agents", with 3 templates. Each is a real Claude agent; saving publishes a new version. Not created end to end here (no Claude key in the dev container). |
-| Name, description, instructions, model, web access, cost limit per run | IMPLEMENTED | Platform safety rules are always added above the business's instructions. |
-| Baba delegates to them (`run_custom_agent`) | IMPLEMENTED | Runs in a separate session with its own budget (never above the workspace's cap), workspace limits checked first, cost added to the task, files copied back, every run audited. |
-| Custom agents use connected tools (Gmail, databases…) | NOT_STARTED | Deliberately no access to secrets or connections for now. |
+### Integrations (PRD §7)
+| Feature | Status |
+|---|---|
+| Google: Gmail, Drive (long docs read in parts), Calendar; several accounts; per-workspace app | VERIFIED |
+| Slack, HubSpot, Microsoft 365 (Outlook mail and calendar): per-workspace app, several accounts, token refresh, 12 tools | IMPLEMENTED (sign-in links and checks unit-tested) |
+| Any REST API via an encrypted, host-locked API key | IMPLEMENTED |
+| PostgreSQL / MySQL, read-only | IMPLEMENTED (SQL safety unit-tested) |
+| Revocation, reconnect state, audit of connections and every tool call | IMPLEMENTED |
+| QuickBooks, Xero, Shopify, Notion, Teams, Search Console, Google Ads, Salesforce | NOT_STARTED as native integrations; usable through API keys where the service offers them |
+| MCP servers | NOT_STARTED |
 
-### Phase 4 — Integrations
-| Feature | Status | Notes |
-|---|---|---|
-| Google (Gmail, Drive, Sheets via Drive, Calendar), several accounts, own Google app per workspace | VERIFIED | Sending email and creating events need approval. Long Google Docs are read in parts. |
-| Any REST API by API key (host-locked, encrypted) | IMPLEMENTED | |
-| PostgreSQL / MySQL (read-only) | IMPLEMENTED | Secure chat form; SQL checks tested; read-only transaction + timeout + row limit; private networks refused. Not tested against a live customer database here. |
-| Encrypted credentials (AES-256-GCM, server-only table) | VERIFIED | |
-| Revocation | VERIFIED | Disconnect on the Integrations page. |
-| Integration audit log | IMPLEMENTED | Database connections and every tool call are audited. |
-| Webhooks (incoming) | IMPLEMENTED | Workflow webhook links, hashed tokens, rate-limited. |
-| Slack, GitHub, HubSpot, QuickBooks… native | NOT_STARTED | Usable today through API keys where the service supports them. |
-| MCP servers | NOT_STARTED | |
+### Websites and apps (PRD §9, §10)
+| Feature | Status |
+|---|---|
+| Build → QA → preview link, versions, rollback, sandboxed previews | IMPLEMENTED (unpacking safety VERIFIED) |
+| Publish live on AWS (S3 + CloudFront, `https://<site>.<domain>`), with approval; rollback by republishing | IMPLEMENTED |
+| Custom domains | PARTIAL: recorded, and the customer gets DNS steps; the admin adds the certificate and alias (ADMIN_GUIDE) |
+| Mobile apps (Expo source + web preview) | IMPLEMENTED |
+| App Store / Play Store publishing | NOT_STARTED (needs the customer's developer accounts; never automatic) |
+| Websites with their own backend or database | NOT_STARTED |
 
-### Phase 5 — Website builder and deployment
-| Feature | Status | Notes |
-|---|---|---|
-| Website generation (Designer → Builder → QA) | IMPLEMENTED | Static sites. |
-| Preview links, versions, rollback | IMPLEMENTED | `/preview/<id>`, sandboxed CSP, 30-day expiry, Websites page. Unzip safety tested. |
-| Approval before production publishing / custom domains / AWS | BLOCKED | Needs an AWS account (S3, CloudFront, ACM, Route 53) and a preview domain. |
-| Dynamic sites with backends/databases | NOT_STARTED | |
+### Data, memory and knowledge (PRD §11, §13)
+| Feature | Status |
+|---|---|
+| Business memory (Baba's suggestions marked until confirmed) | VERIFIED |
+| Knowledge base: keyword search | VERIFIED |
+| Knowledge base: search by meaning (pgvector) | IMPLEMENTED (database function and access rules VERIFIED) |
+| PDF/Word upload into the knowledge base | PARTIAL: paste the text, or attach the file in chat |
 
-### Phase 6 — Data analyst and finance
-| Feature | Status | Notes |
-|---|---|---|
-| Data Analyst, Finance Analyst | IMPLEMENTED | Spreadsheets, charts, XLSX/PDF reports from uploaded files or database queries. |
-| Database connection wizard, read-only profiles | IMPLEMENTED | See Phase 4. |
-| Accounting integrations (QuickBooks, Xero, Stripe) | NOT_STARTED | |
+### Workflows (PRD §12, §27)
+| Feature | Status |
+|---|---|
+| Schedules (workspace time zone), run now, results, webhooks | VERIFIED |
+| Steps: do / only continue if / ask me first (approval checkpoint) / notify me; version history and restore | VERIFIED |
+| Created and edited from chat | VERIFIED |
+| Drag-and-drop canvas editor | NOT_STARTED (the step list covers the same building blocks) |
 
-### Phase 7 — Marketing, SEO, CRM
-| Feature | Status | Notes |
-|---|---|---|
-| Marketing & SEO specialist (audits, plans, copy) | IMPLEMENTED | No paid keyword data; it says so. |
-| Search Console, Analytics, Ads, CRM integrations | NOT_STARTED | |
+### Billing (PRD §15.4, §16)
+| Feature | Status |
+|---|---|
+| Spend caps (conversation, daily, monthly), plan quotas (enforced by the database), 80%/100% warnings, Usage & billing page | VERIFIED |
+| Plans configured by the admin | IMPLEMENTED |
+| Stripe Checkout, customer portal, signed de-duplicated webhook, invoices | IMPLEMENTED (signature checks unit-tested) |
 
-### Phase 8 — Workflow automation
-| Feature | Status | Notes |
-|---|---|---|
-| Saved workflows, schedules in the workspace timezone, run now, results | VERIFIED | |
-| Create and edit workflows from chat | VERIFIED | |
-| Webhook triggers | IMPLEMENTED | |
-| Branching, loops, visual editor | NOT_STARTED | Each workflow is one instruction Baba carries out. |
+### Security, privacy, operations (PRD §18, §24, §30)
+| Feature | Status |
+|---|---|
+| RLS everywhere; encrypted secrets; approvals; append-only audit log | VERIFIED |
+| Security headers; rate limit on Baba requests | VERIFIED |
+| Data export; account deletion; sign out of all devices | VERIFIED |
+| Health endpoint; structured error logs; alert webhook; CloudWatch alarms | VERIFIED (health); IMPLEMENTED (alerts) |
+| Docker image (standalone server, non-root, health check) | PARTIAL: the standalone server was built and run and its health check passed; the full image build was blocked here by registry rate limits |
+| Terraform for AWS (ECS Fargate, ALB + HTTPS, ECR, Secrets Manager, S3 + CloudFront, IAM, alarms) | IMPLEMENTED (`terraform validate` passes) |
+| CI on every push; manual deploy workflow (OIDC, automatic rollback) | VERIFIED (CI); IMPLEMENTED (deploy) |
+| Unit tests (`npm test`: 13 tests); load test (`npm run test:load`) | VERIFIED |
+| Backup/restore runbook | IMPLEMENTED (`docs/BACKUP_AND_RECOVERY.md`); restores not rehearsed |
+| Independent security assessment / SOC 2 | NOT_STARTED (needs an outside auditor) |
 
-### Phase 9 — Mobile apps and more agents
-NOT_STARTED (mobile builds, app store) except the extra agents listed in Phase 3.
+## What's needed from you to switch everything on
 
-### Phase 10 — Billing and usage
-| Feature | Status | Notes |
-|---|---|---|
-| Usage metering per task | VERIFIED | Claude-reported cost. |
-| Per-task cap, monthly limit, daily limit, plan limits | IMPLEMENTED | Checked on the server before every task; the stricter of workspace and platform limits applies. |
-| Plans configurable by the admin (no hard-coded prices) | IMPLEMENTED | `subscription_plans`, `/admin/plans`. |
-| Admin cost dashboard | IMPLEMENTED | `/admin/usage` (by user, workspace, agent). |
-| Workspace Usage & billing page | VERIFIED | Spend vs limits, plan allowances, daily chart, by person. |
-| Plan quotas (workflows, connections, previews) | VERIFIED | Enforced by database triggers (workflows, connections) and on publish (previews). |
-| Spending warnings at 80% / 100% | IMPLEMENTED | Bell + email to owners/admins, once per month each. |
-| Payments, invoices (Stripe) | BLOCKED | Needs a Stripe account; deferred by the owner. |
-
-### Phase 11 — Teams, memory, knowledge
-| Feature | Status | Notes |
-|---|---|---|
-| Invitations, roles, shared integrations | VERIFIED | |
-| Business memory (editable, Baba's suggestions marked) | VERIFIED | Memory page tested; added to each new conversation. |
-| Knowledge base with search | VERIFIED | Full-text search tested. Text files and pasted text; PDFs/Word via paste or chat attachments. |
-| Semantic (vector) search | NOT_STARTED | |
-
-### Phase 12 — Production hardening
-| Feature | Status | Notes |
-|---|---|---|
-| Audit log (append-only, tamper-resistant) | VERIFIED | Updates and deletes refused by the database. |
-| Maintenance mode, announcements, system health | IMPLEMENTED | |
-| Rate limiting | PARTIAL | Baba requests (20/min, 300/hour per person), contact form, webhooks. In-memory per server instance. |
-| Security headers | VERIFIED | nosniff, frame-deny, referrer, permissions and HSTS on every page. |
-| Data export / account deletion | VERIFIED | Profile → Download my data (no secrets included); delete account; sign out of all devices. |
-| Monitoring, backups, disaster recovery, load tests | NOT_STARTED | Supabase provides daily backups on paid plans. |
-| CI | IMPLEMENTED | GitHub Actions: typecheck, lint, unit tests, build on every push. |
-| Automated tests | PARTIAL | `npm test`: SQL safety, host blocking, Google links, website unpacking, chunking, limits, schedules. Browser tests run manually. |
-| Docker, Terraform | NOT_STARTED | |
-
-## What's needed from the owner to continue
-
-1. Run `npm run baba:setup` (new agents and tools) and `npm run admin:bootstrap -- your@email`.
-2. An AWS account and a domain for production website hosting.
-3. A Stripe account when you're ready to charge.
-4. Developer apps for each native integration you want next (Slack, HubSpot, QuickBooks…).
+1. `npm run baba:setup` and `npm run admin:bootstrap -- your@email`.
+2. Optional keys, as you need them:
+   - Stripe (payments)
+   - OpenAI or Voyage (search by meaning)
+   - `ALERT_WEBHOOK_URL` (error alerts)
+3. Developer apps for Slack, HubSpot and Microsoft. Each workspace adds its own through the setup card.
+4. For production: an AWS account and a domain, then `docs/DEPLOYMENT_GUIDE.md` part C.
