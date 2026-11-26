@@ -61,3 +61,27 @@ test("websites: zip unpacking is safe", () => {
   assert.throws(() => unpack(zipSync({ "page.html": strToU8("x") })), /index\.html/);
   assert.throws(() => unpack(strToU8("not a zip")));
 });
+
+import { createHmac } from "node:crypto";
+import { formEncode, verifyStripeSignature } from "../../src/lib/billing/stripe";
+
+test("billing: Stripe webhook signatures are checked", () => {
+  const secret = "whsec_test";
+  const body = '{"id":"evt_1"}';
+  const t = 1_800_000_000;
+  const sig = createHmac("sha256", secret).update(`${t}.${body}`).digest("hex");
+  assert.equal(verifyStripeSignature(body, `t=${t},v1=${sig}`, secret, t), true);
+  assert.equal(verifyStripeSignature(body + " ", `t=${t},v1=${sig}`, secret, t), false, "changed body");
+  assert.equal(verifyStripeSignature(body, `t=${t},v1=${sig}`, "whsec_other", t), false, "wrong secret");
+  assert.equal(verifyStripeSignature(body, `t=${t},v1=${sig}`, secret, t + 3600), false, "too old (replay)");
+  assert.equal(verifyStripeSignature(body, null, secret, t), false, "missing header");
+});
+
+test("billing: Stripe form encoding", () => {
+  assert.deepEqual(formEncode({ mode: "subscription", line_items: [{ price: "price_1", quantity: 1 }], metadata: { a: "b" } }), [
+    "mode=subscription",
+    "line_items%5B0%5D%5Bprice%5D=price_1",
+    "line_items%5B0%5D%5Bquantity%5D=1",
+    "metadata%5Ba%5D=b",
+  ]);
+});

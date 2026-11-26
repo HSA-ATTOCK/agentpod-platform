@@ -24,7 +24,10 @@ async function Content() {
             <p className="text-xs text-muted">{p.description}</p>
             <p className="text-[11px] text-subtle">key: {p.key}</p>
           </Td>
-          <Td>{p.price_label || <span className="text-subtle">Not set</span>}</Td>
+          <Td>
+            {p.price_label || <span className="text-subtle">Not set</span>}
+            <p className="text-[11px] text-subtle">{p.stripe_price_id ? "Online payment on" : "No Stripe price"}</p>
+          </Td>
           <Td className="text-xs">
             ${Number(p.monthly_limit_usd)}/month
             <br />

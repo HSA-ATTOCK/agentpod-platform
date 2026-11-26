@@ -156,6 +156,7 @@ export type PlanInput = {
   name: string;
   description: string;
   priceLabel: string;
+  stripePriceId: string | null;
   monthlyLimitUsd: number;
   dailyLimitUsd: number | null;
   taskCapUsd: number;
@@ -175,6 +176,7 @@ export async function savePlan(ctx: AdminContext, input: PlanInput) {
     name: input.name,
     description: input.description,
     price_label: input.priceLabel,
+    stripe_price_id: input.stripePriceId,
     monthly_limit_usd: input.monthlyLimitUsd,
     daily_limit_usd: input.dailyLimitUsd,
     task_cap_usd: input.taskCapUsd,

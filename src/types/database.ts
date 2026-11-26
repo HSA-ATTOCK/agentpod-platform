@@ -1013,6 +1013,7 @@ export type Database = {
           sort: number
           task_cap_usd: number
           updated_at: string
+          stripe_price_id: string | null
         }
         Insert: {
           active?: boolean
@@ -1033,6 +1034,7 @@ export type Database = {
           sort?: number
           task_cap_usd?: number
           updated_at?: string
+          stripe_price_id?: string | null
         }
         Update: {
           active?: boolean
@@ -1053,6 +1055,7 @@ export type Database = {
           sort?: number
           task_cap_usd?: number
           updated_at?: string
+          stripe_price_id?: string | null
         }
         Relationships: []
       }
@@ -1194,6 +1197,57 @@ export type Database = {
           version?: number
           workflow_id?: string
           workspace_id?: string
+        }
+        Relationships: []
+      }
+      workspace_billing: {
+        Row: {
+          cancel_at_period_end: boolean
+          current_period_end: string | null
+          plan_id: string | null
+          status: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean
+          current_period_end?: string | null
+          plan_id?: string | null
+          status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          current_period_end?: string | null
+          plan_id?: string | null
+          status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      stripe_events: {
+        Row: {
+          id: string
+          received_at: string
+          type: string
+        }
+        Insert: {
+          id: string
+          received_at?: string
+          type: string
+        }
+        Update: {
+          id?: string
+          received_at?: string
+          type?: string
         }
         Relationships: []
       }

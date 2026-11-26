@@ -107,6 +107,11 @@ export async function POST(request: Request) {
           name: text(body, "name", 60, true),
           description: text(body, "description", 500),
           priceLabel: text(body, "priceLabel", 60),
+          stripePriceId: (() => {
+            const v = text(body, "stripePriceId", 100);
+            if (v && !/^price_[A-Za-z0-9]+$/.test(v)) throw new AdminError("A Stripe Price ID looks like price_1Abc…");
+            return v || null;
+          })(),
           monthlyLimitUsd: money(body, "monthlyLimitUsd"),
           dailyLimitUsd: money(body, "dailyLimitUsd", true),
           taskCapUsd: money(body, "taskCapUsd"),

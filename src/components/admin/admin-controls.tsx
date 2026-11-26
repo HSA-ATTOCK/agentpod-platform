@@ -288,6 +288,7 @@ export type PlanRow = {
   name: string;
   description: string;
   price_label: string;
+  stripe_price_id: string | null;
   monthly_limit_usd: number;
   daily_limit_usd: number | null;
   task_cap_usd: number;
@@ -306,6 +307,7 @@ const EMPTY_PLAN: PlanRow = {
   name: "",
   description: "",
   price_label: "",
+  stripe_price_id: null,
   monthly_limit_usd: 50,
   daily_limit_usd: null,
   task_cap_usd: 1,
@@ -328,6 +330,7 @@ export function PlanEditor({ plan, label }: { plan?: PlanRow; label: string }) {
     name: p.name,
     description: p.description,
     priceLabel: p.price_label,
+    stripePriceId: p.stripe_price_id ?? "",
     monthly: String(p.monthly_limit_usd),
     daily: p.daily_limit_usd?.toString() ?? "",
     cap: String(p.task_cap_usd),
@@ -353,6 +356,7 @@ export function PlanEditor({ plan, label }: { plan?: PlanRow; label: string }) {
         name: f.name,
         description: f.description,
         priceLabel: f.priceLabel,
+        stripePriceId: f.stripePriceId,
         monthlyLimitUsd: f.monthly,
         dailyLimitUsd: f.daily || null,
         taskCapUsd: f.cap,
@@ -383,6 +387,7 @@ export function PlanEditor({ plan, label }: { plan?: PlanRow; label: string }) {
           <Input id="p-name" label="Name" value={f.name} onChange={set("name")} />
           <Input id="p-desc" label="Description" value={f.description} onChange={set("description")} />
           <Input id="p-price" label="Price shown to customers (e.g. $49 / month)" value={f.priceLabel} onChange={set("priceLabel")} />
+          <Input id="p-stripe" label="Stripe Price ID (for online payment; optional)" placeholder="price_…" value={f.stripePriceId} onChange={set("stripePriceId")} />
           <div className="grid grid-cols-2 gap-3">
             <Input id="p-monthly" label="Monthly limit (USD)" inputMode="decimal" value={f.monthly} onChange={set("monthly")} />
             <Input id="p-daily" label="Daily limit (USD)" inputMode="decimal" value={f.daily} onChange={set("daily")} placeholder="None" />

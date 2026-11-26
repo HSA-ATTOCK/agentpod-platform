@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { BillingButton } from "@/components/pages/billing-actions";
+import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
+import { LocalTime } from "@/components/ui/local-time";
+import { isStripeConfigured, listInvoices } from "@/lib/billing/stripe";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { formatCents } from "@/lib/format";
-import { requireAppContext } from "@/lib/data/context";
+import { canManage, requireAppContext } from "@/lib/data/context";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Usage & billing" };
@@ -29,8 +33,8 @@ function Meter({ label, used, limit, money = false }: { label: string; used: num
   );
 }
 
-async function PageContent() {
-  const ctx = await requireAppContext();
+async function PageContent({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
+  const [ctx, params] = await Promise.all([requireAppContext(), searchParams]);
   const ws = ctx.workspace;
   const monthStart = new Date();
   monthStart.setUTCDate(1);
@@ -38,13 +42,15 @@ async function PageContent() {
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
 
-  const [{ data: tasks }, { count: workflows }, { count: connections }, { count: sites }, { data: members }, { data: plans }] = await Promise.all([
+  const [{ data: tasks }, { count: workflows }, { count: connections }, { count: sites }, { data: members }, { data: plans }, { data: billing }, invoices] = await Promise.all([
     ctx.supabase.from("tasks").select("cost_cents, started_at, created_by, request").eq("workspace_id", ws.id).gte("started_at", monthStart.toISOString()),
     ctx.supabase.from("workflows").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id),
     ctx.supabase.from("integrations").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).neq("provider", "google_app"),
     ctx.supabase.from("sites").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).neq("status", "disabled"),
     ctx.supabase.from("workspace_members").select("user_id").eq("workspace_id", ws.id),
-    ctx.supabase.from("subscription_plans").select("id, name, description, price_label, features, is_public").eq("is_public", true).order("sort"),
+    ctx.supabase.from("subscription_plans").select("id, name, description, price_label, features, is_public, stripe_price_id").eq("is_public", true).order("sort"),
+    ctx.supabase.from("workspace_billing").select("status, current_period_end, cancel_at_period_end, stripe_customer_id").eq("workspace_id", ws.id).maybeSingle(),
+    listInvoices(ws.id),
   ]);
   const t = tasks ?? [];
   const monthCents = t.reduce((s, x) => s + x.cost_cents, 0);
@@ -63,8 +69,25 @@ async function PageContent() {
   for (const x of t) days.set(x.started_at.slice(0, 10), (days.get(x.started_at.slice(0, 10)) ?? 0) + x.cost_cents);
   const maxDay = Math.max(1, ...days.values());
 
+  const stripe = isStripeConfigured();
+  const manager = canManage(ws.role);
   return (
     <div className="space-y-6">
+      {params.billing === "success" && <Alert variant="success">Payment received. Your plan updates within a minute (refresh if it hasn&apos;t yet).</Alert>}
+      {params.billing === "cancelled" && <Alert variant="info">Checkout was cancelled. Nothing was charged.</Alert>}
+      {billing?.status && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="text-sm">
+            <p className="font-medium text-foreground">Subscription: {billing.status === "active" || billing.status === "trialing" ? "active" : billing.status.replace(/_/g, " ")}</p>
+            {billing.current_period_end && (
+              <p className="text-xs text-muted">
+                {billing.cancel_at_period_end ? "Ends" : "Renews"} on <LocalTime iso={billing.current_period_end} format="date" />
+              </p>
+            )}
+          </div>
+          {stripe && manager && billing.stripe_customer_id && <BillingButton kind="portal" label="Manage billing" variant="secondary" />}
+        </Card>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="space-y-4 p-5">
           <div>
@@ -143,22 +166,52 @@ async function PageContent() {
                     <li key={f}>• {f}</li>
                   ))}
                 </ul>
+                {stripe && manager && p.stripe_price_id && p.name !== ws.limits.planName && (
+                  <BillingButton kind={billing?.stripe_customer_id && billing.status === "active" ? "portal" : "checkout"} planId={p.id} label={billing?.status === "active" ? "Switch plan" : "Choose plan"} />
+                )}
               </Card>
             ))}
           </div>
-          <p className="text-xs text-subtle">To change plan, contact us (online payment isn&apos;t available yet).</p>
+          {!stripe && <p className="text-xs text-subtle">To change plan, contact us (online payment isn&apos;t available yet).</p>}
+          {stripe && !manager && <p className="text-xs text-subtle">Only owners and admins can change the plan.</p>}
         </div>
+      )}
+
+      {invoices.length > 0 && (
+        <Card className="p-5">
+          <p className="mb-3 text-sm font-medium text-foreground">Invoices</p>
+          <ul className="divide-y divide-border text-sm">
+            {invoices.map((inv) => (
+              <li key={inv.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="text-muted">
+                  {inv.number ?? inv.id} · <LocalTime iso={inv.created} format="date" />
+                </span>
+                <span className="flex items-center gap-3">
+                  <span className="text-foreground">
+                    {(inv.amountCents / 100).toFixed(2)} {inv.currency.toUpperCase()}
+                  </span>
+                  <span className="text-xs text-subtle">{inv.status}</span>
+                  {inv.url && (
+                    <a href={inv.url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-accent hover:underline">
+                      View
+                    </a>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
     </div>
   );
 }
 
-export default function Page() {
+export default function Page(props: { searchParams: Promise<{ billing?: string }> }) {
   return (
     <div className="space-y-6">
       <PageHeader title="Usage & billing" description="What this workspace spends on Baba, against its limits." />
       <Suspense fallback={<PageSkeleton />}>
-        <PageContent />
+        <PageContent searchParams={props.searchParams} />
       </Suspense>
     </div>
   );
