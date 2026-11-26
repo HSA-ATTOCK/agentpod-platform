@@ -628,6 +628,8 @@ export type Database = {
           sort: number
           updated_at: string
           updated_by: string | null
+          effort: string | null
+          model: string | null
         }
         Insert: {
           category?: string
@@ -640,6 +642,8 @@ export type Database = {
           sort?: number
           updated_at?: string
           updated_by?: string | null
+          effort?: string | null
+          model?: string | null
         }
         Update: {
           category?: string
@@ -652,6 +656,8 @@ export type Database = {
           sort?: number
           updated_at?: string
           updated_by?: string | null
+          effort?: string | null
+          model?: string | null
         }
         Relationships: []
       }

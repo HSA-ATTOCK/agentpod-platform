@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AgentToggle, SyncRosterButton } from "@/components/admin/admin-controls";
+import { AgentModelPicker, AgentToggle, SyncRosterButton } from "@/components/admin/admin-controls";
 import { AdminPage } from "@/components/admin/admin-page";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,7 @@ async function Content() {
     );
   }
   return (
-    <AdminTable head={["Agent", "Role", "Claude version", "Updated", "On"]}>
+    <AdminTable head={["Agent", "Role", "Model", "Claude version", "Updated", "On"]}>
       {agents.map((a) => (
         <tr key={a.key}>
           <Td>
@@ -29,6 +29,9 @@ async function Content() {
             <p className="max-w-lg text-xs text-muted">{a.description}</p>
           </Td>
           <Td>{a.category === "orchestrator" ? <Badge tone="accent">Orchestrator</Badge> : <Badge>Specialist</Badge>}</Td>
+          <Td>
+            <AgentModelPicker agentKey={a.key} name={a.name} model={a.model} effort={a.effort} />
+          </Td>
           <Td className="text-xs">{a.claude_agent_version ? `v${a.claude_agent_version}` : "—"}</Td>
           <Td className="text-xs">
             <LocalTime iso={a.updated_at} />

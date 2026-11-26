@@ -8,6 +8,7 @@ import {
   sendPasswordReset,
   setAccountStatus,
   setAgentEnabled,
+  setAgentModel,
   setPlatformAdmin,
   setWorkspaceLimits,
 } from "@/lib/platform/admin";
@@ -133,6 +134,12 @@ export async function POST(request: Request) {
       case "agent.enabled": {
         const key = text(body, "key", 40, true);
         await setAgentEnabled(ctx, key, bool(body, "enabled"));
+        break;
+      }
+      case "agent.model": {
+        const key = text(body, "key", 40, true);
+        const model = text(body, "model", 40) || null;
+        await setAgentModel(ctx, key, model, text(body, "effort", 10) || null);
         break;
       }
       case "agent.sync":

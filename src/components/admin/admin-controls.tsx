@@ -476,3 +476,45 @@ function Row({ title, text, children }: { title: string; text: string; children:
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Agent model
+// ---------------------------------------------------------------------------
+
+const MODEL_LABELS: Record<string, string> = {
+  "": "Default (from team.mjs)",
+  "claude-opus-5-5": "Claude Opus 5.5 — most capable, highest cost",
+  "claude-sonnet-5-5": "Claude Sonnet 5.5 — balanced",
+  "claude-haiku-5-5": "Claude Haiku 5.5 — fastest, lowest cost",
+};
+
+export function AgentModelPicker({ agentKey, name, model, effort }: { agentKey: string; name: string; model: string | null; effort: string | null }) {
+  const { run, busy, toast } = useAdminAction();
+  const [m, setM] = useState(model ?? "");
+  const [e, setE] = useState(effort ?? "medium");
+  const changed = m !== (model ?? "") || (m !== "" && e !== (effort ?? "medium"));
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {toast}
+      <select aria-label={`Model for ${name}`} className={`${selectClasses} h-9 w-auto text-xs`} value={m} onChange={(ev) => setM(ev.target.value)}>
+        {Object.entries(MODEL_LABELS).map(([id, label]) => (
+          <option key={id} value={id}>
+            {label}
+          </option>
+        ))}
+      </select>
+      {m !== "" && (
+        <select aria-label={`Effort for ${name}`} className={`${selectClasses} h-9 w-auto text-xs`} value={e} onChange={(ev) => setE(ev.target.value)}>
+          <option value="low">Low effort</option>
+          <option value="medium">Medium effort</option>
+          <option value="high">High effort</option>
+        </select>
+      )}
+      {changed && (
+        <Button size="sm" loading={busy === "model"} onClick={() => run("model", { action: "agent.model", key: agentKey, model: m, effort: m ? e : "" }, m ? `${name} now uses ${m}.` : `${name} goes back to its default model on the next npm run baba:setup.`)}>
+          Apply
+        </Button>
+      )}
+    </div>
+  );
+}

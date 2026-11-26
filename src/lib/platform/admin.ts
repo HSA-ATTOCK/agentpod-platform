@@ -266,3 +266,28 @@ export async function applyAgentRoster(ctx: AdminContext) {
   } as Parameters<ReturnType<typeof getClaude>["beta"]["agents"]["update"]>[1]);
   return enabled.map((r) => r.key);
 }
+
+// ---------------------------------------------------------------------------
+// Models: the admin picks each agent's model; it's applied to the agent on Claude straight away
+// ---------------------------------------------------------------------------
+
+export const ADMIN_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"] as const;
+export const ADMIN_EFFORTS = ["low", "medium", "high"] as const;
+
+export async function setAgentModel(ctx: AdminContext, key: string, model: string | null, effort: string | null) {
+  if (model !== null && !(ADMIN_MODELS as readonly string[]).includes(model)) throw new AdminError("Unknown model.");
+  if (effort !== null && !(ADMIN_EFFORTS as readonly string[]).includes(effort)) throw new AdminError("Unknown effort level.");
+  const { data: agent } = await ctx.db.from("agent_registry").select("key, name, claude_agent_id").eq("key", key).maybeSingle();
+  if (!agent?.claude_agent_id) throw new AdminError("Agent not found (run npm run baba:setup first).");
+  if (model) {
+    await getClaude().beta.agents.update(agent.claude_agent_id, {
+      model: { id: model, effort: (effort ?? "medium") as "medium" },
+    } as Parameters<ReturnType<typeof getClaude>["beta"]["agents"]["update"]>[1]);
+  }
+  const { error } = await ctx.db
+    .from("agent_registry")
+    .update({ model, effort: model ? (effort ?? "medium") : null, updated_by: ctx.user.id, updated_at: new Date().toISOString() })
+    .eq("key", key);
+  if (error) throw new AdminError(error.message);
+  await audit({ ...actor(ctx), action: "agent.model_changed", targetType: "agent", targetId: key, details: { model, effort } });
+}

@@ -31,6 +31,13 @@ const db =
     ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } })
     : null;
 
+/** Models the platform admin chose on the admin page (they win over baba/team.mjs). */
+async function modelOverrides() {
+  if (!db) return new Map();
+  const { data } = await db.from("agent_registry").select("key, model, effort").not("model", "is", null);
+  return new Map((data ?? []).map((r) => [r.key, { id: r.model, effort: r.effort ?? "medium" }]));
+}
+
 /** Which agents the platform admin switched off (they are left out of Baba's team). */
 async function disabledAgentKeys() {
   if (!db) return new Set();
@@ -96,9 +103,11 @@ async function main() {
 
   // 2. Specialists first (Baba's roster refers to their IDs)
   const disabled = await disabledAgentKeys();
+  const models = await modelOverrides();
+  const withModel = (key, config) => (models.has(key) ? { ...config, model: models.get(key) } : config);
   const specialistIds = [];
   for (const [index, { key, ...config }] of specialists.entries()) {
-    const agent = await syncAgent(key, config);
+    const agent = await syncAgent(key, withModel(key, config));
     await registerAgent(key, config, agent, "specialist", index + 1);
     if (disabled.has(key)) console.log(`  ${config.name} is switched off in the admin page: not added to Baba's team.`);
     else specialistIds.push(agent.id);
@@ -106,7 +115,7 @@ async function main() {
 
   // 3. Baba, the main agent
   const { key, ...babaConfig } = baba;
-  const main = await syncAgent(key, { ...babaConfig, multiagent: babaMultiagent(specialistIds) });
+  const main = await syncAgent(key, withModel(key, { ...babaConfig, multiagent: babaMultiagent(specialistIds) }));
   await registerAgent(key, babaConfig, main, "orchestrator", 0);
   if (!db) console.log("  (Add SUPABASE_SECRET_KEY to .env.local to list the agents on the admin page.)");
 
