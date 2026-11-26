@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 import { decrypt, encrypt } from "./crypto";
 import { listDatabases } from "./databases";
+import { listOAuthAccounts, oauthAppId, PROVIDERS, type OAuthProvider } from "./oauth-apps";
 import { listGoogleAccounts, workspaceGoogleAppId } from "./google/oauth";
 
 /**
@@ -138,7 +139,15 @@ export async function listConnectionsText(workspaceId: string) {
       ? `Databases (read-only, use db_query):\n${databases.map((d) => `- ${d.name} (${d.config.engine}, database ${d.config.database})`).join("\n")}`
       : "No databases connected. Use request_database_connection to show the secure form.",
   );
-  lines.push("Coming soon (sign-in): Slack, Microsoft Outlook/Teams, X (Twitter), HubSpot, Notion, Shopify.");
+  for (const p of Object.keys(PROVIDERS) as OAuthProvider[]) {
+    const [accounts, app] = await Promise.all([listOAuthAccounts(workspaceId, p), oauthAppId(workspaceId, p)]);
+    lines.push(
+      accounts.length
+        ? `${PROVIDERS[p].name}:\n${accounts.map((a) => `- ${a.label}${a.isDefault ? " (default)" : ""}${a.status === "error" ? " — needs reconnecting" : ""}`).join("\n")}`
+        : `${PROVIDERS[p].name}: not connected${app ? " (app set up; use request_connection)" : " (use request_connection: it shows a one-time setup card first)"}.`,
+    );
+  }
+  lines.push("Not built in yet (use an API key with request_api_key where the service offers one): Microsoft Teams, Notion, Shopify, QuickBooks, Xero, Stripe data, X (Twitter).");
   return lines.join("\n\n");
 }
 

@@ -18,6 +18,8 @@ import {
 } from "@/lib/integrations/google/tools";
 import { APP_LABELS, APP_TOOL_NAMES, appApprovalSummary, appToolNeedsApproval, runAppTool } from "@/lib/app-tools/tools";
 import { audit } from "@/lib/platform/account";
+import { NATIVE_LABELS, NATIVE_NEEDS_APPROVAL, NATIVE_TOOL_NAMES, nativeApprovalSummary, runNativeTool } from "@/lib/integrations/native-tools";
+import { isOAuthProvider, oauthClientFor, PROVIDERS } from "@/lib/integrations/oauth-apps";
 import {
   runWorkspaceTool,
   WORKSPACE_LABELS,
@@ -52,7 +54,7 @@ type Input = Record<string, unknown>;
 const str = (input: Input, key: string) => (typeof input[key] === "string" ? (input[key] as string).trim() : "");
 
 function needsApproval(name: string, input: Input) {
-  return GOOGLE_NEEDS_APPROVAL.has(name) || connectionNeedsApproval(name, input) || appToolNeedsApproval(name) || WORKSPACE_NEEDS_APPROVAL.has(name);
+  return GOOGLE_NEEDS_APPROVAL.has(name) || connectionNeedsApproval(name, input) || appToolNeedsApproval(name) || WORKSPACE_NEEDS_APPROVAL.has(name) || NATIVE_NEEDS_APPROVAL.has(name);
 }
 
 function label(name: string, input: Input) {
@@ -60,7 +62,7 @@ function label(name: string, input: Input) {
     case "list_connections":
       return "Checking connected tools";
     case "request_connection":
-      return "Asking you to connect Google";
+      return `Asking you to connect ${isOAuthProvider(str(input, "service")) ? PROVIDERS[str(input, "service") as keyof typeof PROVIDERS].name : "Google"}`;
     case "request_api_key":
       return `Asking for a ${str(input, "service_name") || "service"} API key`;
     case "api_request":
@@ -68,7 +70,7 @@ function label(name: string, input: Input) {
     case "run_custom_agent":
       return `${str(input, "agent") || "Your custom agent"} is working on a sub-task`;
     default:
-      return WORKSPACE_LABELS[name] ?? APP_LABELS[name] ?? GOOGLE_LABELS[name] ?? name;
+      return NATIVE_LABELS[name] ?? WORKSPACE_LABELS[name] ?? APP_LABELS[name] ?? GOOGLE_LABELS[name] ?? name;
   }
 }
 
@@ -76,6 +78,7 @@ function summary(name: string, input: Input) {
   if (name === "api_request") return apiRequestSummary(input);
   if (APP_TOOL_NAMES.has(name)) return appApprovalSummary(name, input);
   if (WORKSPACE_TOOL_NAMES.has(name)) return workspaceApprovalSummary(name, input);
+  if (NATIVE_TOOL_NAMES.has(name)) return nativeApprovalSummary(name, input);
   return googleApprovalSummary(name, input);
 }
 
@@ -96,6 +99,7 @@ async function runTool(name: string, input: Input, scope: { workspaceId: string;
 }
 
 async function runToolInner(name: string, input: Input, scope: { workspaceId: string; sessionId: string; conversationId: string; ctx: AppContext }) {
+  if (NATIVE_TOOL_NAMES.has(name)) return runNativeTool(name, input, { workspaceId: scope.workspaceId });
   if (WORKSPACE_TOOL_NAMES.has(name)) return runWorkspaceTool(name, input, { ctx: scope.ctx, sessionId: scope.sessionId, conversationId: scope.conversationId });
   if (APP_TOOL_NAMES.has(name)) return runAppTool(name, input, scope.ctx);
   if (GOOGLE_TOOL_NAMES.has(name)) return runGoogleTool(name, input, scope);
@@ -133,7 +137,7 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
     const stepLabel = label(event.name, input);
     const stepId = `custom-${event.id}`;
 
-    if (!GOOGLE_TOOL_NAMES.has(event.name) && !CONNECTION_TOOL_NAMES.has(event.name) && !APP_TOOL_NAMES.has(event.name) && !WORKSPACE_TOOL_NAMES.has(event.name)) {
+    if (!GOOGLE_TOOL_NAMES.has(event.name) && !CONNECTION_TOOL_NAMES.has(event.name) && !APP_TOOL_NAMES.has(event.name) && !WORKSPACE_TOOL_NAMES.has(event.name) && !NATIVE_TOOL_NAMES.has(event.name)) {
       await sendResult(sessionId, event.id, `Unknown tool "${event.name}".`, true);
       return "handled";
     }
@@ -143,9 +147,42 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
     }
 
     // ---- Things shown in the chat for the user to do ----
+    if (event.name === "request_connection" && isOAuthProvider(str(input, "service"))) {
+      const service = str(input, "service") as keyof typeof PROVIDERS;
+      const cfg = PROVIDERS[service];
+      const isManager = scope.ctx.workspace.role === "owner" || scope.ctx.workspace.role === "admin";
+      if (!isManager) {
+        await sendResult(sessionId, event.id, `Only a workspace owner or admin can connect ${cfg.name}. Tell the user to ask one of them.`, true);
+        return "handled";
+      }
+      if (!(await oauthClientFor(scope.workspaceId, service))) {
+        emit({
+          type: "oauth_app_request",
+          id: event.id,
+          service,
+          serviceName: cfg.name,
+          redirectUri: `${serverOrigin()}/api/integrations/oauth/${service}/callback`,
+          consoleUrl: cfg.setup.consoleUrl,
+          steps: cfg.setup.steps,
+          reason: str(input, "reason"),
+        });
+        await sendResult(
+          sessionId,
+          event.id,
+          `This workspace hasn't set up its ${cfg.name} app yet, so a secure one-time setup card is shown in the chat with step-by-step instructions and boxes for the Client ID and secret (never paste them in the chat). Once saved it becomes a Connect button. Briefly tell the user that, offer help with any step, then stop and wait.`,
+          false,
+        );
+      } else {
+        emit({ type: "connect_request", id: event.id, service, reason: str(input, "reason") });
+        await sendResult(sessionId, event.id, `A 'Connect ${cfg.name}' button is now shown in the chat. Stop and ask the user to click it and tell you when it's done. Then check with list_connections.`, false);
+      }
+      emit({ type: "step", id: stepId, label: stepLabel, status: "done" });
+      return "handled";
+    }
+
     if (event.name === "request_connection") {
       if (str(input, "service") !== "google") {
-        await sendResult(sessionId, event.id, "Only \"google\" can be connected with a button so far.", true);
+        await sendResult(sessionId, event.id, "Supported services: google, slack, hubspot, microsoft.", true);
         return "handled";
       }
       if (!(await googleClientFor(scope.workspaceId))) {

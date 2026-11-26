@@ -339,10 +339,23 @@ export function AskBaba({
         case "connect_request":
         case "google_app_request":
         case "db_request":
+        case "oauth_app_request":
         case "key_request": {
           const itemId = `${event.type}-${event.id}`;
           const item: ChatItem =
-            event.type === "db_request"
+            event.type === "oauth_app_request"
+              ? {
+                  id: itemId,
+                  type: "oauth_app_request",
+                  service: event.service,
+                  serviceName: event.serviceName,
+                  redirectUri: event.redirectUri,
+                  consoleUrl: event.consoleUrl,
+                  steps: event.steps,
+                  reason: event.reason,
+                  status: "pending",
+                }
+              : event.type === "db_request"
               ? { id: itemId, type: "db_request", engine: event.engine, reason: event.reason, status: "pending" }
               : event.type === "connect_request"
               ? { id: itemId, type: "connect_request", service: event.service, reason: event.reason, status: "pending" }

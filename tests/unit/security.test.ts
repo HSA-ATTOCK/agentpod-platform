@@ -85,3 +85,23 @@ test("billing: Stripe form encoding", () => {
     "metadata%5Ba%5D=b",
   ]);
 });
+
+import { oauthAuthorizeUrl, PROVIDERS } from "../../src/lib/integrations/oauth-apps";
+
+test("integrations: sign-in links carry the right redirect, scopes and state", () => {
+  const slack = new URL(oauthAuthorizeUrl("https://app.example.com", "slack", "STATE", { id: "123.456", secret: "x" }));
+  assert.equal(slack.origin + slack.pathname, "https://slack.com/oauth/v2/authorize");
+  assert.equal(slack.searchParams.get("redirect_uri"), "https://app.example.com/api/integrations/oauth/slack/callback");
+  assert.equal(slack.searchParams.get("state"), "STATE");
+  assert.match(slack.searchParams.get("scope")!, /chat:write/);
+  const ms = new URL(oauthAuthorizeUrl("https://app.example.com", "microsoft", "S", { id: "00000000-0000-0000-0000-000000000000", secret: "x" }));
+  assert.match(ms.searchParams.get("scope")!, /offline_access/);
+  assert.equal(ms.searchParams.get("response_type"), "code");
+});
+
+test("integrations: client ids are checked per service", () => {
+  assert.ok(PROVIDERS.slack.clientIdPattern.test("1234567890.9876543210"));
+  assert.ok(!PROVIDERS.slack.clientIdPattern.test("not-an-id"));
+  assert.ok(PROVIDERS.microsoft.clientIdPattern.test("0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"));
+  assert.ok(!PROVIDERS.microsoft.clientIdPattern.test("abc"));
+});

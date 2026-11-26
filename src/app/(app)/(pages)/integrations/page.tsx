@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { NativeIntegrations, type NativeService } from "@/components/integrations/native-integrations";
 import { IntegrationsView, type ApiKeyRow, type GoogleAccountRow } from "@/components/pages/integrations-view";
+import { listOAuthAccounts, oauthAppId, oauthRedirectUri, PROVIDERS, type OAuthProvider } from "@/lib/integrations/oauth-apps";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { canManage, requireAppContext } from "@/lib/data/context";
 import { googleClientFor, isGoogleConfigured, workspaceGoogleAppId } from "@/lib/integrations/google/oauth";
@@ -57,7 +59,37 @@ async function PageContent({ searchParams }: PageProps<"/integrations">) {
     ? await Promise.all([workspaceGoogleAppId(ctx.workspace.id), googleClientFor(ctx.workspace.id)])
     : [null, null];
 
+  const WHAT: Record<OAuthProvider, string> = {
+    slack: "Read channels; post messages with your approval",
+    hubspot: "Search contacts and deals; create or update with approval",
+    microsoft: "Outlook mail and calendar; sending needs approval",
+  };
+  const native: NativeService[] = admin
+    ? await Promise.all(
+        (Object.keys(PROVIDERS) as OAuthProvider[]).map(async (key) => ({
+          key,
+          name: PROVIDERS[key].name,
+          what: WHAT[key],
+          appClientId: await oauthAppId(ctx.workspace.id, key),
+          accounts: await listOAuthAccounts(ctx.workspace.id, key),
+          redirectUri: oauthRedirectUri(serverOrigin(), key),
+          consoleUrl: PROVIDERS[key].setup.consoleUrl,
+          steps: PROVIDERS[key].setup.steps,
+        })),
+      )
+    : (Object.keys(PROVIDERS) as OAuthProvider[]).map((key) => ({
+        key,
+        name: PROVIDERS[key].name,
+        what: WHAT[key],
+        appClientId: null,
+        accounts: [],
+        redirectUri: oauthRedirectUri(serverOrigin(), key),
+        consoleUrl: PROVIDERS[key].setup.consoleUrl,
+        steps: PROVIDERS[key].setup.steps,
+      }));
+
   return (
+    <div className="space-y-10">
     <IntegrationsView
       googleAccounts={googleAccounts}
       apiKeys={apiKeys}
@@ -67,6 +99,8 @@ async function PageContent({ searchParams }: PageProps<"/integrations">) {
       canManage={canManage(ctx.workspace.role)}
       flash={{ connected: one(params.connected), account: one(params.account), error: one(params.error) }}
     />
+    <NativeIntegrations services={native} canManage={canManage(ctx.workspace.role)} available={admin} />
+    </div>
   );
 }
 

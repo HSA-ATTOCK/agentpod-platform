@@ -1,6 +1,7 @@
 import { APP_RULES, appTools } from "./app-tools.mjs";
 import { CONNECTION_RULES, connectionTools } from "./connection-tools.mjs";
 import { GOOGLE_RULES, googleTools } from "./google-tools.mjs";
+import { NATIVE_RULES, nativeTools } from "./native-tools.mjs";
 import { WORKSPACE_RULES, workspaceTools } from "./workspace-tools.mjs";
 /**
  * Baba's agent team — the single source of truth for every agent's
@@ -278,8 +279,9 @@ export const baba = {
     CONNECTION_RULES,
     APP_RULES,
     WORKSPACE_RULES,
+    NATIVE_RULES,
   ].join("\n"),
-  tools: [toolset({ web: true }), ...googleTools, ...connectionTools, ...appTools, ...workspaceTools],
+  tools: [toolset({ web: true }), ...googleTools, ...connectionTools, ...appTools, ...workspaceTools, ...nativeTools],
 };
 
 /** Builds Baba's multiagent block from the specialists' stored agent IDs. */

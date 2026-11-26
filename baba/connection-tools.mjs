@@ -14,11 +14,11 @@ export const connectionTools = [
     type: "custom",
     name: "request_connection",
     description:
-      "Start connecting a service that signs in with OAuth. Supported: \"google\" (Gmail, Drive, Sheets, Calendar; call it again to add another Google account). Shows a Connect button in the chat, or, if the workspace hasn't set up its Google app yet, a secure one-time setup card that becomes the Connect button. After calling it, stop and wait for the user.",
+      "Start connecting a service that signs in with OAuth. Supported: \"google\" (Gmail, Drive, Sheets, Calendar), \"slack\", \"hubspot\" (contacts, deals) and \"microsoft\" (Outlook mail and calendar). Call it again to add another account. Shows a Connect button in the chat, or, if the workspace hasn't set up its Google app yet, a secure one-time setup card that becomes the Connect button. After calling it, stop and wait for the user.",
     input_schema: {
       type: "object",
       properties: {
-        service: { type: "string", enum: ["google"] },
+        service: { type: "string", enum: ["google", "slack", "hubspot", "microsoft"] },
         reason: { type: "string", description: "One short sentence: why you need it (shown on the button card)" },
       },
       required: ["service", "reason"],

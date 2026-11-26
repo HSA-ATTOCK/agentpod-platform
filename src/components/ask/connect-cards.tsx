@@ -22,29 +22,37 @@ type Shared = {
   busy: boolean;
 };
 
-/** "Connect Google" button that Baba put in the chat. Signs in in a small window, so the chat stays put. */
+const SERVICES = {
+  google: { name: "Google", what: "Gmail, Drive, Sheets and Calendar", connect: "/api/integrations/google/connect" },
+  slack: { name: "Slack", what: "Read channels and post messages (with your approval)", connect: "/api/integrations/oauth/slack/connect" },
+  hubspot: { name: "HubSpot", what: "Contacts and deals", connect: "/api/integrations/oauth/hubspot/connect" },
+  microsoft: { name: "Microsoft 365", what: "Outlook mail and calendar", connect: "/api/integrations/oauth/microsoft/connect" },
+} as const;
+
+/** "Connect …" button that Baba put in the chat. Signs in in a small window, so the chat stays put. */
 export function ConnectRequestCard({ item, canManage, conversationId, onUpdate, onSend, busy }: Shared & { item: ConnectItem }) {
   const [error, setError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
+  const service = SERVICES[item.service] ?? SERVICES.google;
 
   // The sign-in window reports back with postMessage (only from our own origin)
   useEffect(() => {
     if (item.status !== "pending") return;
     function onMessage(event: MessageEvent) {
       if (event.origin !== window.location.origin) return;
-      const data = event.data as { type?: string; ok?: boolean; account?: string; error?: string };
-      if (data?.type !== "baba-connect") return;
+      const data = event.data as { type?: string; provider?: string; ok?: boolean; account?: string; error?: string };
+      if (data?.type !== "baba-connect" || (data.provider && data.provider !== item.service)) return;
       setWaiting(false);
       if (data.ok) {
         setError(null);
         onUpdate({ status: "connected", account: data.account } as Partial<ChatItem>);
       } else {
-        setError(data.error ?? "Google sign-in didn't finish.");
+        setError(data.error ?? `${service.name} sign-in didn't finish.`);
       }
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [item.status, onUpdate]);
+  }, [item.status, item.service, service.name, onUpdate]);
 
   function connect() {
     setError(null);
@@ -53,29 +61,32 @@ export function ConnectRequestCard({ item, canManage, conversationId, onUpdate, 
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
     const popup = window.open(
-      "/api/integrations/google/connect?popup=1",
-      "baba-connect-google",
+      `${service.connect}?popup=1`,
+      `baba-connect-${item.service}`,
       `width=${width},height=${height},left=${left},top=${top}`,
     );
     if (!popup) {
       // Pop-ups blocked: sign in in this tab and come back to this conversation
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a server route that redirects to Google
-      window.location.assign(`/api/integrations/google/connect?return=${encodeURIComponent(`/ask?c=${conversationId}`)}`);
+      window.location.assign(`${service.connect}?return=${encodeURIComponent(`/ask?c=${conversationId}`)}`);
       return;
     }
     setWaiting(true);
   }
 
   return (
-    <section aria-label="Connect Google" className="rounded-card border border-border bg-surface-raised p-4">
+    <section aria-label={`Connect ${service.name}`} className="rounded-card border border-border bg-surface-raised p-4">
       <div className="flex items-start gap-3">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-control border border-info/20 bg-info/10 text-info">
           <Link2 aria-hidden="true" className="size-4" />
         </span>
         <div className="min-w-0 flex-1 space-y-3">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Connect Google</h3>
-            <p className="text-xs text-muted">Gmail, Drive, Sheets and Calendar{item.reason ? `: ${item.reason}` : "."}</p>
+            <h3 className="text-sm font-semibold text-foreground">Connect {service.name}</h3>
+            <p className="text-xs text-muted">
+              {service.what}
+              {item.reason ? `: ${item.reason}` : "."}
+            </p>
           </div>
           {item.status === "connected" ? (
             <div className="flex flex-wrap items-center gap-3">
@@ -85,7 +96,7 @@ export function ConnectRequestCard({ item, canManage, conversationId, onUpdate, 
               <Button
                 size="sm"
                 disabled={busy}
-                onClick={() => onSend(`I've connected Google${item.account ? ` (${item.account})` : ""}. Please continue.`)}
+                onClick={() => onSend(`I've connected ${service.name}${item.account ? ` (${item.account})` : ""}. Please continue.`)}
               >
                 Continue
               </Button>
@@ -93,8 +104,8 @@ export function ConnectRequestCard({ item, canManage, conversationId, onUpdate, 
           ) : canManage ? (
             <>
               <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" onClick={connect} loading={waiting} loadingText="Waiting for Google…">
-                  Connect Google
+                <Button size="sm" onClick={connect} loading={waiting} loadingText={`Waiting for ${service.name}…`}>
+                  Connect {service.name}
                 </Button>
                 {waiting && (
                   <button type="button" onClick={connect} className="text-xs text-muted hover:text-foreground">
@@ -103,12 +114,12 @@ export function ConnectRequestCard({ item, canManage, conversationId, onUpdate, 
                 )}
               </div>
               <p className="flex items-center gap-1.5 text-[11px] text-subtle">
-                <Lock aria-hidden="true" className="size-3" /> You sign in on Google&apos;s own page. Baba never sees your password,
-                and sending emails always needs your approval.
+                <Lock aria-hidden="true" className="size-3" /> You sign in on {service.name}&apos;s own page. Baba never sees your password,
+                and sending or changing anything always needs your approval.
               </p>
             </>
           ) : (
-            <p className="text-xs text-muted">Only owners and admins can connect tools. Ask one of them to connect Google for this workspace.</p>
+            <p className="text-xs text-muted">Only owners and admins can connect tools. Ask one of them to connect {service.name} for this workspace.</p>
           )}
           {error && <Alert variant="error">{error}</Alert>}
         </div>
@@ -444,6 +455,111 @@ export function DatabaseRequestCard({ item, canManage, onUpdate, onSend, busy }:
             </form>
           ) : (
             <p className="text-sm text-muted">Only workspace owners and admins can connect a database. Ask one of them to continue.</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+type OAuthAppItem = Extract<ChatItem, { type: "oauth_app_request" }>;
+
+/** One-time setup of the workspace's own Slack / HubSpot / Microsoft app; then it becomes the Connect button. */
+export function OAuthAppCard({ item, canManage, conversationId, onUpdate, onSend, busy }: Shared & { item: OAuthAppItem }) {
+  const [clientId, setClientId] = useState("");
+  const [secret, setSecret] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  if (item.status === "saved") {
+    return (
+      <ConnectRequestCard
+        item={{ id: item.id, type: "connect_request", service: item.service, reason: item.reason, status: item.connectStatus ?? "pending", account: item.account }}
+        canManage={canManage}
+        conversationId={conversationId}
+        onUpdate={(patch) => onUpdate({ connectStatus: (patch as { status?: "pending" | "connected" }).status, account: (patch as { account?: string }).account } as Partial<ChatItem>)}
+        onSend={onSend}
+        busy={busy}
+      />
+    );
+  }
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/integrations/oauth/${item.service}/app`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: clientId.trim(), clientSecret: secret.trim() }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Couldn't save.");
+      setSecret("");
+      onUpdate({ status: "saved" } as Partial<ChatItem>);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section aria-label={`Set up ${item.serviceName}`} className="rounded-card border border-border bg-surface-raised p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-control border border-info/20 bg-info/10 text-info">
+          <KeyRound aria-hidden="true" className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Set up {item.serviceName} for this workspace (one time)</h3>
+            {item.reason && <p className="text-xs text-muted">{item.reason}</p>}
+          </div>
+          <ol className="list-decimal space-y-1.5 pl-5 text-sm text-foreground">
+            {item.steps.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted">Redirect address</p>
+            <div className="flex items-center gap-2">
+              <code className="min-w-0 flex-1 break-all rounded-control border border-border bg-surface p-2 text-xs text-foreground">{item.redirectUri}</code>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(item.redirectUri);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  } catch {
+                    // clipboard blocked
+                  }
+                }}
+              >
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+            <a href={item.consoleUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-accent hover:underline">
+              Open {item.serviceName} developer console
+            </a>
+          </div>
+          {canManage ? (
+            <form noValidate onSubmit={save} className="space-y-3">
+              {error && <Alert variant="error">{error}</Alert>}
+              <Input id={`oa-id-${item.id}`} label="Client ID" autoComplete="off" value={clientId} onChange={(e) => setClientId(e.target.value)} />
+              <PasswordInput id={`oa-secret-${item.id}`} label="Client secret" autoComplete="off" value={secret} onChange={(e) => setSecret(e.target.value)} />
+              <Button type="submit" size="sm" loading={saving} loadingText="Saving…" disabled={!clientId.trim() || !secret.trim()}>
+                Save securely
+              </Button>
+              <p className="flex items-center gap-1.5 text-[11px] text-subtle">
+                <Lock aria-hidden="true" className="size-3" /> Encrypted for this workspace only. Never paste these into the chat.
+              </p>
+            </form>
+          ) : (
+            <p className="text-xs text-muted">Only owners and admins can set this up.</p>
           )}
         </div>
       </div>
