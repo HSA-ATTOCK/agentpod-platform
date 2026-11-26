@@ -1,3 +1,4 @@
+import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
 import { createCustomToolHandler } from "@/lib/baba/custom-tools";
 import {
   babaGate,
@@ -56,7 +57,8 @@ export async function POST(request: Request) {
   }
 
   // Mark the paused task as running again
-  await ctx.supabase.from("conversations").update({ paused: false, cap_cents: newCapCents }).eq("id", conversation.id);
+  const db = isAdminConfigured() ? (getSupabaseAdmin() as unknown as typeof ctx.supabase) : ctx.supabase;
+  await db.from("conversations").update({ paused: false, cap_cents: newCapCents }).eq("id", conversation.id);
   const { data: task } = await ctx.supabase
     .from("tasks")
     .select("id")
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (task) await ctx.supabase.from("tasks").update({ status: "running", cap_cents: newCapCents }).eq("id", task.id);
+  if (task) await db.from("tasks").update({ status: "running", cap_cents: newCapCents }).eq("id", task.id);
 
   const blockedAgents = await blockedAgentNames(ctx.supabase, ctx.workspace.limits);
   return streamTurn({

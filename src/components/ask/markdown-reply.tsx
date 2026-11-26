@@ -23,6 +23,13 @@ const components: Components = {
     </pre>
   ),
   hr: () => <hr className="border-border" />,
+  // Images in AI replies are never loaded: an injected image URL could carry data to another site
+  img: ({ alt, src }) => (
+    <span className="text-xs text-subtle">
+      [image{alt ? `: ${alt}` : ""}
+      {typeof src === "string" && /^https:\/\//.test(src) ? ` — ${new URL(src).hostname}` : ""}]
+    </span>
+  ),
   table: ({ children }) => (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface">
       <table className="w-full border-collapse text-left text-sm">{children}</table>

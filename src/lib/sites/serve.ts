@@ -18,7 +18,13 @@ export const SECURITY_HEADERS = {
 };
 
 export async function servePreview(slug: string, path: string[]) {
-  const file = await readSiteFile(slug, path.map(decodeURIComponent).join("/"));
+  const file = await readSiteFile(slug, path.map((p) => {
+    try {
+      return decodeURIComponent(p);
+    } catch {
+      return "\u0000"; // invalid encoding: cleanPath refuses it (404)
+    }
+  }).join("/"));
   if (!file) {
     return new Response("This preview doesn't exist, was switched off or has expired.", {
       status: 404,

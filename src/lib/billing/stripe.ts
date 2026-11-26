@@ -68,8 +68,8 @@ async function customerFor(workspaceId: string, workspaceName: string, email: st
 
 export async function createCheckout(input: { workspaceId: string; workspaceName: string; email: string; planId: string; origin: string }) {
   const db = getSupabaseAdmin();
-  const { data: plan } = await db.from("subscription_plans").select("id, name, stripe_price_id, active").eq("id", input.planId).maybeSingle();
-  if (!plan?.active || !plan.stripe_price_id) throw new BillingError("That plan can't be bought online.");
+  const { data: plan } = await db.from("subscription_plans").select("id, name, stripe_price_id, active, is_public").eq("id", input.planId).maybeSingle();
+  if (!plan?.active || !plan.is_public || !plan.stripe_price_id) throw new BillingError("That plan can't be bought online.");
   const customer = await customerFor(input.workspaceId, input.workspaceName, input.email);
   const session = await stripe<{ url: string }>("POST", "/checkout/sessions", {
     mode: "subscription",

@@ -39,7 +39,7 @@ export const WORKSPACE_TOOL_NAMES = new Set([
 ]);
 
 /** Changes a person must approve first. */
-export const WORKSPACE_NEEDS_APPROVAL = new Set(["memory_delete", "site_restore_version", "workflow_checkpoint", "site_publish_production"]);
+export const WORKSPACE_NEEDS_APPROVAL = new Set(["memory_delete", "site_restore_version", "workflow_checkpoint", "site_publish_production", "site_connect_domain"]);
 
 /** Actions only contributors (not viewers) may take; managers for site rollbacks. */
 const WRITE_TOOLS = new Set(["memory_save", "memory_delete", "site_publish_preview", "site_restore_version", "site_publish_production", "site_connect_domain"]);

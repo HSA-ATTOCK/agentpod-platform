@@ -8,6 +8,7 @@ import { memoryForPrompt } from "@/lib/knowledge/knowledge";
 import { getAccount, getPlatformSettings } from "@/lib/platform/account";
 import { checkSpendAlerts } from "@/lib/platform/spend-alerts";
 import { rateLimited, tooManyRequests } from "@/lib/rate-limit";
+import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 import { fileKindFromName } from "./client";
@@ -80,6 +81,8 @@ export async function loadConversation(ctx: AppContext, conversationId: unknown)
     .from("conversations")
     .select("id, workspace_id, claude_session_id, cost_cents, paused")
     .eq("id", conversationId)
+    // Only conversations in the workspace whose role and limits were just checked
+    .eq("workspace_id", ctx.workspace.id)
     .maybeSingle();
   return data satisfies ConversationRow | null;
 }
@@ -127,7 +130,8 @@ const EMAIL_FOR: Partial<Record<"succeeded" | "failed" | "paused" | "needs_appro
 
 /** `origin` is the app's address, for links in notification emails. */
 export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId?: string, origin?: string) {
-  const { supabase } = ctx;
+  // Spending and status are written by the server: users can't change them through the API
+  const supabase = isAdminConfigured() ? (getSupabaseAdmin() as unknown as AppContext["supabase"]) : ctx.supabase;
   const chatUrl = origin ? `${origin}${routes.ask}?c=${conversation.id}` : null;
   const approvalsEmailed = new Set<string>();
   let costCents: number | undefined;

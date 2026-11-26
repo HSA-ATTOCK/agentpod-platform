@@ -11,7 +11,7 @@ export const maxDuration = 300;
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   const given = request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
-  const ok = Boolean(secret) && given.length === secret!.length && timingSafeEqual(Buffer.from(given), Buffer.from(secret!));
+  const ok = Boolean(secret) && Buffer.byteLength(given) === Buffer.byteLength(secret!) && timingSafeEqual(Buffer.from(given), Buffer.from(secret!));
   if (!ok) return Response.json({ error: "Unauthorized." }, { status: 401 });
 
   const { summary, finished } = await runDueWorkflows();

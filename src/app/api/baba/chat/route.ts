@@ -1,3 +1,4 @@
+import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
 import { syncSessionTools } from "@/lib/baba/agent-sync";
 import { createCustomToolHandler } from "@/lib/baba/custom-tools";
 import {
@@ -84,8 +85,8 @@ export async function POST(request: Request) {
     workflowId = workflow?.id ?? null;
     // A new conversation started by a workflow uses the workflow's own cap
     if (workflow && !conversation.claude_session_id) {
-      const own = Math.max(1, Math.round(Number(workflow.cap_usd) * 100));
-      capCents = ctx.workspace.limits.taskCapUsd === null ? own : Math.min(own, capCents);
+      // Never above the workspace's cap per conversation
+      capCents = Math.min(Math.max(1, Math.round(Number(workflow.cap_usd) * 100)), capCents);
     }
   }
 
@@ -131,7 +132,8 @@ export async function POST(request: Request) {
           metadata: { workspace_id: conversation.workspace_id, conversation_id: conversation.id },
         });
         sessionId = session.id;
-        const { error } = await ctx.supabase
+        const db = isAdminConfigured() ? (getSupabaseAdmin() as unknown as typeof ctx.supabase) : ctx.supabase;
+        const { error } = await db
           .from("conversations")
           .update({ claude_session_id: sessionId, cap_cents: capCents })
           .eq("id", conversation.id);

@@ -8,7 +8,7 @@ import "server-only";
 
 type Db = {
   // Works with both the signed-in user's client (RLS: members can read their workspace's limits) and the secret-key client
-  from: (table: "workspace_limits" | "subscription_plans") => any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  from: (table: "workspace_limits" | "subscription_plans" | "platform_settings") => any; // eslint-disable-line @typescript-eslint/no-explicit-any
 };
 
 export type PlatformLimits = {
@@ -38,7 +38,11 @@ const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
 export async function platformLimits(db: Db, workspaceId: string): Promise<PlatformLimits> {
   const { data: limits } = await db.from("workspace_limits").select("*").eq("workspace_id", workspaceId).maybeSingle();
-  if (!limits) return NONE;
+  if (!limits) {
+    // No plan or overrides yet: the platform's default limits apply (never "unlimited")
+    const { data: settings } = await db.from("platform_settings").select("default_monthly_limit_usd, default_task_cap_usd").eq("id", 1).maybeSingle();
+    return { ...NONE, monthlyLimitUsd: num(settings?.default_monthly_limit_usd), taskCapUsd: num(settings?.default_task_cap_usd) };
+  }
   const { data: plan } = limits.plan_id
     ? await db.from("subscription_plans").select("*").eq("id", limits.plan_id).maybeSingle()
     : { data: null };

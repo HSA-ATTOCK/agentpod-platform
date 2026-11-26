@@ -148,6 +148,7 @@ function requireClaude() {
 /** Creates or updates a custom agent (owners/admins; Row Level Security checks it again). */
 export async function saveCustomAgent(ctx: AppContext, raw: CustomAgentInput, id?: string) {
   if (ctx.workspace.role !== "owner" && ctx.workspace.role !== "admin") throw new CustomAgentError("Only owners and admins can create or change custom agents.");
+  if (!isAdminConfigured()) throw new CustomAgentError("Custom agents can't be saved on this server yet (SUPABASE_SECRET_KEY is missing).");
   const input = validate(raw);
   // "ext:<id>": a model from another provider, allowed (with a price) by the platform admin
   const externalId = input.model.startsWith("ext:") ? input.model.slice(4) : null;
@@ -178,10 +179,10 @@ export async function saveCustomAgent(ctx: AppContext, raw: CustomAgentInput, id
   }
 
   if (id) {
-    const { data: existing } = await ctx.supabase.from("custom_agents").select("id, claude_agent_id").eq("id", id).eq("workspace_id", ctx.workspace.id).maybeSingle();
+    const { data: existing } = await getSupabaseAdmin().from("custom_agents").select("id, claude_agent_id").eq("id", id).eq("workspace_id", ctx.workspace.id).maybeSingle();
     if (!existing) throw new CustomAgentError("That agent wasn't found.");
     const agent = await claudeAgent(existing.claude_agent_id);
-    const { error } = await ctx.supabase
+    const { error } = await getSupabaseAdmin()
       .from("custom_agents")
       .update({ ...row, claude_agent_id: agent?.id ?? null, claude_agent_version: agent?.version ?? null })
       .eq("id", id)
@@ -191,10 +192,10 @@ export async function saveCustomAgent(ctx: AppContext, raw: CustomAgentInput, id
     return id;
   }
 
-  const { count } = await ctx.supabase.from("custom_agents").select("id", { count: "exact", head: true }).eq("workspace_id", ctx.workspace.id).ilike("name", input.name);
+  const { count } = await getSupabaseAdmin().from("custom_agents").select("id", { count: "exact", head: true }).eq("workspace_id", ctx.workspace.id).ilike("name", input.name);
   if (count) throw new CustomAgentError("Another agent already has that name.");
   const agent = await claudeAgent(null);
-  const { data, error } = await ctx.supabase
+  const { data, error } = await getSupabaseAdmin()
     .from("custom_agents")
     .insert({ ...row, workspace_id: ctx.workspace.id, created_by: ctx.user.id, claude_agent_id: agent?.id ?? null, claude_agent_version: agent?.version ?? null })
     .select("id")
@@ -208,7 +209,9 @@ export async function saveCustomAgent(ctx: AppContext, raw: CustomAgentInput, id
 }
 
 export async function deleteCustomAgent(ctx: AppContext, id: string) {
-  const { data } = await ctx.supabase.from("custom_agents").delete().eq("id", id).eq("workspace_id", ctx.workspace.id).select("claude_agent_id, name");
+  if (ctx.workspace.role !== "owner" && ctx.workspace.role !== "admin") throw new CustomAgentError("Only owners and admins can delete custom agents.");
+  if (!isAdminConfigured()) throw new CustomAgentError("Custom agents can't be changed on this server yet (SUPABASE_SECRET_KEY is missing).");
+  const { data } = await getSupabaseAdmin().from("custom_agents").delete().eq("id", id).eq("workspace_id", ctx.workspace.id).select("claude_agent_id, name");
   if (!data?.length) throw new CustomAgentError("That agent wasn't found (or only owners and admins can delete it).");
   if (data[0].claude_agent_id) await getClaude().beta.agents.archive(data[0].claude_agent_id).catch(() => {});
   await audit({ actorId: ctx.user.id, actorEmail: ctx.user.email, workspaceId: ctx.workspace.id, action: "custom_agent.deleted", targetType: "custom_agent", targetId: id, details: { name: data[0].name } });
