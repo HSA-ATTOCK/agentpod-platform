@@ -73,8 +73,10 @@ export const environment = {
   name: "baba-workspace",
   config: {
     type: "cloud",
-    // Open internet so research can reach any public site. The sandbox holds no secrets.
-    networking: { type: "unrestricted" },
+    // The sandbox (where agents run code) can only reach package registries (npm, PyPI…), so
+    // nothing an agent reads can be sent out from there. Web research doesn't use the sandbox:
+    // web_search and web_fetch run on Anthropic's side. Add hosts here only if a task truly needs them.
+    networking: { type: "limited", allow_package_managers: true, allow_mcp_servers: false, allowed_hosts: [] },
   },
 };
 

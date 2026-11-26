@@ -2,6 +2,7 @@ import "server-only";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { decrypt, encrypt } from "../crypto";
+import { likeExact } from "@/lib/utils";
 
 /**
  * "Connect Google": each workspace can connect one or more Google accounts.
@@ -242,7 +243,7 @@ export async function completeConnection(input: {
     .select("id, is_default")
     .eq("workspace_id", input.workspaceId)
     .eq("provider", GOOGLE_PROVIDER)
-    .ilike("account_email", email)
+    .ilike("account_email", likeExact(email))
     .maybeSingle();
 
   const values = {

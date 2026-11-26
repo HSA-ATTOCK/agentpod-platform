@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 import { decrypt, encrypt } from "./crypto";
+import { likeExact } from "@/lib/utils";
 
 /**
  * Sign-in ("OAuth") connections other than Google: Slack, HubSpot and Microsoft 365.
@@ -318,7 +319,7 @@ export async function completeOAuthConnection(input: {
     .select("id")
     .eq("workspace_id", input.workspaceId)
     .eq("provider", input.provider)
-    .ilike("label", label)
+    .ilike("label", likeExact(label))
     .maybeSingle();
   const { count } = await db.from("integrations").select("id", { count: "exact", head: true }).eq("workspace_id", input.workspaceId).eq("provider", input.provider);
   const values = {

@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 import { cleanHost } from "./connections";
 import { decrypt, encrypt } from "./crypto";
+import { likeExact } from "@/lib/utils";
 
 /**
  * Business databases (PRD §11): PostgreSQL and MySQL, READ-ONLY.
@@ -18,7 +19,10 @@ import { decrypt, encrypt } from "./crypto";
 
 export const DATABASE_PROVIDER = "database";
 export type DbEngine = "postgres" | "mysql";
-export type DbConfig = { engine: DbEngine; host: string; port: number; database: string; user: string; ssl: boolean };
+/** verify = encrypted and the server's certificate is checked (default); require = encrypted only; off = no encryption. */
+export type SslMode = "verify" | "require" | "off";
+export type DbConfig = { engine: DbEngine; host: string; port: number; database: string; user: string; ssl: boolean; sslMode?: SslMode };
+const sslModeOf = (c: DbConfig): SslMode => c.sslMode ?? (c.ssl ? "require" : "off");
 
 const QUERY_TIMEOUT_MS = 15_000;
 const CONNECT_TIMEOUT_MS = 8_000;
@@ -29,18 +33,43 @@ const MAX_TEXT = 30_000;
 // Network safety
 // ---------------------------------------------------------------------------
 
-function privateAddress(ip: string) {
+export function privateAddress(ip: string) {
   if (ip.includes(":")) {
     const v = ip.toLowerCase();
-    return v === "::1" || v === "::" || v.startsWith("fc") || v.startsWith("fd") || v.startsWith("fe80") || v.startsWith("::ffff:");
+    return (
+      v === "::1" ||
+      v === "::" ||
+      /^f[cd]/.test(v) ||
+      /^fe[89ab]/.test(v) ||
+      /^fe[c-f]/.test(v) ||
+      v.startsWith("::ffff:") ||
+      v.startsWith("64:ff9b:") ||
+      v.startsWith("2001:db8") ||
+      v.startsWith("2002:")
+    );
   }
-  const [a, b] = ip.split(".").map(Number);
+  const [a, b, c] = ip.split(".").map(Number);
   return (
-    a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224
+    a === 10 ||
+    a === 127 ||
+    a === 0 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    a >= 224
   );
 }
 
-/** Checks the host is a public name (or public IP) that doesn't resolve to a private address. */
+/**
+ * Checks the host is a public name (or public IP) that doesn't resolve to a private address,
+ * and returns the checked IP: we connect to THAT address (the name is only used for TLS), so a
+ * second DNS lookup can't be switched to an internal address in between ("DNS rebinding").
+ */
 async function safeHost(raw: string) {
   const value = raw.trim().toLowerCase();
   const host = isIP(value) ? value : cleanHost(value);
@@ -48,12 +77,15 @@ async function safeHost(raw: string) {
   const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true }).catch(() => []);
   if (addresses.length === 0) throw new Error(`Couldn't find the host ${host}.`);
   if (addresses.some((a) => privateAddress(a.address))) throw new Error("That host points to a private network address, which isn't allowed.");
-  return host;
+  return { host, ip: addresses[0].address };
 }
 
 // ---------------------------------------------------------------------------
 // SQL checks (the database-level read-only transaction is the real guarantee)
 // ---------------------------------------------------------------------------
+
+// Server functions that read files, run commands, sleep or touch other sessions (Postgres, MySQL)
+const DANGEROUS_CALLS = /\b(pg_(?!size_pretty|total_relation_size|relation_size|table_size|indexes_size|database_size|typeof|get_viewdef|get_constraintdef|get_indexdef|get_expr|column_size)\w+|lo_\w+|dblink\w*|set_config|load_file|sys_exec|sys_eval|query_to_xml\w*|xmlparse|benchmark|sleep|get_lock|release_lock)\s*\(/i;
 
 const WRITE_WORDS =
   /\b(insert|update|delete|merge|upsert|drop|alter|create|truncate|grant|revoke|copy|call|execute|exec|prepare|vacuum|reindex|pg_sleep|sleep|benchmark|pg_read_file|pg_read_binary_file|pg_ls_dir|lo_import|lo_export|dblink|load_file)\b|\binto\s+(outfile|dumpfile)\b|\block\s+tables?\b|\bset\s+(session|global|role|local)\b/i;
@@ -61,16 +93,22 @@ const WRITE_WORDS =
 /** Returns the cleaned statement, or throws with a reason. */
 export function checkReadOnlySql(sql: string) {
   // Remove comments and string literals before checking keywords
-  const noComments = sql.replace(/--[^\n]*/g, " ").replace(/\/\*[\s\S]*?\*\//g, " ");
-  const stripped = noComments.replace(/'(?:[^']|'')*'/g, "''").replace(/"(?:[^"]|"")*"/g, '""').replace(/`[^`]*`/g, "``");
+  const noComments = sql.replace(/--[^\n]*/g, " ").replace(/#[^\n]*/g, " ").replace(/\/\*[\s\S]*?\*\//g, " ");
+  // Strings: backslash escapes (E'..', MySQL), doubled quotes and $$dollar$$ quoting are all removed
+  const stripped = noComments
+    .replace(/\$([A-Za-z_]*)\$[\s\S]*?\$\1\$/g, "''")
+    .replace(/'(?:[^'\\]|\\[\s\S]|'')*'/g, "''")
+    .replace(/"(?:[^"\\]|\\[\s\S]|"")*"/g, '""')
+    .replace(/`[^`]*`/g, "``");
+  if (/['"`$]/.test(stripped.replace(/''|""|``/g, ""))) throw new Error("The query has an unclosed quote.");
   const statement = noComments.trim().replace(/;\s*$/, "");
   if (!statement) throw new Error("The query is empty.");
   if (statement.length > 20_000) throw new Error("The query is too long.");
   if (stripped.replace(/;\s*$/, "").includes(";")) throw new Error("Send one statement at a time.");
   if (!/^\s*(select|with|show|explain|describe|desc)\b/i.test(stripped)) throw new Error("Only read queries are allowed (SELECT, WITH, SHOW, EXPLAIN, DESCRIBE).");
   if (/^\s*explain\b[\s\S]*\banalyze\b/i.test(stripped)) throw new Error("EXPLAIN ANALYZE isn't allowed (it runs the query).");
-  const bad = stripped.match(WRITE_WORDS);
-  if (bad) throw new Error(`"${bad[0]}" isn't allowed: database access is read-only.`);
+  const bad = stripped.match(WRITE_WORDS) ?? stripped.match(/\binto\b/i) ?? stripped.match(DANGEROUS_CALLS);
+  if (bad) throw new Error(`"${bad[0].replace(/\s*\($/, "")}" isn't allowed: database access is read-only, and server functions are off limits.`);
   return statement;
 }
 
@@ -80,14 +118,15 @@ export function checkReadOnlySql(sql: string) {
 
 type Result = { columns: string[]; rows: unknown[][]; truncated: boolean };
 
-async function runPostgres(config: DbConfig, password: string, sql: string, maxRows: number): Promise<Result> {
+async function runPostgres(config: DbConfig, ip: string, password: string, sql: string, maxRows: number): Promise<Result> {
   const client = new pg.Client({
-    host: config.host,
+    // The checked address; the name is used for the certificate check
+    host: ip,
     port: config.port,
     database: config.database,
     user: config.user,
     password,
-    ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+    ssl: tlsOptions(config),
     connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
     statement_timeout: QUERY_TIMEOUT_MS,
     query_timeout: QUERY_TIMEOUT_MS + 2000,
@@ -106,14 +145,15 @@ async function runPostgres(config: DbConfig, password: string, sql: string, maxR
   }
 }
 
-async function runMysql(config: DbConfig, password: string, sql: string, maxRows: number): Promise<Result> {
+async function runMysql(config: DbConfig, ip: string, password: string, sql: string, maxRows: number): Promise<Result> {
   const conn = await mysql.createConnection({
-    host: config.host,
+    // The checked address; the name is used for the certificate check
+    host: ip,
     port: config.port,
     database: config.database,
     user: config.user,
     password,
-    ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+    ssl: tlsOptions(config),
     connectTimeout: CONNECT_TIMEOUT_MS,
     multipleStatements: false,
     rowsAsArray: true,
@@ -130,8 +170,15 @@ async function runMysql(config: DbConfig, password: string, sql: string, maxRows
   }
 }
 
-function run(config: DbConfig, password: string, sql: string, maxRows: number) {
-  return config.engine === "postgres" ? runPostgres(config, password, sql, maxRows) : runMysql(config, password, sql, maxRows);
+function tlsOptions(config: DbConfig) {
+  const mode = sslModeOf(config);
+  if (mode === "off") return undefined;
+  return { servername: isIP(config.host) ? undefined : config.host, rejectUnauthorized: mode === "verify" };
+}
+
+async function run(config: DbConfig, password: string, sql: string, maxRows: number) {
+  const { ip } = await safeHost(config.host);
+  return config.engine === "postgres" ? runPostgres(config, ip, password, sql, maxRows) : runMysql(config, ip, password, sql, maxRows);
 }
 
 function cell(value: unknown) {
@@ -172,6 +219,7 @@ export type SaveDatabaseInput = {
   user: string;
   password: string;
   ssl: boolean;
+  sslMode?: string;
 };
 
 /** Tests the connection with a read-only query, then saves it (password encrypted). */
@@ -186,8 +234,9 @@ export async function saveDatabase(input: SaveDatabaseInput) {
   const user = input.user.trim().slice(0, 120);
   if (!database || !user) throw new Error("Database name and username are required.");
   if (!input.password || input.password.length > 1000) throw new Error("Enter the password.");
-  const host = await safeHost(input.host);
-  const config: DbConfig = { engine, host, port, database, user, ssl: input.ssl };
+  const { host } = await safeHost(input.host);
+  const sslMode: SslMode = input.sslMode === "require" || input.sslMode === "off" ? input.sslMode : input.ssl === false ? "off" : "verify";
+  const config: DbConfig = { engine, host, port, database, user, ssl: sslMode !== "off", sslMode };
 
   try {
     await run(config, input.password, "SELECT 1", 1);
@@ -201,7 +250,7 @@ export async function saveDatabase(input: SaveDatabaseInput) {
     .select("id")
     .eq("workspace_id", input.workspaceId)
     .eq("provider", DATABASE_PROVIDER)
-    .ilike("label", name)
+    .ilike("label", likeExact(name))
     .maybeSingle();
   const values = {
     workspace_id: input.workspaceId,
@@ -265,7 +314,6 @@ export async function dbQuery(workspaceId: string, input: Record<string, unknown
   const { data: cred } = await getSupabaseAdmin().from("integration_credentials").select("secret_enc").eq("integration_id", db.id).maybeSingle();
   if (!cred) return { text: "This connection's password is missing. Ask the user to add the database again.", isError: true };
   try {
-    await safeHost(db.config.host);
     const result = await run(db.config, decrypt(cred.secret_enc), statement, maxRows);
     return { text: `Database: ${db.name} (${db.config.engine}, read-only)\n\n${asTable(result)}`, isError: false };
   } catch (error) {

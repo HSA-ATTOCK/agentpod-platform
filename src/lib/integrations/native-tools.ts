@@ -71,9 +71,9 @@ export function nativeApprovalSummary(name: string, input: Input) {
     case "hubspot_update_contact":
       return `Update contact ${str(input, "contact_id")}: ${JSON.stringify(input.properties ?? {})}`;
     case "outlook_send_mail":
-      return `To: ${str(input, "to")}\nSubject: ${str(input, "subject")}\n\n${str(input, "body")}`;
+      return `To: ${str(input, "to")}${str(input, "cc") ? `\nCc: ${str(input, "cc")}` : ""}\nSubject: ${str(input, "subject")}\n\n${str(input, "body")}`;
     case "outlook_create_event":
-      return `${str(input, "subject")}\n${str(input, "start")} → ${str(input, "end")}${str(input, "attendees") ? `\nInvites: ${str(input, "attendees")}` : ""}`;
+      return `${str(input, "subject")}\n${str(input, "start")} → ${str(input, "end")}${str(input, "time_zone") ? ` (${str(input, "time_zone")})` : ""}${str(input, "attendees") ? `\nInvites (they get an email): ${str(input, "attendees")}` : ""}${str(input, "description") ? `\n\nDescription sent to attendees:\n${str(input, "description")}` : ""}`;
     default:
       return name;
   }

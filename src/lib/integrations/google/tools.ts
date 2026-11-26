@@ -112,6 +112,8 @@ async function buildRawEmail(token: string, input: Input) {
   const subject = str(input, "subject", true)!;
   const body = str(input, "body", true)!;
   const cc = str(input, "cc");
+  // Line breaks in header fields would let extra headers (e.g. a hidden Bcc) be added
+  if ([to, cc ?? "", subject].some((v) => /[\r\n]/.test(v))) throw new ToolError("Line breaks aren't allowed in To, Cc or Subject.");
   const replyTo = str(input, "in_reply_to_message_id");
   const lines = [`To: ${to}`, ...(cc ? [`Cc: ${cc}`] : []), `Subject: ${encodeHeader(subject)}`];
   let threadId: string | undefined;
@@ -374,13 +376,13 @@ export function approvalSummary(name: string, input: Input) {
   const s = (key: string) => (typeof input[key] === "string" ? (input[key] as string) : "");
   const from = s("account") ? `From: ${s("account")}\n` : "";
   if (name === "gmail_send") {
-    const body = s("body");
-    return `Send an email\n${from}To: ${s("to")}${s("cc") ? `\nCc: ${s("cc")}` : ""}\nSubject: ${s("subject")}\n\n${body.length > 1200 ? `${body.slice(0, 1200)}…` : body}`;
+    // Everything that will be sent, in full: what you approve is exactly what goes out
+    return `Send an email\n${from}To: ${s("to")}${s("cc") ? `\nCc: ${s("cc")}` : ""}${s("in_reply_to_message_id") ? "\n(Reply in an existing thread)" : ""}\nSubject: ${s("subject")}\n\n${s("body")}`;
   }
   if (name === "calendar_create_event") {
-    return `Create a calendar event\n${from}${s("summary")}\n${s("start")} → ${s("end")}${s("attendees") ? `\nInvite: ${s("attendees")}` : ""}${s("location") ? `\nWhere: ${s("location")}` : ""}`;
+    return `Create a calendar event\n${from}${s("summary")}\n${s("start")} → ${s("end")}${s("time_zone") ? ` (${s("time_zone")})` : ""}${s("attendees") ? `\nInvite (they get an email): ${s("attendees")}` : ""}${s("location") ? `\nWhere: ${s("location")}` : ""}${s("description") ? `\n\nDescription sent to attendees:\n${s("description")}` : ""}`;
   }
-  return JSON.stringify(input).slice(0, 1200);
+  return JSON.stringify(input, null, 1);
 }
 
 export const TOOL_LABELS: Record<string, string> = {

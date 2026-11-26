@@ -38,6 +38,7 @@ export async function POST(request: Request) {
       user: text("user"),
       password: text("password"),
       ssl: body.ssl !== false,
+      sslMode: text("sslMode"),
     });
     await audit({ actorId: ctx.user.id, actorEmail: ctx.user.email, workspaceId: ctx.workspace.id, action: "integration.connected", targetType: "database", targetId: id, details: { name: text("name"), engine: text("engine") } });
     return Response.json({ ok: true });

@@ -5,6 +5,7 @@ import { decrypt, encrypt } from "./crypto";
 import { listDatabases } from "./databases";
 import { listOAuthAccounts, oauthAppId, PROVIDERS, type OAuthProvider } from "./oauth-apps";
 import { listGoogleAccounts, workspaceGoogleAppId } from "./google/oauth";
+import { likeExact } from "@/lib/utils";
 
 /**
  * Connections that aren't OAuth sign-ins: services added with an API key from the
@@ -56,7 +57,7 @@ export async function saveApiKey(input: {
     .select("id")
     .eq("workspace_id", input.workspaceId)
     .eq("provider", API_KEY_PROVIDER)
-    .ilike("label", name)
+    .ilike("label", likeExact(name))
     .maybeSingle();
   const values = {
     workspace_id: input.workspaceId,
@@ -109,8 +110,13 @@ const s = (input: Input, key: string) => (typeof input[key] === "string" ? (inpu
 export const CONNECTION_TOOL_NAMES = new Set(["list_connections", "request_connection", "request_api_key", "api_request"]);
 
 /** api_request changes things unless it's a GET: those wait for approval. */
-export function connectionNeedsApproval(name: string, input: Input) {
-  return name === "api_request" && s(input, "method").toUpperCase() !== "GET";
+/**
+ * Every api_request waits for approval: many APIs change things even on GET (e.g. "send message"
+ * endpoints), and we can't tell which calls are harmless for an arbitrary service.
+ */
+export function connectionNeedsApproval(name: string, _input: Input) {
+  void _input;
+  return name === "api_request";
 }
 
 export async function listConnectionsText(workspaceId: string) {

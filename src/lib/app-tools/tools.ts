@@ -12,6 +12,7 @@ import { nextSlot } from "@/lib/schedule";
 import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
 import { isValidEmail } from "@/lib/validation";
 import type { Json, TablesUpdate } from "@/types/database";
+import { likeExact } from "@/lib/utils";
 
 /**
  * Baba managing Baba: the app_* tools (defined in baba/app-tools.mjs). They act as the person
@@ -382,7 +383,7 @@ async function removeMember(ctx: AppContext, input: Input) {
       .update({ status: "revoked" })
       .eq("workspace_id", ctx.workspace.id)
       .eq("status", "pending")
-      .ilike("email", email ?? "")
+      .ilike("email", likeExact(email ?? ""))
       .select("id");
     return data?.length ? ok(`Invite for ${email} cancelled.`) : fail("No member or pending invite with that email.");
   }
