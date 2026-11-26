@@ -1266,6 +1266,36 @@ export type Database = {
         }
         Relationships: []
       }
+      site_form_submissions: {
+        Row: {
+          created_at: string
+          data: Json
+          form_name: string
+          id: string
+          page: string | null
+          site_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          data: Json
+          form_name?: string
+          id?: string
+          page?: string | null
+          site_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          form_name?: string
+          id?: string
+          page?: string | null
+          site_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

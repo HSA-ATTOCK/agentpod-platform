@@ -105,3 +105,16 @@ test("integrations: client ids are checked per service", () => {
   assert.ok(PROVIDERS.microsoft.clientIdPattern.test("0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"));
   assert.ok(!PROVIDERS.microsoft.clientIdPattern.test("abc"));
 });
+
+import { cleanFormFields, safeNextPage, withFormEndpoint } from "../../src/lib/sites/forms";
+
+test("website forms: placeholder swap, field limits and safe redirects", () => {
+  assert.equal(withFormEndpoint('<form action="__BABA_FORM_ENDPOINT__">', "/api/forms/abc"), '<form action="/api/forms/abc">');
+  const { data, controls } = cleanFormFields([["name", "Ada"], ["_gotcha", ""], ["_next", "thanks.html"], ["file", {} as unknown], ["msg", "x".repeat(5000)]]);
+  assert.deepEqual(Object.keys(data), ["name", "msg"], "files and controls aren't stored as data");
+  assert.equal(data.msg.length, 2000, "long values are cut");
+  assert.equal(controls._next, "thanks.html");
+  assert.equal(safeNextPage("thank-you.html"), "thank-you.html");
+  assert.equal(safeNextPage("https://evil.example.com"), null, "no off-site redirects");
+  assert.equal(safeNextPage("../../etc"), null);
+});

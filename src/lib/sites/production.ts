@@ -4,6 +4,8 @@ import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import type { AppContext } from "@/lib/data/context";
 import { audit } from "@/lib/platform/account";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { serverOrigin } from "@/lib/origin";
+import { withFormEndpoint } from "./forms";
 import { contentTypeFor } from "./sites";
 
 /**
@@ -54,7 +56,8 @@ export async function publishProduction(ctx: AppContext, siteId: string, version
       new PutObjectCommand({
         Bucket: bucket,
         Key: `${site.slug}/${path}`,
-        Body: new Uint8Array(await data.arrayBuffer()),
+        // HTML forms post back to Baba (absolute address: the live site is on another domain)
+        Body: /\.html?$/i.test(path) ? withFormEndpoint(await data.text(), `${serverOrigin()}/api/forms/${site.slug}`) : new Uint8Array(await data.arrayBuffer()),
         ContentType: contentTypeFor(path) ?? "application/octet-stream",
         CacheControl: CACHE[ext] ?? "public, max-age=86400",
       }),

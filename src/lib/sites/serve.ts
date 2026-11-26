@@ -1,4 +1,5 @@
 import "server-only";
+import { withFormEndpoint } from "./forms";
 import { readSiteFile } from "./sites";
 
 /**
@@ -9,7 +10,7 @@ import { readSiteFile } from "./sites";
  */
 export const SECURITY_HEADERS = {
   "Content-Security-Policy":
-    "sandbox allow-scripts allow-popups allow-modals allow-forms; default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'none'; form-action 'none'; frame-ancestors 'self'; base-uri 'self'",
+    "sandbox allow-scripts allow-popups allow-modals allow-forms; default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'none'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'",
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
   "X-Robots-Tag": "noindex, nofollow",
@@ -26,7 +27,8 @@ export async function servePreview(slug: string, path: string[]) {
   }
   // HTML pages get a <base> so relative links resolve inside the site (Next.js drops trailing slashes)
   if (file.type.startsWith("text/html")) {
-    const html = await file.body.text();
+    // Forms post to Baba's form endpoint for this site
+    const html = withFormEndpoint(await file.body.text(), `/api/forms/${slug}`);
     const base = `<base href="/preview/${slug}/">`;
     const withBase = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => `${m}${base}`) : `${base}${html}`;
     return new Response(withBase, { status: file.status ?? 200, headers: { "Content-Type": file.type, ...SECURITY_HEADERS } });

@@ -24,8 +24,22 @@ export type SiteRow = {
   productionUrl: string | null;
   productionVersion: number | null;
   customDomain: string | null;
+  submissions: { id: string; form: string; data: Record<string, string>; createdAt: string }[];
   versions: { version: number; note: string | null; createdAt: string; fileCount: number }[];
 };
+
+/** Saves a site's form messages as a CSV file (opens in Excel or Google Sheets). */
+function downloadCsv(site: SiteRow) {
+  const keys = [...new Set(site.submissions.flatMap((f) => Object.keys(f.data)))];
+  const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const rows = [["date", "form", ...keys].map(esc).join(","), ...site.submissions.map((f) => [f.createdAt, f.form, ...keys.map((k) => f.data[k] ?? "")].map(esc).join(","))];
+  const url = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${site.name.replace(/[^\w-]+/g, "-")}-messages.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function SitesView({ sites, canManage, productionAvailable }: { sites: SiteRow[]; canManage: boolean; productionAvailable: boolean }) {
   const router = useRouter();
@@ -147,6 +161,33 @@ export function SitesView({ sites, canManage, productionAvailable }: { sites: Si
                 )}
               </div>
             </div>
+            {s.submissions.length > 0 && (
+              <details className="rounded-control border border-border">
+                <summary className="cursor-pointer px-3 py-2 text-sm text-muted">Form messages ({s.submissions.length})</summary>
+                <div className="space-y-2 p-3">
+                  <button type="button" onClick={() => downloadCsv(s)} className="text-xs font-medium text-accent hover:underline">
+                    Download as CSV
+                  </button>
+                  <ul className="divide-y divide-border">
+                    {s.submissions.slice(0, 50).map((f) => (
+                      <li key={f.id} className="py-2 text-sm">
+                        <p className="text-xs text-muted">
+                          {f.form} · <LocalTime iso={f.createdAt} />
+                        </p>
+                        <dl className="mt-1 grid gap-x-3 gap-y-0.5 sm:grid-cols-[8rem_1fr]">
+                          {Object.entries(f.data).map(([k, v]) => (
+                            <div key={k} className="contents">
+                              <dt className="text-xs text-subtle">{k}</dt>
+                              <dd className="whitespace-pre-wrap break-words text-foreground">{v}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </details>
+            )}
             <details className="rounded-control border border-border">
               <summary className="cursor-pointer px-3 py-2 text-sm text-muted">Version history ({s.versions.length})</summary>
               <ul className="divide-y divide-border">
