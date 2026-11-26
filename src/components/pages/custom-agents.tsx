@@ -47,6 +47,46 @@ const MODELS = [
 
 const TEMPLATES = [
   {
+    name: "Sales Follow-up",
+    description: "Finds leads that need a follow-up and drafts personal messages.",
+    instructions:
+      "You help the sales team follow up.\n\nFrom the CRM or inbox data provided, list leads with no reply or contact in the last 7 days, ranked by deal value or interest. For each, draft a short, personal follow-up (3–5 sentences) that refers to the last conversation. Never send anything: return drafts only. End with a table: lead, last contact, suggested next step.",
+    webAccess: false,
+    tools: ["gmail_search", "gmail_read", "knowledge_search"],
+  },
+  {
+    name: "Support Assistant",
+    description: "Answers customer questions from your knowledge base and policies.",
+    instructions:
+      "You draft replies to customer support questions.\n\nSearch the knowledge base first and base every answer on our documents; say which document you used. Be warm, clear and brief. If the answer isn't in our documents, say so and suggest escalating to a person. Never promise refunds, discounts or dates that our policies don't state.",
+    webAccess: false,
+    tools: ["knowledge_search", "memory_list"],
+  },
+  {
+    name: "Scheduling Assistant",
+    description: "Finds free time and proposes meeting slots.",
+    instructions:
+      "You help schedule meetings.\n\nRead the calendar for the period in the task, find free slots that fit the requested length and working hours (default 9:00–17:00, weekdays), and propose the 3 best options with times in the requested time zone. Don't create events: return the options and a short invitation text.",
+    webAccess: false,
+    tools: ["calendar_list_events"],
+  },
+  {
+    name: "Operations Reporter",
+    description: "Weekly operations summary from your database and documents.",
+    instructions:
+      "You write a weekly operations summary.\n\nUse the database (read-only) and knowledge base to report: volumes this week vs last week, anything unusual, open issues, and 3 recommended actions. Show the SQL you ran next to each figure. Keep it to one page.",
+    webAccess: false,
+    tools: ["db_query", "knowledge_search"],
+  },
+  {
+    name: "Social Media Planner",
+    description: "Plans a week of posts in our brand voice.",
+    instructions:
+      "You plan social media posts.\n\nUsing our business memory (brand, audience, tone), plan 7 days of posts for the channels in the task: for each, the channel, a hook, the post text, a hashtag set (max 5) and an image idea. Check current trends on the web if relevant. Never publish: plans and drafts only.",
+    webAccess: true,
+    tools: ["memory_list"],
+  },
+  {
     name: "Proposal Writer",
     description: "Writes client proposals in our format and tone.",
     instructions:
@@ -159,12 +199,12 @@ export function CustomAgents({ agents, canEdit, extraModels = [] }: { agents: Cu
         <Card className="space-y-3 p-5">
           <p className="text-sm text-muted">No custom agents yet. {canEdit ? "Start from a template:" : "Owners and admins can create them."}</p>
           {canEdit && (
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {TEMPLATES.map((t) => (
                 <button
                   key={t.name}
                   type="button"
-                  onClick={() => setDraft({ ...empty, ...t })}
+                  onClick={() => setDraft({ ...empty, ...t, tools: [...(t.tools ?? [])] })}
                   className="rounded-control border border-border bg-surface-raised p-3 text-left transition-colors hover:border-accent/40"
                 >
                   <p className="text-sm font-medium text-foreground">{t.name}</p>
@@ -223,6 +263,25 @@ export function CustomAgents({ agents, canEdit, extraModels = [] }: { agents: Cu
             </Card>
           ))}
         </div>
+      )}
+
+      {agents.length > 0 && canEdit && (
+        <details className="rounded-control border border-border">
+          <summary className="cursor-pointer px-3 py-2 text-sm text-muted">Start from a template</summary>
+          <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
+            {TEMPLATES.map((t) => (
+              <button
+                key={t.name}
+                type="button"
+                onClick={() => setDraft({ ...empty, ...t, tools: [...(t.tools ?? [])] })}
+                className="rounded-control border border-border bg-surface-raised p-3 text-left transition-colors hover:border-accent/40"
+              >
+                <p className="text-sm font-medium text-foreground">{t.name}</p>
+                <p className="mt-1 text-xs text-muted">{t.description}</p>
+              </button>
+            ))}
+          </div>
+        </details>
       )}
 
       <Sheet open={draft !== null} onClose={() => setDraft(null)} side="right" title={draft?.id ? `Edit ${draft.name}` : "New agent"}>

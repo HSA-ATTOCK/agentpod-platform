@@ -385,7 +385,11 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
               />
               <FieldError id="wf-instruction-error" message={errors.instruction} />
             </div>
-            <WorkflowStepsEditor steps={draft.steps} onChange={(steps) => setDraft({ ...draft, steps })} />
+            <WorkflowStepsEditor
+              steps={draft.steps}
+              onChange={(steps) => setDraft({ ...draft, steps })}
+              trigger={draft.frequency === "manual" ? "Run now or webhook" : `${scheduleLabel({ frequency: draft.frequency, dayOfWeek: draft.day, timeOfDay: draft.time })} (${shortZone(timeZone)})`}
+            />
             {draft.id && (
               <WorkflowHistory
                 workflowId={draft.id}

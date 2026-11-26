@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, History, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Bell, CircleCheck, Flag, GitBranch, GripVertical, Hand, History, Play, Plus, Trash2, Workflow } from "lucide-react";
 import { useEffect, useState } from "react";
 import { LocalTime } from "@/components/ui/local-time";
 import { inputClasses, selectClasses } from "@/components/ui/input";
@@ -18,7 +18,17 @@ const TONE: Record<StepType, string> = {
 const newId = () => Math.random().toString(36).slice(2, 10);
 
 /** Ordered steps: Do / Only continue if / Ask me first / Notify me. */
-export function WorkflowStepsEditor({ steps, onChange }: { steps: WorkflowStep[]; onChange: (steps: WorkflowStep[]) => void }) {
+export function WorkflowStepsEditor({ steps, onChange, trigger }: { steps: WorkflowStep[]; onChange: (steps: WorkflowStep[]) => void; trigger?: string }) {
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+  const [showFlow, setShowFlow] = useState(true);
+  const drop = (to: number) => {
+    if (dragging === null || dragging === to) return;
+    const next = [...steps];
+    const [item] = next.splice(dragging, 1);
+    next.splice(to, 0, item);
+    onChange(next);
+  };
   const update = (id: string, patch: Partial<WorkflowStep>) => onChange(steps.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   const move = (index: number, by: number) => {
     const next = [...steps];
@@ -30,8 +40,13 @@ export function WorkflowStepsEditor({ steps, onChange }: { steps: WorkflowStep[]
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between">
-        <span className="text-xs font-semibold text-muted">Steps (optional)</span>
-        <span className="text-[11px] text-subtle">
+        <span className="text-xs font-semibold text-muted">Steps (optional) — drag to reorder</span>
+        <span className="flex items-center gap-3 text-[11px] text-subtle">
+          {steps.length > 0 && (
+            <button type="button" onClick={() => setShowFlow(!showFlow)} className="inline-flex items-center gap-1 text-accent hover:underline">
+              <Workflow aria-hidden="true" className="size-3" /> {showFlow ? "Hide" : "Show"} flow
+            </button>
+          )}
           {steps.length}/{MAX_STEPS}
         </span>
       </div>
@@ -40,8 +55,37 @@ export function WorkflowStepsEditor({ steps, onChange }: { steps: WorkflowStep[]
         {steps.map((step, i) => {
           const meta = STEP_TYPES.find((t) => t.type === step.type)!;
           return (
-            <li key={step.id} className={cn("rounded-control border bg-surface-raised p-2.5", TONE[step.type])}>
+            <li
+              key={step.id}
+              draggable
+              onDragStart={(e) => {
+                setDragging(i);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setOver(i);
+              }}
+              onDragLeave={() => setOver((o) => (o === i ? null : o))}
+              onDrop={(e) => {
+                e.preventDefault();
+                drop(i);
+                setDragging(null);
+                setOver(null);
+              }}
+              onDragEnd={() => {
+                setDragging(null);
+                setOver(null);
+              }}
+              className={cn(
+                "rounded-control border bg-surface-raised p-2.5 transition-opacity",
+                TONE[step.type],
+                dragging === i && "opacity-40",
+                over === i && dragging !== null && dragging !== i && "ring-2 ring-accent",
+              )}
+            >
               <div className="mb-2 flex items-center gap-2">
+                <GripVertical aria-hidden="true" className="size-4 shrink-0 cursor-grab text-subtle" />
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface text-[11px] font-semibold text-foreground">{i + 1}</span>
                 <select
                   aria-label={`Step ${i + 1} type`}
@@ -78,6 +122,7 @@ export function WorkflowStepsEditor({ steps, onChange }: { steps: WorkflowStep[]
           );
         })}
       </ol>
+      {showFlow && steps.length > 0 && <WorkflowFlow steps={steps} trigger={trigger ?? "Run now, schedule or webhook"} />}
       {steps.length < MAX_STEPS && (
         <div className="flex flex-wrap gap-1.5">
           {STEP_TYPES.map((t) => (
@@ -93,6 +138,56 @@ export function WorkflowStepsEditor({ steps, onChange }: { steps: WorkflowStep[]
         </div>
       )}
     </div>
+  );
+}
+
+const NODE = {
+  do: { icon: Play, label: "Do", cls: "border-border bg-surface" },
+  check: { icon: GitBranch, label: "Only continue if", cls: "border-info/40 bg-info/5" },
+  approve: { icon: Hand, label: "Ask me first", cls: "border-warning/50 bg-warning/5" },
+  notify: { icon: Bell, label: "Notify me", cls: "border-accent/40 bg-accent/5" },
+} as const;
+
+function Arrow() {
+  return <div aria-hidden="true" className="mx-auto h-4 w-px bg-border" />;
+}
+
+/** The workflow as a flow diagram: how Baba will run it. */
+export function WorkflowFlow({ steps, trigger }: { steps: WorkflowStep[]; trigger: string }) {
+  return (
+    <figure aria-label="Workflow flow" className="rounded-control border border-dashed border-border bg-surface p-3">
+      <ol className="flex flex-col">
+        <li className="mx-auto flex items-center gap-2 rounded-full border border-border bg-surface-raised px-3 py-1 text-xs text-foreground">
+          <Flag aria-hidden="true" className="size-3.5 text-accent" /> {trigger}
+        </li>
+        {steps.map((s, i) => {
+          const node = NODE[s.type];
+          return (
+            <li key={s.id} className="flex flex-col">
+              <Arrow />
+              <div className="flex items-stretch gap-2">
+                <div className={cn("flex-1 rounded-control border p-2", node.cls)}>
+                  <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    <node.icon aria-hidden="true" className="size-3.5" /> {i + 1}. {node.label}
+                  </p>
+                  <p className="mt-0.5 text-xs text-foreground">{s.text || <span className="text-subtle">(empty)</span>}</p>
+                  {s.type === "approve" && <p className="mt-1 text-[11px] text-warning">Pauses until you approve in the chat (you get a bell and email).</p>}
+                </div>
+                {s.type === "check" && (
+                  <div className="flex w-24 shrink-0 items-center rounded-control border border-dashed border-danger/40 px-2 text-[11px] text-danger">If not: stop and tell me why</div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+        <li className="flex flex-col">
+          <Arrow />
+          <span className="mx-auto flex items-center gap-1.5 rounded-full border border-success/40 bg-success/10 px-3 py-1 text-xs text-success">
+            <CircleCheck aria-hidden="true" className="size-3.5" /> Result in Ask Baba
+          </span>
+        </li>
+      </ol>
+    </figure>
   );
 }
 
