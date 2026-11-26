@@ -7,7 +7,20 @@ function escape(text: string) {
   return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-function layout({ heading, paragraphs, button }: { heading: string; paragraphs: string[]; button?: { label: string; url: string } }) {
+const ACCOUNT_FOOTER =
+  "You're getting this email because of your Baba account. You can change which emails you get in Settings → Notifications.";
+
+function layout({
+  heading,
+  paragraphs,
+  button,
+  footer = ACCOUNT_FOOTER,
+}: {
+  heading: string;
+  paragraphs: string[];
+  button?: { label: string; url: string };
+  footer?: string;
+}) {
   const body = paragraphs.map((p) => `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#3f3f46">${p}</p>`).join("");
   const cta = button
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px"><tr><td style="background:#a3e635;border-radius:10px">
@@ -22,7 +35,7 @@ function layout({ heading, paragraphs, button }: { heading: string; paragraphs: 
         <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#0a0a0a">Baba</p>
         <h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;color:#0a0a0a">${heading}</h1>
         ${body}${cta}
-        <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa">You're getting this email because of your Baba account. You can change which emails you get in Settings → Notifications.</p>
+        <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa">${footer}</p>
       </td></tr>
     </table>
   </td></tr></table></body></html>`;
@@ -78,5 +91,119 @@ export function taskEmail(input: { to: string; kind: TaskEmailKind; request: str
       button: { label: copy.button, url: input.url },
     }),
     text: `${copy.heading}\n\n${copy.line}\n"${request}"\n${input.detail ? `\n${input.detail}\n` : ""}\n${copy.button}: ${input.url}`,
+  };
+}
+
+/** To platform administrators: someone new is waiting for approval. */
+export function registrationRequestEmail(input: { to: string; name: string; email: string; url: string }): Email {
+  return {
+    to: input.to,
+    subject: `New Baba registration: ${input.email}`,
+    html: layout({
+      heading: "A new account is waiting for approval",
+      paragraphs: [
+        `<strong>${escape(input.name)}</strong> (${escape(input.email)}) signed up and confirmed their email.`,
+        "They can't use Baba until you approve the account.",
+      ],
+      button: { label: "Review registration", url: input.url },
+    }),
+    text: `${input.name} (${input.email}) signed up and is waiting for approval.\n\nReview: ${input.url}`,
+  };
+}
+
+const DECISION_COPY = {
+  approved: {
+    subject: "Your Baba account is approved",
+    heading: "You're in",
+    line: "Your Baba account has been approved. You can now sign in and start giving Baba work.",
+    button: "Open Baba",
+  },
+  rejected: {
+    subject: "Your Baba registration",
+    heading: "Your registration wasn't approved",
+    line: "Thanks for your interest in Baba. We weren't able to approve your account at this time.",
+    button: "Contact us",
+  },
+  suspended: {
+    subject: "Your Baba account is suspended",
+    heading: "Your account is suspended",
+    line: "Your Baba account has been suspended, so you can't sign in to the workspace for now.",
+    button: "Contact us",
+  },
+} as const;
+
+/** To the person: the platform admin approved, rejected or suspended their account. */
+export function accountDecisionEmail(input: {
+  to: string;
+  decision: keyof typeof DECISION_COPY;
+  url: string;
+  reason?: string | null;
+}): Email {
+  const copy = DECISION_COPY[input.decision];
+  return {
+    to: input.to,
+    subject: copy.subject,
+    html: layout({
+      heading: copy.heading,
+      paragraphs: [copy.line, ...(input.reason ? [`Note from the team: ${escape(input.reason)}`] : [])],
+      button: { label: copy.button, url: input.url },
+    }),
+    text: `${copy.heading}\n\n${copy.line}${input.reason ? `\n\nNote from the team: ${input.reason}` : ""}\n\n${copy.button}: ${input.url}`,
+  };
+}
+
+/** A message sent through the public website's contact form, to the team's inbox. */
+export function contactEmail(input: { to: string; name: string; email: string; company?: string; message: string }): Email {
+  const from = input.company ? `${input.name} (${input.company})` : input.name;
+  const message = escape(input.message).replace(/\r?\n/g, "<br>");
+  return {
+    to: input.to,
+    replyTo: input.email,
+    subject: `Contact form: ${from}`.slice(0, 150),
+    html: layout({
+      heading: "New message from the website",
+      paragraphs: [
+        `<strong>Name:</strong> ${escape(input.name)}<br><strong>Email:</strong> ${escape(input.email)}${
+          input.company ? `<br><strong>Company:</strong> ${escape(input.company)}` : ""
+        }`,
+        message,
+      ],
+      footer: "Sent from the contact form on the Baba website. Reply to this email to answer the sender.",
+    }),
+    text: `New message from the website\n\nName: ${input.name}\nEmail: ${input.email}${
+      input.company ? `\nCompany: ${input.company}` : ""
+    }\n\n${input.message}`,
+  };
+}
+
+/** To workspace owners/admins: AI spend reached 80% or 100% of the monthly limit. */
+export function spendAlertEmail(input: { to: string; workspaceName: string; percent: number; spent: string; limit: string; url: string }): Email {
+  const full = input.percent >= 100;
+  return {
+    to: input.to,
+    subject: full ? `${input.workspaceName} reached its monthly Baba limit` : `${input.workspaceName} has used ${input.percent}% of its monthly Baba limit`,
+    html: layout({
+      heading: full ? "Monthly spending limit reached" : "Heads-up: spending is getting close to the limit",
+      paragraphs: [
+        `<strong>${escape(input.workspaceName)}</strong> has spent ${escape(input.spent)} of its ${escape(input.limit)} monthly limit on Baba.`,
+        full ? "New tasks are paused until next month, unless an owner or admin raises the limit." : "Tasks keep running until the limit is reached.",
+      ],
+      button: { label: "View usage", url: input.url },
+    }),
+    text: `${input.workspaceName} has spent ${input.spent} of its ${input.limit} monthly limit.${full ? " New tasks are paused until next month unless the limit is raised." : ""}\n\nView usage: ${input.url}`,
+  };
+}
+
+/** A notification Baba sends to the person it's working for (notify_me tool). */
+export function babaNoticeEmail(input: { to: string; title: string; message: string; url: string }): Email {
+  return {
+    to: input.to,
+    subject: input.title.slice(0, 150),
+    html: layout({
+      heading: escape(input.title),
+      paragraphs: [escape(input.message).replace(/\r?\n/g, "<br>")],
+      button: { label: "Open in Baba", url: input.url },
+    }),
+    text: `${input.title}\n\n${input.message}\n\nOpen in Baba: ${input.url}`,
   };
 }

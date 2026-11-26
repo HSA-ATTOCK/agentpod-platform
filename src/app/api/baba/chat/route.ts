@@ -12,6 +12,8 @@ import {
 import type { BabaChatRequest } from "@/lib/baba/protocol";
 import { babaConfig, getClaude } from "@/lib/baba/server";
 import { streamTurn } from "@/lib/baba/stream-turn";
+import { blockedAgentNames, blockedAgentsNote } from "@/lib/platform/limits";
+
 import { MAX_ATTACHMENTS, safeFileName, verifyUpload } from "@/lib/baba/uploads";
 import { appOrigin } from "@/lib/email/mailer";
 
@@ -81,7 +83,10 @@ export async function POST(request: Request) {
       .maybeSingle();
     workflowId = workflow?.id ?? null;
     // A new conversation started by a workflow uses the workflow's own cap
-    if (workflow && !conversation.claude_session_id) capCents = Math.max(1, Math.round(Number(workflow.cap_usd) * 100));
+    if (workflow && !conversation.claude_session_id) {
+      const own = Math.max(1, Math.round(Number(workflow.cap_usd) * 100));
+      capCents = ctx.workspace.limits.taskCapUsd === null ? own : Math.min(own, capCents);
+    }
   }
 
   // One row per request, for the Activity page
@@ -106,9 +111,11 @@ export async function POST(request: Request) {
   const { agentId, environmentId } = babaConfig();
   let isFirstMessage = false;
 
+  const blockedAgents = await blockedAgentNames(ctx.supabase, ctx.workspace.limits);
   return streamTurn({
     request,
     logName: "baba/chat",
+    blockedAgents,
     track: trackTurn(ctx, conversation, task.id, appOrigin(request)),
     customTools: createCustomToolHandler({ workspaceId: conversation.workspace_id, conversationId: conversation.id, ctx }),
     async prepare(emit) {
@@ -153,6 +160,7 @@ export async function POST(request: Request) {
         }
         message += `\n\n[Files I attached, available in your workspace (read-only; copy before editing):\n${paths.join("\n")}]`;
       }
+      message += blockedAgentsNote(blockedAgents);
       await claude.beta.sessions.events.send(sessionId, {
         events: [{ type: "user.message", content: [...blocks, { type: "text", text: message }] }],
       });

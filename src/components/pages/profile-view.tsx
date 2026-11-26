@@ -330,7 +330,13 @@ export function ProfileView({ profile, role, usage }: ProfileViewProps) {
       </Card>
 
       <Card className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
-        <Button variant="secondary" onClick={signOutEverywhere}>Sign out of all devices</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={signOutEverywhere}>Sign out of all devices</Button>
+          {/* A plain link: the browser downloads the JSON file */}
+          <a href="/api/account/export" className="inline-flex h-10 items-center rounded-control border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-surface-raised">
+            Download my data
+          </a>
+        </div>
         <button
           type="button"
           onClick={() => {

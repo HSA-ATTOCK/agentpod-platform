@@ -93,7 +93,7 @@ export type ChatItem =
   | {
       id: string;
       type: "connect_request";
-      service: "google";
+      service: "google" | "slack" | "hubspot" | "microsoft" | "quickbooks" | "xero" | "shopify";
       reason: string;
       status: "pending" | "connected";
       account?: string;
@@ -120,6 +120,22 @@ export type ChatItem =
       instructions: string;
       status: "pending" | "saved";
     }
+  /** Secure one-time setup card for a workspace's own Slack / HubSpot / Microsoft app, then its Connect button. */
+  | {
+      id: string;
+      type: "oauth_app_request";
+      service: "slack" | "hubspot" | "microsoft" | "quickbooks" | "xero" | "shopify";
+      serviceName: string;
+      redirectUri: string;
+      consoleUrl: string;
+      steps: string[];
+      reason: string;
+      status: "pending" | "saved";
+      connectStatus?: "pending" | "connected";
+      account?: string;
+    }
+  /** A secure form for connecting a database (read-only; the password goes to the server only). */
+  | { id: string; type: "db_request"; engine: "postgres" | "mysql"; reason: string; status: "pending" | "saved"; name?: string }
   /** Shown when the conversation hits its spending cap; "Continue" resumes the same task. */
   | { id: string; type: "budget_paused"; status: "paused" | "resumed" };
 

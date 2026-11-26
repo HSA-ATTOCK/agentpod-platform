@@ -51,6 +51,10 @@ export type WorkflowRecord = {
   capUsd: number;
   enabled: boolean;
   createdBy: string | null;
+  /** A secret webhook link can start it (only a hash is stored). */
+  hasWebhook: boolean;
+  /** Ordered steps (do / check / ask me first / notify me). */
+  steps: import("@/lib/workflows/steps").WorkflowStep[];
   runs: { status: TaskStatus; startedAt: string; costCents: number; error: string | null; conversationId: string | null }[];
 };
 

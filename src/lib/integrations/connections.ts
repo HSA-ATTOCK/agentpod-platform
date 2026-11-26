@@ -2,6 +2,8 @@ import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 import { decrypt, encrypt } from "./crypto";
+import { listDatabases } from "./databases";
+import { listOAuthAccounts, oauthAppId, PROVIDERS, type OAuthProvider } from "./oauth-apps";
 import { listGoogleAccounts, workspaceGoogleAppId } from "./google/oauth";
 
 /**
@@ -112,7 +114,12 @@ export function connectionNeedsApproval(name: string, input: Input) {
 }
 
 export async function listConnectionsText(workspaceId: string) {
-  const [google, keys, ownApp] = await Promise.all([listGoogleAccounts(workspaceId), listApiKeys(workspaceId), workspaceGoogleAppId(workspaceId)]);
+  const [google, keys, ownApp, databases] = await Promise.all([
+    listGoogleAccounts(workspaceId),
+    listApiKeys(workspaceId),
+    workspaceGoogleAppId(workspaceId),
+    listDatabases(workspaceId),
+  ]);
   const lines: string[] = [];
   lines.push(
     google.length
@@ -127,7 +134,20 @@ export async function listConnectionsText(workspaceId: string) {
       ? `Services connected with an API key:\n${keys.map((k) => `- ${k.name} (host: ${k.config.host})`).join("\n")}`
       : "No services connected with an API key.",
   );
-  lines.push("Coming soon (sign-in): Slack, Microsoft Outlook/Teams, X (Twitter), HubSpot, Notion, Shopify.");
+  lines.push(
+    databases.length
+      ? `Databases (read-only, use db_query):\n${databases.map((d) => `- ${d.name} (${d.config.engine}, database ${d.config.database})`).join("\n")}`
+      : "No databases connected. Use request_database_connection to show the secure form.",
+  );
+  for (const p of Object.keys(PROVIDERS) as OAuthProvider[]) {
+    const [accounts, app] = await Promise.all([listOAuthAccounts(workspaceId, p), oauthAppId(workspaceId, p)]);
+    lines.push(
+      accounts.length
+        ? `${PROVIDERS[p].name}:\n${accounts.map((a) => `- ${a.label}${a.isDefault ? " (default)" : ""}${a.status === "error" ? " — needs reconnecting" : ""}`).join("\n")}`
+        : `${PROVIDERS[p].name}: not connected${app ? " (app set up; use request_connection)" : " (use request_connection: it shows a one-time setup card first)"}.`,
+    );
+  }
+  lines.push("Not built in yet (use an API key with request_api_key where the service offers one): Microsoft Teams, Notion, Salesforce, Stripe data, X (Twitter).");
   return lines.join("\n\n");
 }
 

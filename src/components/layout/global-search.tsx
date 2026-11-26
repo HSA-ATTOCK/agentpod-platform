@@ -1,16 +1,17 @@
 "use client";
 
-import { FileText, MessageSquare, Repeat, Search, type LucideIcon } from "lucide-react";
+import { FileText, MessageSquare, MessageSquareText, Repeat, Search, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { routes } from "@/config/routes";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
-type Result = { id: string; kind: "Conversation" | "Task" | "File" | "Workflow"; label: string; href: string };
+type Result = { id: string; kind: "Conversation" | "Message" | "Task" | "File" | "Workflow"; label: string; href: string };
 
 const icons: Record<Result["kind"], LucideIcon> = {
   Conversation: MessageSquare,
+  Message: MessageSquareText,
   Task: MessageSquare,
   File: FileText,
   Workflow: Repeat,
@@ -21,14 +22,31 @@ function likePattern(text: string) {
   return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
+/** A short piece of the message around the first match. */
+function snippet(full: string, query: string) {
+  const clean = full.replace(/\s+/g, " ");
+  const at = clean.toLowerCase().indexOf(query.toLowerCase());
+  const start = Math.max(0, at - 40);
+  return `${start > 0 ? "…" : ""}${clean.slice(start, start + 110)}${clean.length > start + 110 ? "…" : ""}`;
+}
+
 async function search(workspaceId: string, text: string): Promise<Result[]> {
   const supabase = getSupabaseBrowser();
   const pattern = likePattern(text);
-  const [conversations, tasks, files, workflows] = await Promise.all([
+  const [conversations, tasks, files, workflows, messages] = await Promise.all([
     supabase.from("conversations").select("id, title").eq("workspace_id", workspaceId).ilike("title", pattern).order("updated_at", { ascending: false }).limit(5),
     supabase.from("tasks").select("id, request, conversation_id").eq("workspace_id", workspaceId).ilike("request", pattern).order("started_at", { ascending: false }).limit(5),
     supabase.from("files").select("id, name, conversation_id").eq("workspace_id", workspaceId).ilike("name", pattern).order("created_at", { ascending: false }).limit(5),
     supabase.from("workflows").select("id, name").eq("workspace_id", workspaceId).ilike("name", pattern).limit(5),
+    // Words inside chat messages (yours and Baba's replies)
+    supabase
+      .from("conversation_items")
+      .select("id, conversation_id, data")
+      .eq("workspace_id", workspaceId)
+      .in("type", ["user", "markdown", "text"])
+      .ilike("data->>text", pattern)
+      .order("created_at", { ascending: false })
+      .limit(6),
   ]);
   const seenConversations = new Set((conversations.data ?? []).map((c) => c.id));
   return [
@@ -40,6 +58,14 @@ async function search(workspaceId: string, text: string): Promise<Result[]> {
         kind: "Task" as const,
         label: t.request,
         href: t.conversation_id ? `${routes.ask}?c=${t.conversation_id}` : routes.activity,
+      })),
+    ...(messages.data ?? [])
+      .filter((m) => !seenConversations.has(m.conversation_id))
+      .map((m) => ({
+        id: `m-${m.id}`,
+        kind: "Message" as const,
+        label: snippet(String((m.data as { text?: string } | null)?.text ?? ""), text),
+        href: `${routes.ask}?c=${m.conversation_id}`,
       })),
     ...(files.data ?? []).map((f) => ({ id: `f-${f.id}`, kind: "File" as const, label: f.name, href: routes.projects })),
     ...(workflows.data ?? []).map((w) => ({ id: `w-${w.id}`, kind: "Workflow" as const, label: w.name, href: routes.workflows })),

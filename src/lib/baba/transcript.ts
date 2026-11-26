@@ -93,6 +93,22 @@ export function createTranscript(conversationId: string, userItem: ChatItem) {
             status: "pending",
           });
           break;
+        case "oauth_app_request":
+          items.push({
+            id: `oauth_app_request-${event.id}`,
+            type: "oauth_app_request",
+            service: event.service,
+            serviceName: event.serviceName,
+            redirectUri: event.redirectUri,
+            consoleUrl: event.consoleUrl,
+            steps: event.steps,
+            reason: event.reason,
+            status: "pending",
+          });
+          break;
+        case "db_request":
+          items.push({ id: `db_request-${event.id}`, type: "db_request", engine: event.engine, reason: event.reason, status: "pending" });
+          break;
         case "done": {
           const p = items.find((i) => i.id === progressId) as Extract<ChatItem, { type: "progress" }> | undefined;
           if (event.reason === "budget_reached") {

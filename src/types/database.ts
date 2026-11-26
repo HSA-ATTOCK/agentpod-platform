@@ -444,7 +444,9 @@ export type Database = {
           name: string
           time_of_day: string | null
           updated_at: string
+          webhook_token_hash: string | null
           workspace_id: string
+          steps: Json
         }
         Insert: {
           cap_usd?: number
@@ -459,7 +461,9 @@ export type Database = {
           name: string
           time_of_day?: string | null
           updated_at?: string
+          webhook_token_hash?: string | null
           workspace_id: string
+          steps?: Json
         }
         Update: {
           cap_usd?: number
@@ -474,7 +478,9 @@ export type Database = {
           name?: string
           time_of_day?: string | null
           updated_at?: string
+          webhook_token_hash?: string | null
           workspace_id?: string
+          steps?: Json
         }
         Relationships: [
           {
@@ -572,6 +578,8 @@ export type Database = {
           task_cap_usd: number
           timezone: string
           updated_at: string
+          spend_alert_level: number
+          spend_alert_month: string | null
         }
         Insert: {
           business_context?: string
@@ -588,6 +596,8 @@ export type Database = {
           task_cap_usd?: number
           timezone?: string
           updated_at?: string
+          spend_alert_level?: number
+          spend_alert_month?: string | null
         }
         Update: {
           business_context?: string
@@ -604,6 +614,706 @@ export type Database = {
           task_cap_usd?: number
           timezone?: string
           updated_at?: string
+          spend_alert_level?: number
+          spend_alert_month?: string | null
+        }
+        Relationships: []
+      }
+      agent_registry: {
+        Row: {
+          category: string
+          claude_agent_id: string | null
+          claude_agent_version: number | null
+          description: string
+          enabled: boolean
+          key: string
+          name: string
+          sort: number
+          updated_at: string
+          updated_by: string | null
+          effort: string | null
+          model: string | null
+        }
+        Insert: {
+          category?: string
+          claude_agent_id?: string | null
+          claude_agent_version?: number | null
+          description?: string
+          enabled?: boolean
+          key: string
+          name: string
+          sort?: number
+          updated_at?: string
+          updated_by?: string | null
+          effort?: string | null
+          model?: string | null
+        }
+        Update: {
+          category?: string
+          claude_agent_id?: string | null
+          claude_agent_version?: number | null
+          description?: string
+          enabled?: boolean
+          key?: string
+          name?: string
+          sort?: number
+          updated_at?: string
+          updated_by?: string | null
+          effort?: string | null
+          model?: string | null
+        }
+        Relationships: []
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          created_at: string
+          details: Json
+          id: number
+          target_id: string | null
+          target_type: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: never
+          target_id?: string | null
+          target_type?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: never
+          target_id?: string | null
+          target_type?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
+      knowledge_chunks: {
+        Row: {
+          content: string
+          document_id: string
+          id: number
+          position: number
+          search: unknown
+          workspace_id: string
+          embedding: string | null
+        }
+        Insert: {
+          content: string
+          document_id: string
+          id?: never
+          position: number
+          search?: unknown
+          workspace_id: string
+          embedding?: string | null
+        }
+        Update: {
+          content?: string
+          document_id?: string
+          id?: never
+          position?: number
+          search?: unknown
+          workspace_id?: string
+          embedding?: string | null
+        }
+        Relationships: []
+      }
+      knowledge_documents: {
+        Row: {
+          char_count: number
+          chunk_count: number
+          created_at: string
+          created_by: string | null
+          file_name: string | null
+          id: string
+          mime_type: string | null
+          title: string
+          workspace_id: string
+        }
+        Insert: {
+          char_count?: number
+          chunk_count?: number
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          id?: string
+          mime_type?: string | null
+          title: string
+          workspace_id: string
+        }
+        Update: {
+          char_count?: number
+          chunk_count?: number
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          id?: string
+          mime_type?: string | null
+          title?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      memory_entries: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          source: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          category?: string
+          content: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          source?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          source?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          link: string | null
+          read_at: string | null
+          title: string
+          user_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read_at?: string | null
+          title: string
+          user_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read_at?: string | null
+          title?: string
+          user_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
+      platform_accounts: {
+        Row: {
+          admins_notified_at: string | null
+          created_at: string
+          is_admin: boolean
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["account_status"]
+          status_reason: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admins_notified_at?: string | null
+          created_at?: string
+          is_admin?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["account_status"]
+          status_reason?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admins_notified_at?: string | null
+          created_at?: string
+          is_admin?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["account_status"]
+          status_reason?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      platform_settings: {
+        Row: {
+          announcement: string | null
+          default_monthly_limit_usd: number
+          default_task_cap_usd: number
+          id: number
+          maintenance_message: string
+          maintenance_mode: boolean
+          require_approval: boolean
+          updated_at: string
+          updated_by: string | null
+          external_models: Json
+        }
+        Insert: {
+          announcement?: string | null
+          default_monthly_limit_usd?: number
+          default_task_cap_usd?: number
+          id?: number
+          maintenance_message?: string
+          maintenance_mode?: boolean
+          require_approval?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          external_models?: Json
+        }
+        Update: {
+          announcement?: string | null
+          default_monthly_limit_usd?: number
+          default_task_cap_usd?: number
+          id?: number
+          maintenance_message?: string
+          maintenance_mode?: boolean
+          require_approval?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          external_models?: Json
+        }
+        Relationships: []
+      }
+      site_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          file_count: number
+          files: Json
+          id: string
+          note: string | null
+          site_id: string
+          total_bytes: number
+          version: number
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          file_count?: number
+          files?: Json
+          id?: string
+          note?: string | null
+          site_id: string
+          total_bytes?: number
+          version: number
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          file_count?: number
+          files?: Json
+          id?: string
+          note?: string | null
+          site_id?: string
+          total_bytes?: number
+          version?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_versions_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sites: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          created_by: string | null
+          current_version: number | null
+          expires_at: string
+          id: string
+          name: string
+          slug: string
+          status: string
+          updated_at: string
+          workspace_id: string
+          custom_domain: string | null
+          production_url: string | null
+          production_version: number | null
+          published_at: string | null
+          domain_cert_arn: string | null
+          domain_distribution_id: string | null
+          domain_records: Json | null
+          domain_status: string | null
+          domain_target: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_version?: number | null
+          expires_at?: string
+          id?: string
+          name: string
+          slug: string
+          status?: string
+          updated_at?: string
+          workspace_id: string
+          custom_domain?: string | null
+          production_url?: string | null
+          production_version?: number | null
+          published_at?: string | null
+          domain_cert_arn?: string | null
+          domain_distribution_id?: string | null
+          domain_records?: Json | null
+          domain_status?: string | null
+          domain_target?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_version?: number | null
+          expires_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+          custom_domain?: string | null
+          production_url?: string | null
+          production_version?: number | null
+          published_at?: string | null
+          domain_cert_arn?: string | null
+          domain_distribution_id?: string | null
+          domain_records?: Json | null
+          domain_status?: string | null
+          domain_target?: string | null
+        }
+        Relationships: []
+      }
+      subscription_plans: {
+        Row: {
+          active: boolean
+          allowed_agents: string[] | null
+          created_at: string
+          daily_limit_usd: number | null
+          description: string
+          features: string[]
+          id: string
+          is_public: boolean
+          key: string
+          max_integrations: number | null
+          max_previews: number | null
+          max_workflows: number | null
+          monthly_limit_usd: number
+          name: string
+          price_label: string
+          sort: number
+          task_cap_usd: number
+          updated_at: string
+          stripe_price_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          allowed_agents?: string[] | null
+          created_at?: string
+          daily_limit_usd?: number | null
+          description?: string
+          features?: string[]
+          id?: string
+          is_public?: boolean
+          key: string
+          max_integrations?: number | null
+          max_previews?: number | null
+          max_workflows?: number | null
+          monthly_limit_usd?: number
+          name: string
+          price_label?: string
+          sort?: number
+          task_cap_usd?: number
+          updated_at?: string
+          stripe_price_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          allowed_agents?: string[] | null
+          created_at?: string
+          daily_limit_usd?: number | null
+          description?: string
+          features?: string[]
+          id?: string
+          is_public?: boolean
+          key?: string
+          max_integrations?: number | null
+          max_previews?: number | null
+          max_workflows?: number | null
+          monthly_limit_usd?: number
+          name?: string
+          price_label?: string
+          sort?: number
+          task_cap_usd?: number
+          updated_at?: string
+          stripe_price_id?: string | null
+        }
+        Relationships: []
+      }
+      workspace_limits: {
+        Row: {
+          allowed_agents: string[] | null
+          daily_limit_usd: number | null
+          monthly_limit_usd: number | null
+          note: string | null
+          plan_id: string | null
+          updated_at: string
+          updated_by: string | null
+          workspace_id: string
+        }
+        Insert: {
+          allowed_agents?: string[] | null
+          daily_limit_usd?: number | null
+          monthly_limit_usd?: number | null
+          note?: string | null
+          plan_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          workspace_id: string
+        }
+        Update: {
+          allowed_agents?: string[] | null
+          daily_limit_usd?: number | null
+          monthly_limit_usd?: number | null
+          note?: string | null
+          plan_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      custom_agents: {
+        Row: {
+          claude_agent_id: string | null
+          claude_agent_version: number | null
+          created_at: string
+          created_by: string | null
+          description: string
+          enabled: boolean
+          id: string
+          instructions: string
+          last_run_at: string | null
+          max_cost_usd: number
+          model: string
+          name: string
+          runs: number
+          updated_at: string
+          web_access: boolean
+          workspace_id: string
+          tools: string[]
+          provider: string
+        }
+        Insert: {
+          claude_agent_id?: string | null
+          claude_agent_version?: number | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          enabled?: boolean
+          id?: string
+          instructions: string
+          last_run_at?: string | null
+          max_cost_usd?: number
+          model?: string
+          name: string
+          runs?: number
+          updated_at?: string
+          web_access?: boolean
+          workspace_id: string
+          tools?: string[]
+          provider?: string
+        }
+        Update: {
+          claude_agent_id?: string | null
+          claude_agent_version?: number | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          enabled?: boolean
+          id?: string
+          instructions?: string
+          last_run_at?: string | null
+          max_cost_usd?: number
+          model?: string
+          name?: string
+          runs?: number
+          updated_at?: string
+          web_access?: boolean
+          workspace_id?: string
+          tools?: string[]
+          provider?: string
+        }
+        Relationships: []
+      }
+      workflow_versions: {
+        Row: {
+          cap_usd: number
+          changed_by: string | null
+          created_at: string
+          day_of_week: number | null
+          frequency: string
+          id: number
+          instruction: string
+          name: string
+          steps: Json
+          time_of_day: string | null
+          version: number
+          workflow_id: string
+          workspace_id: string
+        }
+        Insert: {
+          cap_usd: number
+          changed_by?: string | null
+          created_at?: string
+          day_of_week?: number | null
+          frequency: string
+          id?: never
+          instruction: string
+          name: string
+          steps?: Json
+          time_of_day?: string | null
+          version: number
+          workflow_id: string
+          workspace_id: string
+        }
+        Update: {
+          cap_usd?: number
+          changed_by?: string | null
+          created_at?: string
+          day_of_week?: number | null
+          frequency?: string
+          id?: never
+          instruction?: string
+          name?: string
+          steps?: Json
+          time_of_day?: string | null
+          version?: number
+          workflow_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      workspace_billing: {
+        Row: {
+          cancel_at_period_end: boolean
+          current_period_end: string | null
+          plan_id: string | null
+          status: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean
+          current_period_end?: string | null
+          plan_id?: string | null
+          status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          current_period_end?: string | null
+          plan_id?: string | null
+          status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      stripe_events: {
+        Row: {
+          id: string
+          received_at: string
+          type: string
+        }
+        Insert: {
+          id: string
+          received_at?: string
+          type: string
+        }
+        Update: {
+          id?: string
+          received_at?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      site_form_submissions: {
+        Row: {
+          created_at: string
+          data: Json
+          form_name: string
+          id: string
+          page: string | null
+          site_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          data: Json
+          form_name?: string
+          id?: string
+          page?: string | null
+          site_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          form_name?: string
+          id?: string
+          page?: string | null
+          site_id?: string
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -612,6 +1322,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      match_knowledge_chunks: {
+        Args: { ws: string; query_embedding: string; match_count?: number }
+        Returns: { id: number; document_id: string; chunk_position: number; content: string; similarity: number }[]
+      }
       accept_invite: { Args: { invite_id: string }; Returns: string }
       ensure_workspace: { Args: Record<PropertyKey, never>; Returns: string }
       delete_my_account: { Args: Record<PropertyKey, never>; Returns: undefined }
@@ -627,6 +1341,7 @@ export type Database = {
       }
     }
     Enums: {
+      account_status: "pending_approval" | "approved" | "rejected" | "suspended" | "deactivated"
       task_status: "running" | "succeeded" | "failed" | "paused" | "needs_approval"
       workspace_role: "owner" | "admin" | "member" | "viewer"
     }

@@ -17,6 +17,16 @@ import {
   TOOL_LABELS as GOOGLE_LABELS,
 } from "@/lib/integrations/google/tools";
 import { APP_LABELS, APP_TOOL_NAMES, appApprovalSummary, appToolNeedsApproval, runAppTool } from "@/lib/app-tools/tools";
+import { audit } from "@/lib/platform/account";
+import { NATIVE_LABELS, NATIVE_NEEDS_APPROVAL, NATIVE_TOOL_NAMES, nativeApprovalSummary, runNativeTool } from "@/lib/integrations/native-tools";
+import { isOAuthProvider, oauthClientFor, PROVIDERS } from "@/lib/integrations/oauth-apps";
+import {
+  runWorkspaceTool,
+  WORKSPACE_LABELS,
+  WORKSPACE_NEEDS_APPROVAL,
+  WORKSPACE_TOOL_NAMES,
+  workspaceApprovalSummary,
+} from "@/lib/workspace-tools/tools";
 import type { AppContext } from "@/lib/data/context";
 import { serverOrigin } from "@/lib/origin";
 import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
@@ -44,7 +54,7 @@ type Input = Record<string, unknown>;
 const str = (input: Input, key: string) => (typeof input[key] === "string" ? (input[key] as string).trim() : "");
 
 function needsApproval(name: string, input: Input) {
-  return GOOGLE_NEEDS_APPROVAL.has(name) || connectionNeedsApproval(name, input) || appToolNeedsApproval(name);
+  return GOOGLE_NEEDS_APPROVAL.has(name) || connectionNeedsApproval(name, input) || appToolNeedsApproval(name) || WORKSPACE_NEEDS_APPROVAL.has(name) || NATIVE_NEEDS_APPROVAL.has(name);
 }
 
 function label(name: string, input: Input) {
@@ -52,24 +62,45 @@ function label(name: string, input: Input) {
     case "list_connections":
       return "Checking connected tools";
     case "request_connection":
-      return "Asking you to connect Google";
+      return `Asking you to connect ${isOAuthProvider(str(input, "service")) ? PROVIDERS[str(input, "service") as keyof typeof PROVIDERS].name : "Google"}`;
     case "request_api_key":
       return `Asking for a ${str(input, "service_name") || "service"} API key`;
     case "api_request":
       return `Calling ${str(input, "service_name") || "a connected service"}`;
+    case "run_custom_agent":
+      return `${str(input, "agent") || "Your custom agent"} is working on a sub-task`;
     default:
-      return APP_LABELS[name] ?? GOOGLE_LABELS[name] ?? name;
+      return NATIVE_LABELS[name] ?? WORKSPACE_LABELS[name] ?? APP_LABELS[name] ?? GOOGLE_LABELS[name] ?? name;
   }
 }
 
 function summary(name: string, input: Input) {
   if (name === "api_request") return apiRequestSummary(input);
   if (APP_TOOL_NAMES.has(name)) return appApprovalSummary(name, input);
+  if (WORKSPACE_TOOL_NAMES.has(name)) return workspaceApprovalSummary(name, input);
+  if (NATIVE_TOOL_NAMES.has(name)) return nativeApprovalSummary(name, input);
   return googleApprovalSummary(name, input);
 }
 
 /** Runs a tool that doesn't need the chat UI, as the person in `ctx`. */
-async function runTool(name: string, input: Input, scope: { workspaceId: string; sessionId: string; ctx: AppContext }) {
+async function runTool(name: string, input: Input, scope: { workspaceId: string; sessionId: string; conversationId: string; ctx: AppContext }) {
+  const result = await runToolInner(name, input, scope);
+  // Every tool Baba runs on our server is recorded (inputs aren't stored: they can contain business data)
+  await audit({
+    actorId: scope.ctx.user.id,
+    actorEmail: scope.ctx.user.email,
+    workspaceId: scope.workspaceId,
+    action: `tool.${name}`,
+    targetType: "conversation",
+    targetId: scope.conversationId,
+    details: { ok: !result.isError },
+  });
+  return result;
+}
+
+async function runToolInner(name: string, input: Input, scope: { workspaceId: string; sessionId: string; conversationId: string; ctx: AppContext }) {
+  if (NATIVE_TOOL_NAMES.has(name)) return runNativeTool(name, input, { workspaceId: scope.workspaceId });
+  if (WORKSPACE_TOOL_NAMES.has(name)) return runWorkspaceTool(name, input, { ctx: scope.ctx, sessionId: scope.sessionId, conversationId: scope.conversationId });
   if (APP_TOOL_NAMES.has(name)) return runAppTool(name, input, scope.ctx);
   if (GOOGLE_TOOL_NAMES.has(name)) return runGoogleTool(name, input, scope);
   if (name === "list_connections") return { text: await listConnectionsText(scope.workspaceId), isError: false };
@@ -106,7 +137,7 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
     const stepLabel = label(event.name, input);
     const stepId = `custom-${event.id}`;
 
-    if (!GOOGLE_TOOL_NAMES.has(event.name) && !CONNECTION_TOOL_NAMES.has(event.name) && !APP_TOOL_NAMES.has(event.name)) {
+    if (!GOOGLE_TOOL_NAMES.has(event.name) && !CONNECTION_TOOL_NAMES.has(event.name) && !APP_TOOL_NAMES.has(event.name) && !WORKSPACE_TOOL_NAMES.has(event.name) && !NATIVE_TOOL_NAMES.has(event.name)) {
       await sendResult(sessionId, event.id, `Unknown tool "${event.name}".`, true);
       return "handled";
     }
@@ -116,9 +147,42 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
     }
 
     // ---- Things shown in the chat for the user to do ----
+    if (event.name === "request_connection" && isOAuthProvider(str(input, "service"))) {
+      const service = str(input, "service") as keyof typeof PROVIDERS;
+      const cfg = PROVIDERS[service];
+      const isManager = scope.ctx.workspace.role === "owner" || scope.ctx.workspace.role === "admin";
+      if (!isManager) {
+        await sendResult(sessionId, event.id, `Only a workspace owner or admin can connect ${cfg.name}. Tell the user to ask one of them.`, true);
+        return "handled";
+      }
+      if (!(await oauthClientFor(scope.workspaceId, service))) {
+        emit({
+          type: "oauth_app_request",
+          id: event.id,
+          service,
+          serviceName: cfg.name,
+          redirectUri: `${serverOrigin()}/api/integrations/oauth/${service}/callback`,
+          consoleUrl: cfg.setup.consoleUrl,
+          steps: cfg.setup.steps,
+          reason: str(input, "reason"),
+        });
+        await sendResult(
+          sessionId,
+          event.id,
+          `This workspace hasn't set up its ${cfg.name} app yet, so a secure one-time setup card is shown in the chat with step-by-step instructions and boxes for the Client ID and secret (never paste them in the chat). Once saved it becomes a Connect button. Briefly tell the user that, offer help with any step, then stop and wait.`,
+          false,
+        );
+      } else {
+        emit({ type: "connect_request", id: event.id, service, reason: str(input, "reason") });
+        await sendResult(sessionId, event.id, `A 'Connect ${cfg.name}' button is now shown in the chat. Stop and ask the user to click it and tell you when it's done. Then check with list_connections.`, false);
+      }
+      emit({ type: "step", id: stepId, label: stepLabel, status: "done" });
+      return "handled";
+    }
+
     if (event.name === "request_connection") {
       if (str(input, "service") !== "google") {
-        await sendResult(sessionId, event.id, "Only \"google\" can be connected with a button so far.", true);
+        await sendResult(sessionId, event.id, "Supported services: google, slack, hubspot, microsoft, quickbooks, xero, shopify.", true);
         return "handled";
       }
       if (!(await googleClientFor(scope.workspaceId))) {
@@ -152,6 +216,18 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
         sessionId,
         event.id,
         "A 'Connect Google' button is now shown in the chat. Stop here: ask the user to click it, sign in, and tell you when it's done. Then check with list_connections.",
+        false,
+      );
+      emit({ type: "step", id: stepId, label: stepLabel, status: "done" });
+      return "handled";
+    }
+
+    if (event.name === "request_database_connection") {
+      emit({ type: "db_request", id: event.id, engine: str(input, "engine") === "mysql" ? "mysql" : "postgres", reason: str(input, "reason").slice(0, 300) });
+      await sendResult(
+        sessionId,
+        event.id,
+        "A secure database form is now shown in the chat. Stop here: ask the user to fill it in (host, database, a read-only user and password — never in the chat) and tell you when it's connected. Then use db_query.",
         false,
       );
       emit({ type: "step", id: stepId, label: stepLabel, status: "done" });
@@ -214,7 +290,7 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
 
     // ---- Everything else runs straight away ----
     emit({ type: "step", id: stepId, label: stepLabel, status: "running" });
-    const result = await runTool(event.name, input, { workspaceId: scope.workspaceId, sessionId, ctx: scope.ctx });
+    const result = await runTool(event.name, input, { workspaceId: scope.workspaceId, sessionId, conversationId: scope.conversationId, ctx: scope.ctx });
     await sendResult(sessionId, event.id, result.text, result.isError);
     emit({
       type: "step",
@@ -266,6 +342,7 @@ export async function decidePendingTool(input: {
   const result = await runTool(claimed.tool_name, claimed.input as Input, {
     workspaceId: input.workspaceId,
     sessionId: input.sessionId,
+    conversationId: input.conversationId,
     ctx: input.ctx,
   });
   if (result.isError) await admin.from("tool_approvals").update({ status: "failed" }).eq("tool_use_id", input.toolUseId);

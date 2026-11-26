@@ -4,6 +4,11 @@ import { routes } from "@/config/routes";
 import { getAppContext, type AppContext } from "@/lib/data/context";
 import { sendEmail } from "@/lib/email/mailer";
 import { taskEmail, type TaskEmailKind } from "@/lib/email/templates";
+import { memoryForPrompt } from "@/lib/knowledge/knowledge";
+import { getAccount, getPlatformSettings } from "@/lib/platform/account";
+import { checkSpendAlerts } from "@/lib/platform/spend-alerts";
+import { rateLimited, tooManyRequests } from "@/lib/rate-limit";
+import { getSupabaseServer } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 import { fileKindFromName } from "./client";
 import type { BabaStreamEvent } from "./protocol";
@@ -37,7 +42,22 @@ export async function babaGate({ write }: { write: boolean }): Promise<Gate> {
   if (unavailable) return { ok: false, response: unavailable };
 
   const ctx = await getAppContext();
-  if (!ctx) return { ok: false, response: Response.json({ error: "Please sign in again." }, { status: 401 }) };
+  if (!ctx) {
+    const account = await getAccount(await getSupabaseServer());
+    if (account && account.status !== "approved") {
+      return { ok: false, response: Response.json({ error: "Your account isn't approved yet." }, { status: 403 }) };
+    }
+    return { ok: false, response: Response.json({ error: "Please sign in again." }, { status: 401 }) };
+  }
+  // Per person: at most 20 Baba requests a minute and 300 an hour (stops runaway loops and abuse)
+  if (write) {
+    const wait = rateLimited(`baba:min:${ctx.user.id}`, 20, 60_000) ?? rateLimited(`baba:hour:${ctx.user.id}`, 300, 3_600_000);
+    if (wait) return { ok: false, response: tooManyRequests(wait) };
+  }
+  const settings = await getPlatformSettings(ctx.supabase);
+  if (settings?.maintenanceMode && !ctx.isPlatformAdmin) {
+    return { ok: false, response: Response.json({ error: settings.maintenanceMessage }, { status: 503 }) };
+  }
   if (write && ctx.workspace.role === "viewer") {
     return {
       ok: false,
@@ -238,6 +258,7 @@ export function trackTurn(ctx: AppContext, conversation: ConversationRow, taskId
         if (result?.error) console.error("[baba/track]", result.error.message);
       }
       if (spent !== undefined) conversation.cost_cents = spent;
+      if (spent !== undefined) await checkSpendAlerts(ctx);
 
       // Email once per change of outcome (a reconnect replaying the same ending sends nothing)
       const kind = EMAIL_FOR[status];
@@ -270,6 +291,24 @@ export async function monthlySpendCents(ctx: AppContext) {
 
 /** Returns an error Response when the workspace has used up its monthly limit. */
 export async function monthlyLimitReached(ctx: AppContext): Promise<Response | null> {
+  // Daily limit from the platform administrator (plan or override)
+  if (ctx.workspace.dailyLimitUsd !== null) {
+    const dayStart = new Date();
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const { data } = await ctx.supabase
+      .from("tasks")
+      .select("cost_cents")
+      .eq("workspace_id", ctx.workspace.id)
+      .gte("started_at", dayStart.toISOString());
+    const today = (data ?? []).reduce((sum, row) => sum + row.cost_cents, 0);
+    const dailyLimit = Math.round(ctx.workspace.dailyLimitUsd * 100);
+    if (today >= dailyLimit) {
+      return Response.json(
+        { error: `This workspace has reached its daily spending limit ($${(dailyLimit / 100).toFixed(2)}). It resets at midnight UTC.` },
+        { status: 402 },
+      );
+    }
+  }
   const spent = await monthlySpendCents(ctx);
   const limit = Math.round(ctx.workspace.monthlyLimitUsd * 100);
   if (spent < limit) return null;
@@ -284,7 +323,16 @@ export async function monthlyLimitReached(ctx: AppContext): Promise<Response | n
 
 /** Puts the workspace's "About your business" notes in front of the first message of a conversation. */
 export async function withBusinessContext(supabase: AppContext["supabase"], workspaceId: string, text: string) {
-  const { data: ws } = await supabase.from("workspaces").select("name, business_context").eq("id", workspaceId).maybeSingle();
-  if (!ws?.business_context.trim()) return text;
-  return `About my business (${ws.name}), from my Baba settings:\n${ws.business_context.trim()}\n\n---\n\n${text}`;
+  const [{ data: ws }, memory, { data: custom }] = await Promise.all([
+    supabase.from("workspaces").select("name, business_context").eq("id", workspaceId).maybeSingle(),
+    memoryForPrompt(supabase, workspaceId),
+    supabase.from("custom_agents").select("name, description").eq("workspace_id", workspaceId).eq("enabled", true).order("name"),
+  ]);
+  const parts: string[] = [];
+  if (ws?.business_context.trim()) parts.push(`About my business (${ws.name}), from my Baba settings:\n${ws.business_context.trim()}`);
+  if (memory) parts.push(`Business memory (reuse this instead of asking again; "unconfirmed" items are Baba's suggestions, not verified facts):\n${memory}`);
+  if (custom?.length) {
+    parts.push(`My custom agents (use run_custom_agent when a task fits one):\n${custom.map((a) => `- ${a.name}: ${a.description || "no description"}`).join("\n")}`);
+  }
+  return parts.length ? `${parts.join("\n\n")}\n\n---\n\n${text}` : text;
 }

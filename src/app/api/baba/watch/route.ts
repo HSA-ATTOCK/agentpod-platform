@@ -1,6 +1,8 @@
 import { createCustomToolHandler } from "@/lib/baba/custom-tools";
 import { babaGate, loadConversation, notFound, trackTurn } from "@/lib/baba/conversations";
 import { streamTurn } from "@/lib/baba/stream-turn";
+import { blockedAgentNames } from "@/lib/platform/limits";
+
 import { appOrigin } from "@/lib/email/mailer";
 
 export const maxDuration = 300;
@@ -21,9 +23,11 @@ export async function POST(request: Request) {
   if (!conversation?.claude_session_id) return notFound();
   const sessionId = conversation.claude_session_id;
 
+  const blockedAgents = await blockedAgentNames(ctx.supabase, ctx.workspace.limits);
   return streamTurn({
     request,
     logName: "baba/watch",
+    blockedAgents,
     catchUp: true,
     // Viewers may watch, but only people who can write record the result
     track: ctx.workspace.role === "viewer" ? undefined : trackTurn(ctx, conversation, undefined, appOrigin(request)),

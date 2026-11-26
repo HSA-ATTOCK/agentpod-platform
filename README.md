@@ -130,6 +130,48 @@ workspace that hasn't added its own (then customers just click Connect).
 Requirement on the server: `SUPABASE_SECRET_KEY` (used to store secrets encrypted). Run `npm run baba:setup`
 after updating so Baba has the latest tools.
 
+## Accounts, approval and the admin area
+
+- **New sign-ups wait for approval.** Until a platform administrator approves them they only see a
+  "waiting for approval" screen, and the database itself (Row Level Security) gives them no data.
+  People invited to a workspace are approved automatically.
+- **Make yourself the master administrator** (once, after signing up). It needs `SUPABASE_SECRET_KEY`:
+
+  ```bash
+  npm run admin:bootstrap -- you@example.com
+  ```
+
+  Then open **/admin** (a "Platform admin" link appears in the sidebar): registrations, users
+  (approve, reject, suspend, make admin, reset password, delete), workspaces (plan, monthly and daily
+  spend caps, allowed agents), agents (switch specialists on/off), plans, usage and costs, audit log,
+  system health and platform settings (approval on/off, maintenance mode, announcement banner).
+- Admins get an email and a bell notification for each new registration; people get an email when
+  they're approved, rejected or suspended.
+
+## Websites, memory and databases
+
+- **Websites:** ask Baba to build a site. The Designer, Website Builder and QA Reviewer make it, and
+  Baba publishes a private preview link (`/preview/<id>`, valid 30 days). Every version is kept;
+  restore old versions on the **Websites** page. Publishing to your own domain isn't available yet.
+- **Memory:** short facts about the business that Baba reuses in every new chat, and a
+  knowledge base of documents Baba searches. Manage both on the **Memory** page or from the chat.
+- **Databases:** Baba shows a secure form to connect PostgreSQL or MySQL. Access is read-only
+  (checked queries, read-only transaction, 15-second limit); the password is encrypted and never
+  reaches the AI.
+- **Your own agents:** owners and admins create custom specialists (instructions, model, web access,
+  cost limit) on the AI Agents page. Baba hands them work in a separate, budget-capped session.
+- **Webhooks:** any workflow can get a secret link (Workflows → ⋯ → Create webhook link). A POST to
+  it runs the workflow with the request body as data.
+
+## Guides
+
+- [Deployment](docs/DEPLOYMENT_GUIDE.md): Node, Docker, or AWS with Terraform
+- [Admin guide](docs/ADMIN_GUIDE.md) · [User guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Security](docs/SECURITY_GUIDELINES.md) · [Backup and recovery](docs/BACKUP_AND_RECOVERY.md) · [Changelog](CHANGELOG.md)
+
+See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for what's done and what's next
+against the product requirements.
+
 ## Legal pages
 
 `/terms` and `/privacy` are drafts. Fill in your details in `src/config/legal.ts` and have them
@@ -143,7 +185,11 @@ reviewed by a lawyer before launch.
 | `npm run build` | Production build |
 | `npm run typecheck` | Generate route types and run TypeScript |
 | `npm run lint` | Run ESLint |
-| `npm run baba:setup` | Create or update Baba's agent team on Claude |
+| `npm run baba:setup` | Create or update Baba's agent team on Claude (and list them in the admin area) |
+| `npm run admin:bootstrap -- you@example.com` | Make an account a platform administrator |
+| `npm run email:test -- you@example.com` | Send a test email |
+| `npm test` | Unit tests |
+| `npm run test:load -- <url>` | Load test against public pages |
 
 ## Project structure
 

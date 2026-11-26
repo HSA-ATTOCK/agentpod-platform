@@ -17,7 +17,7 @@ import {
   ThinkingIndicator,
   UserMessage,
 } from "./chat-items";
-import { ConnectRequestCard, GoogleAppCard, KeyRequestCard } from "./connect-cards";
+import { ConnectRequestCard, GoogleAppCard, KeyRequestCard, DatabaseRequestCard, OAuthAppCard } from "./connect-cards";
 import { MarkdownReply } from "./markdown-reply";
 import { MessageActions } from "./message-actions";
 import { ToolApprovalCard } from "./tool-approval-card";
@@ -35,6 +35,8 @@ type MessageListProps = {
   canManage: boolean;
   conversationId: string;
   onSend: (text: string) => void;
+  /** Puts the last message back in the box to change and send again. */
+  onEdit?: (text: string) => void;
 };
 
 type Handlers = Pick<
@@ -79,6 +81,10 @@ function renderItem(
       return <KeyRequestCard item={item} {...cardProps} />;
     case "google_app_request":
       return <GoogleAppCard item={item} {...cardProps} />;
+    case "db_request":
+      return <DatabaseRequestCard item={item} {...cardProps} />;
+    case "oauth_app_request":
+      return <OAuthAppCard item={item} {...cardProps} />;
     case "budget_paused":
       return <BudgetPausedCard item={item} cost={cost} busy={working} onContinue={() => onContinue(item.id)} />;
     case "user":
@@ -98,7 +104,9 @@ export function MessageList({
   canManage,
   conversationId,
   onSend,
+  onEdit,
 }: MessageListProps) {
+  const lastUserId = [...items].reverse().find((i) => i.type === "user")?.id;
   const scrollRef = useRef<HTMLDivElement>(null);
   const nearBottomRef = useRef(true);
   const [showJump, setShowJump] = useState(false);
@@ -138,7 +146,10 @@ export function MessageList({
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
           {items.map((item, index) => {
-            if (item.type === "user") return <UserMessage key={item.id} item={item} />;
+            if (item.type === "user") {
+              const editable = onEdit && !working && item.id === lastUserId && item.text;
+              return <UserMessage key={item.id} item={item} onEdit={editable ? () => onEdit(item.text) : undefined} />;
+            }
             const previous = items[index - 1];
             const showAvatar = !NO_AVATAR.has(item.type) || previous?.type === "user";
             return (

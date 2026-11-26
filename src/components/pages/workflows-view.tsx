@@ -21,6 +21,8 @@ import { nextSlot, shortZone } from "@/lib/schedule";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { WorkflowRecord } from "@/types/app-data";
+import { WorkflowHistory, WorkflowStepsEditor } from "@/components/workflows/workflow-steps";
+import { cleanSteps, workflowPrompt, type WorkflowStep } from "@/lib/workflows/steps";
 import { RunStatusBadge } from "./run-status-badge";
 
 // Shown Monday-first; stored as 0 = Sunday … 6 = Saturday
@@ -34,9 +36,9 @@ const DAYS = [
   { label: "Sun", value: 0 },
 ];
 type Frequency = WorkflowRecord["frequency"];
-type Draft = { id?: string; name: string; instruction: string; frequency: Frequency; day: number; time: string; cap: string };
+type Draft = { id?: string; name: string; instruction: string; frequency: Frequency; day: number; time: string; cap: string; steps: WorkflowStep[] };
 
-const emptyDraft: Draft = { name: "", instruction: "", frequency: "manual", day: 1, time: "09:00", cap: "1.00" };
+const emptyDraft: Draft = { name: "", instruction: "", frequency: "manual", day: 1, time: "09:00", cap: "1.00", steps: [] };
 
 function scheduleLabel(wf: Pick<WorkflowRecord, "frequency" | "dayOfWeek" | "timeOfDay">) {
   const time = wf.timeOfDay?.slice(0, 5) ?? "09:00";
@@ -66,7 +68,7 @@ function NextRun({ wf, timeZone }: { wf: WorkflowRecord; timeZone: string }) {
 }
 
 function runPrompt(wf: WorkflowRecord) {
-  const params = new URLSearchParams({ prompt: wf.instruction, workflow: wf.id });
+  const params = new URLSearchParams({ prompt: workflowPrompt(wf.instruction, wf.steps), workflow: wf.id });
   return `${routes.ask}?${params.toString()}`;
 }
 
@@ -133,6 +135,7 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
       day: wf.dayOfWeek ?? 1,
       time: wf.timeOfDay?.slice(0, 5) ?? "09:00",
       cap: wf.capUsd.toFixed(2),
+      steps: wf.steps,
     });
   }
 
@@ -158,6 +161,7 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
       time_of_day: draft.frequency === "manual" ? null : draft.time,
       cap_usd: Math.round(cap * 100) / 100,
       enabled: draft.frequency !== "manual",
+      steps: cleanSteps(draft.steps),
     };
     const { error } = draft.id
       ? // A changed schedule only counts from now on (a time that already passed today doesn't fire at once)
@@ -165,7 +169,8 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
       : await supabase.from("workflows").insert({ ...values, workspace_id: workspaceId, created_by: userId });
     setSaving(false);
     if (error) {
-      setSaveError("Couldn't save the workflow. Please try again.");
+      // Plan limits come from the database with a readable message
+      setSaveError(error.code === "P0001" ? error.message : "Couldn't save the workflow. Please try again.");
       return;
     }
     setDraft(null);
@@ -184,8 +189,9 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
       time_of_day: wf.timeOfDay,
       cap_usd: wf.capUsd,
       enabled: wf.enabled,
+      steps: wf.steps,
     });
-    showToast(error ? "Couldn't duplicate the workflow." : "Workflow duplicated.");
+    showToast(error ? (error.code === "P0001" ? error.message : "Couldn't duplicate the workflow.") : "Workflow duplicated.");
     if (!error) router.refresh();
   }
 
@@ -196,11 +202,32 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
     if (!error) router.refresh();
   }
 
+  async function webhook(wf: WorkflowRecord, action: "create" | "remove") {
+    if (action === "create" && wf.hasWebhook && !window.confirm("Replace the webhook link? The old link stops working.")) return;
+    const res = await fetch("/api/workflows/webhook", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflowId: wf.id, action }) });
+    const data = (await res.json().catch(() => ({}))) as { url?: string | null; error?: string };
+    if (!res.ok) {
+      showToast(data.error ?? "That didn't work.");
+      return;
+    }
+    if (data.url) {
+      // Shown once: only a hash is stored
+      window.prompt("Copy this webhook link now — it won't be shown again. POST JSON or text to it to run the workflow (the workflow must be On):", data.url);
+    } else {
+      showToast("Webhook link removed.");
+    }
+    router.refresh();
+  }
+
   function actions(wf: WorkflowRecord) {
     const list: { label: string; onSelect: () => void; danger?: boolean }[] = [];
     if (canWrite) list.push({ label: "Run now", onSelect: () => router.push(runPrompt(wf)) });
     if (canChange(wf)) list.push({ label: "Edit", onSelect: () => openEdit(wf) });
     if (canWrite) list.push({ label: "Duplicate", onSelect: () => void duplicate(wf) });
+    if (canChange(wf)) {
+      list.push({ label: wf.hasWebhook ? "New webhook link" : "Create webhook link", onSelect: () => void webhook(wf, "create") });
+      if (wf.hasWebhook) list.push({ label: "Remove webhook link", onSelect: () => void webhook(wf, "remove") });
+    }
     if (canChange(wf)) list.push({ label: "Delete", danger: true, onSelect: () => void remove(wf) });
     return list;
   }
@@ -259,7 +286,7 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
                   <tr key={wf.id} className="align-top">
                     <td className="max-w-xs px-4 py-4">
                       <p className="font-medium text-foreground">{wf.name}</p>
-                      <p className="mt-0.5 truncate text-xs text-muted">{wf.instruction}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted">{wf.steps.length ? `${wf.steps.length} steps · ` : ""}{wf.instruction}</p>
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-xs text-muted">
                       {scheduleLabel(wf)}
@@ -301,7 +328,7 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium text-foreground">{wf.name}</p>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted">{wf.instruction}</p>
+                      <p className="mt-0.5 line-clamp-2 text-xs text-muted">{wf.steps.length ? `${wf.steps.length} steps · ` : ""}{wf.instruction}</p>
                     </div>
                     <ActionMenu label={`${wf.name} options`} actions={actions(wf)} />
                   </div>
@@ -358,6 +385,28 @@ export function WorkflowsView({ workflows, workspaceId, userId, canWrite, canMan
               />
               <FieldError id="wf-instruction-error" message={errors.instruction} />
             </div>
+            <WorkflowStepsEditor
+              steps={draft.steps}
+              onChange={(steps) => setDraft({ ...draft, steps })}
+              trigger={draft.frequency === "manual" ? "Run now or webhook" : `${scheduleLabel({ frequency: draft.frequency, dayOfWeek: draft.day, timeOfDay: draft.time })} (${shortZone(timeZone)})`}
+            />
+            {draft.id && (
+              <WorkflowHistory
+                workflowId={draft.id}
+                onUse={(v) =>
+                  setDraft({
+                    ...draft,
+                    name: v.name,
+                    instruction: v.instruction,
+                    steps: v.steps,
+                    frequency: v.frequency as Frequency,
+                    day: v.dayOfWeek ?? 1,
+                    time: v.timeOfDay?.slice(0, 5) ?? "09:00",
+                    cap: v.capUsd.toFixed(2),
+                  })
+                }
+              />
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="wf-frequency" className="mb-1.5 block text-xs font-semibold text-muted">Schedule</label>

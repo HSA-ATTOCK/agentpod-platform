@@ -12,3 +12,32 @@ export async function register() {
   const { startScheduler } = await import("./lib/workflows/scheduler");
   startScheduler();
 }
+
+/**
+ * Server errors: one structured log line each (picked up by CloudWatch or any log service),
+ * and, if ALERT_WEBHOOK_URL is set (e.g. a Slack or Teams incoming webhook), a short alert.
+ * No user data or secrets are sent: only the route, the error message and its digest.
+ */
+export async function onRequestError(
+  err: unknown,
+  request: { path: string; method: string },
+  context: { routerKind: string; routePath: string; routeType: string },
+) {
+  const message = err instanceof Error ? err.message : String(err);
+  const digest = typeof err === "object" && err !== null && "digest" in err ? String((err as { digest: unknown }).digest) : undefined;
+  console.error(
+    JSON.stringify({ level: "error", at: new Date().toISOString(), route: context.routePath, type: context.routeType, method: request.method, message: message.slice(0, 500), digest }),
+  );
+  const webhook = process.env.ALERT_WEBHOOK_URL;
+  if (!webhook) return;
+  try {
+    await fetch(webhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: `Baba server error on ${request.method} ${context.routePath}: ${message.slice(0, 300)}${digest ? ` (digest ${digest})` : ""}` }),
+      signal: AbortSignal.timeout(3000),
+    });
+  } catch {
+    // Alerting must never break a request
+  }
+}

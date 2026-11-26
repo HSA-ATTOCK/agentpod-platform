@@ -5,6 +5,7 @@ import { useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject }
 import { uploadForBaba } from "@/lib/baba/client";
 import { cn } from "@/lib/utils";
 import type { ChatAttachment } from "@/types/chat";
+import { VoiceInput } from "./voice-input";
 
 const MAX_LINES = 8;
 const LINE_HEIGHT_PX = 20;
@@ -183,6 +184,8 @@ export function Composer({
               size === "large" ? "text-base" : "text-sm",
             )}
           />
+
+          <VoiceInput value={value} onChange={onChange} />
 
           {working ? (
             <button

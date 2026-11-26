@@ -15,6 +15,8 @@ export type UserProfile = {
   fullName: string;
   email: string;
   avatarUrl?: string;
+  /** Platform (master) administrator: shows the Admin link. */
+  isPlatformAdmin?: boolean;
 };
 
 export type AgentStatus = "active" | "paused" | "draft" | "error";

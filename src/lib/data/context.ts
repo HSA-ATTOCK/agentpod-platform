@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { cache } from "react";
 import { routes } from "@/config/routes";
+import { getAccount, getPlatformSettings } from "@/lib/platform/account";
+import { platformLimits, stricter, type PlatformLimits } from "@/lib/platform/limits";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import type { UserProfile, Workspace } from "@/types";
 import type { Enums } from "@/types/database";
@@ -16,6 +18,9 @@ export type CurrentWorkspace = Workspace & {
   taskCapUsd: number;
   monthlyLimitUsd: number;
   logoUrl: string | null;
+  /** Set by the platform administrator (plan / overrides); null = no daily limit. */
+  dailyLimitUsd: number | null;
+  limits: PlatformLimits;
 };
 
 export type AppContext = {
@@ -24,6 +29,8 @@ export type AppContext = {
   workspace: CurrentWorkspace;
   /** Every workspace this user belongs to (for the switcher). */
   workspaces: { id: string; name: string; role: WorkspaceRole }[];
+  /** A platform (master) administrator — separate from workspace roles. */
+  isPlatformAdmin: boolean;
 };
 
 const MEMBERSHIPS =
@@ -43,6 +50,9 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
   if (!userId) return null;
   // If two-step verification is on but wasn't done in this session, the database (RLS)
   // returns no profile below, so this returns null and requireAppContext asks for the code.
+  // Accounts that aren't approved get nothing from the database either (see platform_admin migration).
+  const account = await getAccount(supabase);
+  if (!account || account.status !== "approved") return null;
 
   const loadMemberships = () =>
     supabase.from("workspace_members").select(MEMBERSHIPS).eq("user_id", userId).order("created_at", { ascending: true });
@@ -64,6 +74,8 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
   const chosenId = (await cookies()).get(WORKSPACE_COOKIE)?.value;
   const current = usable.find((m) => m.workspaces!.id === chosenId) ?? usable[0];
   const ws = current.workspaces!;
+  // The platform admin's plan and limits; the stricter of theirs and the workspace's own settings applies
+  const limits = await platformLimits(supabase, ws.id);
 
   return {
     supabase,
@@ -78,11 +90,14 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
       name: ws.name,
       slug: ws.slug,
       role: current.role,
-      taskCapUsd: Number(ws.task_cap_usd),
-      monthlyLimitUsd: Number(ws.monthly_limit_usd),
+      taskCapUsd: stricter(Number(ws.task_cap_usd), limits.taskCapUsd),
+      monthlyLimitUsd: stricter(Number(ws.monthly_limit_usd), limits.monthlyLimitUsd),
       logoUrl: ws.logo_url,
+      dailyLimitUsd: limits.dailyLimitUsd,
+      limits,
     },
     workspaces: usable.map((m) => ({ id: m.workspaces!.id, name: m.workspaces!.name, role: m.role })),
+    isPlatformAdmin: account.isAdmin,
   };
 });
 
@@ -103,9 +118,14 @@ export async function requireAppContext(): Promise<AppContext> {
   const context = await getAppContext();
   if (!context) {
     const supabase = await getSupabaseServer();
+    const account = await getAccount(supabase);
+    // Signed in but not approved (waiting, rejected, suspended): the status screen
+    if (account && account.status !== "approved") redirect(routes.pending);
     if (await mfaPending(supabase)) redirect(routes.twoFactor);
     redirect(routes.signIn);
   }
+  // Maintenance mode lets only platform administrators in
+  if (!context.isPlatformAdmin && (await getPlatformSettings(context.supabase))?.maintenanceMode) redirect(routes.pending);
   return context;
 }
 

@@ -338,10 +338,26 @@ export function AskBaba({
           break;
         case "connect_request":
         case "google_app_request":
+        case "db_request":
+        case "oauth_app_request":
         case "key_request": {
           const itemId = `${event.type}-${event.id}`;
           const item: ChatItem =
-            event.type === "connect_request"
+            event.type === "oauth_app_request"
+              ? {
+                  id: itemId,
+                  type: "oauth_app_request",
+                  service: event.service,
+                  serviceName: event.serviceName,
+                  redirectUri: event.redirectUri,
+                  consoleUrl: event.consoleUrl,
+                  steps: event.steps,
+                  reason: event.reason,
+                  status: "pending",
+                }
+              : event.type === "db_request"
+              ? { id: itemId, type: "db_request", engine: event.engine, reason: event.reason, status: "pending" }
+              : event.type === "connect_request"
               ? { id: itemId, type: "connect_request", service: event.service, reason: event.reason, status: "pending" }
               : event.type === "google_app_request"
                 ? { id: itemId, type: "google_app_request", redirectUri: event.redirectUri, reason: event.reason, status: "pending" }
@@ -716,6 +732,7 @@ export function AskBaba({
               canManage={canManage}
               conversationId={active.id}
               onSend={(text) => void send(text, [])}
+              onEdit={(text) => setDraft(text)}
             />
             <div className="shrink-0 px-4 pb-3 pt-1 lg:px-8">
               <div className="mx-auto max-w-3xl">{composer("normal")}</div>

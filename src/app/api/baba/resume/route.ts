@@ -9,6 +9,8 @@ import {
 } from "@/lib/baba/conversations";
 import { errorMessage, getClaude } from "@/lib/baba/server";
 import { streamTurn } from "@/lib/baba/stream-turn";
+import { blockedAgentNames } from "@/lib/platform/limits";
+
 import { appOrigin } from "@/lib/email/mailer";
 
 export const maxDuration = 300;
@@ -64,9 +66,11 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (task) await ctx.supabase.from("tasks").update({ status: "running", cap_cents: newCapCents }).eq("id", task.id);
 
+  const blockedAgents = await blockedAgentNames(ctx.supabase, ctx.workspace.limits);
   return streamTurn({
     request,
     logName: "baba/resume",
+    blockedAgents,
     track: trackTurn(ctx, conversation, task?.id, appOrigin(request)),
     customTools: createCustomToolHandler({ workspaceId: conversation.workspace_id, conversationId: conversation.id, ctx }),
     async prepare() {
