@@ -1327,6 +1327,7 @@ export type Database = {
         Returns: { id: number; document_id: string; chunk_position: number; content: string; similarity: number }[]
       }
       accept_invite: { Args: { invite_id: string }; Returns: string }
+      my_account_has_password: { Args: Record<PropertyKey, never>; Returns: boolean }
       ensure_workspace: { Args: Record<PropertyKey, never>; Returns: string }
       delete_my_account: { Args: Record<PropertyKey, never>; Returns: undefined }
       transfer_ownership: { Args: { ws: string; new_owner: string }; Returns: undefined }

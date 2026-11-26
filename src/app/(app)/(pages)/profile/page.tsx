@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Profile" };
 
 async function PageContent() {
   const ctx = await requireAppContext();
-  const [profile, { data: myTasks }] = await Promise.all([
+  const [profile, { data: myTasks }, { data: hasPassword }] = await Promise.all([
     getProfile(ctx),
     ctx.supabase
       .from("tasks")
@@ -17,6 +17,8 @@ async function PageContent() {
       .eq("workspace_id", ctx.workspace.id)
       .eq("created_by", ctx.user.id)
       .gte("started_at", monthStart()),
+    // Google-only accounts have no password, so there's nothing to change
+    ctx.supabase.rpc("my_account_has_password"),
   ]);
 
   const counts = new Map<string, number>();
@@ -29,7 +31,7 @@ async function PageContent() {
     topSpecialist: [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
   };
 
-  return <ProfileView profile={profile} role={ctx.workspace.role} usage={usage} />;
+  return <ProfileView profile={profile} role={ctx.workspace.role} usage={usage} hasPassword={hasPassword === true} />;
 }
 
 /** Shows a placeholder straight away while this page's data loads. */

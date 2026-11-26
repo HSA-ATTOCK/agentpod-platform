@@ -44,9 +44,11 @@ type ProfileViewProps = {
   profile: ProfileRecord;
   role: keyof typeof ROLE_LABEL;
   usage: ProfileUsage;
+  /** False for accounts that sign in only with Google. */
+  hasPassword: boolean;
 };
 
-export function ProfileView({ profile, role, usage }: ProfileViewProps) {
+export function ProfileView({ profile, role, usage, hasPassword }: ProfileViewProps) {
   const router = useRouter();
   const supabase = getSupabaseBrowser();
   const { toast, showToast } = useToast();
@@ -270,7 +272,12 @@ export function ProfileView({ profile, role, usage }: ProfileViewProps) {
 
       <Card className="p-5 sm:p-6">
         <h2 className="text-base font-semibold text-foreground">Password</h2>
-        <form noValidate onSubmit={savePassword} className="mt-5 max-w-lg space-y-4">
+        {!hasPassword ? (
+          <p className="mt-3 max-w-lg text-sm text-muted">
+            You sign in with Google, so this account has no password to change. Your sign-in is protected by your Google account.
+          </p>
+        ) : (
+          <form noValidate onSubmit={savePassword} className="mt-5 max-w-lg space-y-4">
           <PasswordInput
             id="pw-current"
             label="Current password"
@@ -299,8 +306,8 @@ export function ProfileView({ profile, role, usage }: ProfileViewProps) {
           <Button type="submit" variant="secondary" loading={pwSaving} loadingText="Updating…">
             Update password
           </Button>
-          <p className="text-xs text-subtle">Signed up with Google? Use &ldquo;Forgot password&rdquo; on the sign-in page to set one.</p>
-        </form>
+          </form>
+        )}
       </Card>
 
       <Card className="p-5 sm:p-6">
