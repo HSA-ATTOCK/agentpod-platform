@@ -27,6 +27,9 @@ const SERVICES = {
   slack: { name: "Slack", what: "Read channels and post messages (with your approval)", connect: "/api/integrations/oauth/slack/connect" },
   hubspot: { name: "HubSpot", what: "Contacts and deals", connect: "/api/integrations/oauth/hubspot/connect" },
   microsoft: { name: "Microsoft 365", what: "Outlook mail and calendar", connect: "/api/integrations/oauth/microsoft/connect" },
+  quickbooks: { name: "QuickBooks", what: "Reports, invoices and customers (read-only)", connect: "/api/integrations/oauth/quickbooks/connect" },
+  xero: { name: "Xero", what: "Reports, invoices and contacts (read-only)", connect: "/api/integrations/oauth/xero/connect" },
+  shopify: { name: "Shopify", what: "Orders, products, customers and stock (read-only)", connect: "/api/integrations/oauth/shopify/connect" },
 } as const;
 
 /** "Connect …" button that Baba put in the chat. Signs in in a small window, so the chat stays put. */
@@ -34,6 +37,10 @@ export function ConnectRequestCard({ item, canManage, conversationId, onUpdate, 
   const [error, setError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
   const service = SERVICES[item.service] ?? SERVICES.google;
+  // Shopify signs in per store
+  const [shop, setShop] = useState("");
+  const needsShop = item.service === "shopify";
+  const connectUrl = (extra: string) => `${service.connect}?${extra}${needsShop ? `&shop=${encodeURIComponent(shop.trim())}` : ""}`;
 
   // The sign-in window reports back with postMessage (only from our own origin)
   useEffect(() => {
@@ -56,19 +63,22 @@ export function ConnectRequestCard({ item, canManage, conversationId, onUpdate, 
 
   function connect() {
     setError(null);
+    if (needsShop && !shop.trim()) {
+      setError("Enter your store address first.");
+      return;
+    }
     const width = 520;
     const height = 680;
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
     const popup = window.open(
-      `${service.connect}?popup=1`,
+      connectUrl("popup=1"),
       `baba-connect-${item.service}`,
       `width=${width},height=${height},left=${left},top=${top}`,
     );
     if (!popup) {
       // Pop-ups blocked: sign in in this tab and come back to this conversation
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a server route that redirects to Google
-      window.location.assign(`${service.connect}?return=${encodeURIComponent(`/ask?c=${conversationId}`)}`);
+      window.location.assign(connectUrl(`return=${encodeURIComponent(`/ask?c=${conversationId}`)}`));
       return;
     }
     setWaiting(true);
@@ -103,6 +113,9 @@ export function ConnectRequestCard({ item, canManage, conversationId, onUpdate, 
             </div>
           ) : canManage ? (
             <>
+              {needsShop && (
+                <Input id={`shop-${item.id}`} label="Store address" placeholder="your-store.myshopify.com" value={shop} onChange={(e) => setShop(e.target.value)} />
+              )}
               <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" onClick={connect} loading={waiting} loadingText={`Waiting for ${service.name}…`}>
                   Connect {service.name}

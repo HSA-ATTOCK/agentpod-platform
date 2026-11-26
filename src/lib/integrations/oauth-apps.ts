@@ -1,4 +1,5 @@
 import "server-only";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/types/database";
 import { decrypt, encrypt } from "./crypto";
@@ -12,7 +13,7 @@ import { decrypt, encrypt } from "./crypto";
  * - nothing here is ever shown to Claude.
  */
 
-export type OAuthProvider = "slack" | "hubspot" | "microsoft";
+export type OAuthProvider = "slack" | "hubspot" | "microsoft" | "quickbooks" | "xero" | "shopify";
 
 type ProviderConfig = {
   name: string;
@@ -25,7 +26,18 @@ type ProviderConfig = {
   /** Where to create the app, shown on the setup card. */
   setup: { consoleUrl: string; steps: string[] };
   clientIdPattern: RegExp;
+  /** Send the client ID/secret as HTTP Basic auth to the token endpoint (QuickBooks, Xero). */
+  tokenAuth?: "basic";
+  /** Shopify: the sign-in and token addresses depend on the store. */
+  perShop?: boolean;
 };
+
+/** A store's address, e.g. "acme" or "acme.myshopify.com" -> "acme.myshopify.com" (or null). */
+export function cleanShop(value: string) {
+  const v = value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  const shop = v.endsWith(".myshopify.com") ? v : `${v}.myshopify.com`;
+  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop) ? shop : null;
+}
 
 export const PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
   slack: {
@@ -80,6 +92,59 @@ export const PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
       ],
     },
     clientIdPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  },
+  quickbooks: {
+    name: "QuickBooks",
+    authorizeUrl: "https://appcenter.intuit.com/connect/oauth2",
+    tokenUrl: "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
+    scopes: ["com.intuit.quickbooks.accounting"],
+    tokenAuth: "basic",
+    setup: {
+      consoleUrl: "https://developer.intuit.com/app/developer/dashboard",
+      steps: [
+        "Open developer.intuit.com, sign in and create an app (Dashboard → Create an app → QuickBooks Online and Payments). Name it \"Baba\".",
+        "Choose the scope com.intuit.quickbooks.accounting.",
+        "Under Keys & credentials (Production — or Development to test with a sandbox company), add the Redirect URI below.",
+        "Copy the Client ID and Client Secret into the boxes below.",
+        "Baba only reads your books (reports, invoices, customers); it never creates payments or changes entries.",
+      ],
+    },
+    clientIdPattern: /^[A-Za-z0-9]{20,}$/,
+  },
+  xero: {
+    name: "Xero",
+    authorizeUrl: "https://login.xero.com/identity/connect/authorize",
+    tokenUrl: "https://identity.xero.com/connect/token",
+    scopes: ["openid", "profile", "email", "offline_access", "accounting.transactions.read", "accounting.reports.read", "accounting.contacts.read", "accounting.settings.read"],
+    tokenAuth: "basic",
+    setup: {
+      consoleUrl: "https://developer.xero.com/app/manage",
+      steps: [
+        "Open developer.xero.com/app/manage → New app. Choose \"Web app\", name it \"Baba\", add your company URL.",
+        "Paste the Redirect URI below into \"Redirect URI\" and create the app.",
+        "Under Configuration, generate a client secret. Copy the Client ID and the secret into the boxes below.",
+        "Baba only reads your books (reports, invoices, contacts); it never changes them.",
+      ],
+    },
+    clientIdPattern: /^[A-F0-9]{32}$/i,
+  },
+  shopify: {
+    name: "Shopify",
+    authorizeUrl: "https://{shop}/admin/oauth/authorize",
+    tokenUrl: "https://{shop}/admin/oauth/access_token",
+    scopes: ["read_orders", "read_products", "read_customers", "read_inventory"],
+    perShop: true,
+    setup: {
+      consoleUrl: "https://partners.shopify.com/",
+      steps: [
+        "Open the Shopify Partner dashboard (or your store's Settings → Apps → Develop apps) and create an app named \"Baba\".",
+        "Set the App URL to your Baba address and add the Redirect URL below to the allowed redirection URLs.",
+        "Admin API scopes: read_orders, read_products, read_customers, read_inventory.",
+        "Copy the Client ID (API key) and Client secret (API secret key) into the boxes below.",
+        "When you connect, enter your store address (e.g. your-store.myshopify.com).",
+      ],
+    },
+    clientIdPattern: /^[a-f0-9]{32}$/i,
   },
 };
 
@@ -144,9 +209,10 @@ export async function removeOAuthApp(workspaceId: string, p: OAuthProvider) {
 // Sign-in and tokens
 // ---------------------------------------------------------------------------
 
-export function oauthAuthorizeUrl(origin: string, p: OAuthProvider, state: string, client: OAuthClient) {
+export function oauthAuthorizeUrl(origin: string, p: OAuthProvider, state: string, client: OAuthClient, shop?: string) {
   const cfg = PROVIDERS[p];
-  const url = new URL(cfg.authorizeUrl);
+  if (cfg.perShop && !shop) throw new Error("Enter your store address.");
+  const url = new URL(cfg.authorizeUrl.replace("{shop}", shop ?? ""));
   url.searchParams.set("client_id", client.id);
   url.searchParams.set("redirect_uri", oauthRedirectUri(origin, p));
   url.searchParams.set("response_type", "code");
@@ -167,11 +233,17 @@ type TokenResponse = {
   authed_user?: { id: string };
 };
 
-async function tokenRequest(p: OAuthProvider, client: OAuthClient, params: Record<string, string>) {
-  const res = await fetch(PROVIDERS[p].tokenUrl, {
+async function tokenRequest(p: OAuthProvider, client: OAuthClient, params: Record<string, string>, shop?: string) {
+  const cfg = PROVIDERS[p];
+  const basic = cfg.tokenAuth === "basic";
+  const res = await fetch(cfg.tokenUrl.replace("{shop}", shop ?? ""), {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: client.id, client_secret: client.secret, ...params }),
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+      ...(basic ? { Authorization: `Basic ${Buffer.from(`${client.id}:${client.secret}`).toString("base64")}` } : {}),
+    },
+    body: new URLSearchParams(basic ? params : { client_id: client.id, client_secret: client.secret, ...params }),
   });
   const data = (await res.json().catch(() => ({}))) as TokenResponse;
   if (!res.ok || data.ok === false || !data.access_token) {
@@ -180,7 +252,31 @@ async function tokenRequest(p: OAuthProvider, client: OAuthClient, params: Recor
   return data;
 }
 
-/** Who the token belongs to (shown in lists, and lets Baba pick an account). */
+/** Who the token belongs to (shown in lists, and lets Baba pick an account), plus what the API calls need. */
+async function accountInfo(p: OAuthProvider, token: TokenResponse, extra: Record<string, string>): Promise<{ label: string; config: Record<string, string> }> {
+  try {
+    if (p === "quickbooks") {
+      const realmId = extra.realmId;
+      if (!realmId) throw new Error("QuickBooks didn't say which company was chosen.");
+      const base = process.env.QUICKBOOKS_SANDBOX === "true" ? "https://sandbox-quickbooks.api.intuit.com" : "https://quickbooks.api.intuit.com";
+      const info = (await (await fetch(`${base}/v3/company/${realmId}/companyinfo/${realmId}?minorversion=75`, { headers: { Authorization: `Bearer ${token.access_token}`, Accept: "application/json" } })).json()) as {
+        CompanyInfo?: { CompanyName?: string };
+      };
+      return { label: info.CompanyInfo?.CompanyName ?? `QuickBooks company ${realmId}`, config: { realmId, base } };
+    }
+    if (p === "xero") {
+      const tenants = (await (await fetch("https://api.xero.com/connections", { headers: { Authorization: `Bearer ${token.access_token}` } })).json()) as { tenantId: string; tenantName: string }[];
+      if (!tenants?.[0]) throw new Error("No Xero organisation was chosen.");
+      return { label: tenants[0].tenantName, config: { tenantId: tenants[0].tenantId } };
+    }
+    if (p === "shopify") return { label: extra.shop, config: { shop: extra.shop } };
+    return { label: await accountLabel(p, token), config: {} };
+  } catch (error) {
+    if (p === "quickbooks" || p === "xero" || p === "shopify") throw error;
+    return { label: PROVIDERS[p].name, config: {} };
+  }
+}
+
 async function accountLabel(p: OAuthProvider, token: TokenResponse) {
   try {
     if (p === "slack") return token.team?.name ?? "Slack workspace";
@@ -196,15 +292,26 @@ async function accountLabel(p: OAuthProvider, token: TokenResponse) {
 }
 
 /** Swaps the sign-in code for tokens and saves the connection (one row per account). */
-export async function completeOAuthConnection(input: { provider: OAuthProvider; code: string; origin: string; workspaceId: string; userId: string }) {
+export async function completeOAuthConnection(input: {
+  provider: OAuthProvider;
+  code: string;
+  origin: string;
+  workspaceId: string;
+  userId: string;
+  /** Values the provider adds to the callback (QuickBooks realmId, Shopify shop). */
+  extra?: Record<string, string>;
+}) {
   const client = await oauthClientFor(input.workspaceId, input.provider);
   if (!client) throw new Error(`This workspace's ${PROVIDERS[input.provider].name} app is missing. Set it up again.`);
-  const token = await tokenRequest(input.provider, client, {
-    grant_type: "authorization_code",
-    code: input.code,
-    redirect_uri: oauthRedirectUri(input.origin, input.provider),
-  });
-  const label = (await accountLabel(input.provider, token)).slice(0, 120);
+  const extra = input.extra ?? {};
+  const token = await tokenRequest(
+    input.provider,
+    client,
+    { grant_type: "authorization_code", code: input.code, redirect_uri: oauthRedirectUri(input.origin, input.provider) },
+    extra.shop,
+  );
+  const info = await accountInfo(input.provider, token, extra);
+  const label = info.label.slice(0, 120);
   const db = getSupabaseAdmin();
   const { data: existing } = await db
     .from("integrations")
@@ -223,7 +330,7 @@ export async function completeOAuthConnection(input: { provider: OAuthProvider; 
     connected_by: input.userId,
     is_default: !existing && !count,
     scopes: PROVIDERS[input.provider].scopes,
-    config: {} as Json,
+    config: info.config as unknown as Json,
   };
   const { data: row, error } = existing
     ? await db.from("integrations").update({ ...values, is_default: undefined }).eq("id", existing.id).select("id").single()
@@ -241,16 +348,16 @@ export async function completeOAuthConnection(input: { provider: OAuthProvider; 
   return label;
 }
 
-export type OAuthAccount = { id: string; label: string; isDefault: boolean; status: string };
+export type OAuthAccount = { id: string; label: string; isDefault: boolean; status: string; config: Record<string, string> };
 
 export async function listOAuthAccounts(workspaceId: string, p: OAuthProvider): Promise<OAuthAccount[]> {
   const { data } = await getSupabaseAdmin()
     .from("integrations")
-    .select("id, label, is_default, status")
+    .select("id, label, is_default, status, config")
     .eq("workspace_id", workspaceId)
     .eq("provider", p)
     .order("created_at");
-  return (data ?? []).map((r) => ({ id: r.id, label: r.label, isDefault: r.is_default, status: r.status }));
+  return (data ?? []).map((r) => ({ id: r.id, label: r.label, isDefault: r.is_default, status: r.status, config: (r.config ?? {}) as Record<string, string> }));
 }
 
 /** A working access token for the account (refreshed when needed), or null if not connected. */
@@ -262,11 +369,11 @@ export async function oauthAccessToken(workspaceId: string, p: OAuthProvider, ac
   const { data: cred } = await db.from("integration_credentials").select("secret_enc, access_token_enc, access_token_expires_at").eq("integration_id", chosen.id).maybeSingle();
   if (!cred) return null;
   const fresh = cred.access_token_enc && (!cred.access_token_expires_at || Date.parse(cred.access_token_expires_at) > Date.now());
-  if (fresh) return { token: decrypt(cred.access_token_enc!), label: chosen.label };
+  if (fresh) return { token: decrypt(cred.access_token_enc!), label: chosen.label, config: chosen.config };
   const client = await oauthClientFor(workspaceId, p);
   if (!client) return null;
   try {
-    const token = await tokenRequest(p, client, { grant_type: "refresh_token", refresh_token: decrypt(cred.secret_enc) });
+    const token = await tokenRequest(p, client, { grant_type: "refresh_token", refresh_token: decrypt(cred.secret_enc) }, chosen.config.shop);
     await db
       .from("integration_credentials")
       .update({
@@ -277,7 +384,7 @@ export async function oauthAccessToken(workspaceId: string, p: OAuthProvider, ac
       })
       .eq("integration_id", chosen.id);
     await db.from("integrations").update({ status: "connected" }).eq("id", chosen.id);
-    return { token: token.access_token!, label: chosen.label };
+    return { token: token.access_token!, label: chosen.label, config: chosen.config };
   } catch (error) {
     // Revoked or expired: ask for a reconnect
     await db.from("integrations").update({ status: "error" }).eq("id", chosen.id);
@@ -295,4 +402,20 @@ export async function disconnectOAuth(workspaceId: string, integrationId: string
     .in("provider", Object.keys(PROVIDERS))
     .select("id");
   if (!data?.length) throw new Error("That connection wasn't found.");
+}
+
+/**
+ * Shopify signs its callback: hex HMAC-SHA256 (with the app secret) of the other query
+ * parameters, sorted. Returns true only if it matches.
+ */
+export function verifyShopifyHmac(params: URLSearchParams, secret: string) {
+  const hmac = params.get("hmac");
+  if (!hmac) return false;
+  const message = [...params.entries()]
+    .filter(([k]) => k !== "hmac" && k !== "signature")
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("&");
+  const expected = createHmac("sha256", secret).update(message).digest("hex");
+  return expected.length === hmac.length && timingSafeEqual(Buffer.from(expected), Buffer.from(hmac));
 }

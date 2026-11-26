@@ -147,7 +147,7 @@ export async function listConnectionsText(workspaceId: string) {
         : `${PROVIDERS[p].name}: not connected${app ? " (app set up; use request_connection)" : " (use request_connection: it shows a one-time setup card first)"}.`,
     );
   }
-  lines.push("Not built in yet (use an API key with request_api_key where the service offers one): Microsoft Teams, Notion, Shopify, QuickBooks, Xero, Stripe data, X (Twitter).");
+  lines.push("Not built in yet (use an API key with request_api_key where the service offers one): Microsoft Teams, Notion, Salesforce, Stripe data, X (Twitter).");
   return lines.join("\n\n");
 }
 

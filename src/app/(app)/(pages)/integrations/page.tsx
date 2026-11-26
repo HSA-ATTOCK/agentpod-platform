@@ -63,6 +63,9 @@ async function PageContent({ searchParams }: PageProps<"/integrations">) {
     slack: "Read channels; post messages with your approval",
     hubspot: "Search contacts and deals; create or update with approval",
     microsoft: "Outlook mail and calendar; sending needs approval",
+    quickbooks: "Read reports, invoices and customers (read-only)",
+    xero: "Read reports, invoices and contacts (read-only)",
+    shopify: "Read orders, products, customers and stock (read-only)",
   };
   const native: NativeService[] = admin
     ? await Promise.all(

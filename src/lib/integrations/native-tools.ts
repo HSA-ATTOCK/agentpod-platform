@@ -26,6 +26,12 @@ export const NATIVE_TOOL_NAMES = new Set([
   "outlook_send_mail",
   "outlook_list_events",
   "outlook_create_event",
+  "quickbooks_report",
+  "quickbooks_query",
+  "xero_report",
+  "xero_list",
+  "shopify_list",
+  "shopify_sales_summary",
 ]);
 
 export const NATIVE_NEEDS_APPROVAL = new Set(["slack_post_message", "hubspot_create_contact", "hubspot_update_contact", "outlook_send_mail", "outlook_create_event"]);
@@ -43,9 +49,18 @@ export const NATIVE_LABELS: Record<string, string> = {
   outlook_send_mail: "Sending an Outlook email",
   outlook_list_events: "Reading your Outlook calendar",
   outlook_create_event: "Creating an Outlook calendar event",
+  quickbooks_report: "Reading a QuickBooks report",
+  quickbooks_query: "Reading QuickBooks records",
+  xero_report: "Reading a Xero report",
+  xero_list: "Reading Xero records",
+  shopify_list: "Reading Shopify data",
+  shopify_sales_summary: "Adding up Shopify sales",
 };
 
-const providerOf = (name: string): OAuthProvider => (name.startsWith("slack_") ? "slack" : name.startsWith("hubspot_") ? "hubspot" : "microsoft");
+const providerOf = (name: string): OAuthProvider => {
+  const prefix = name.split("_")[0];
+  return prefix === "outlook" ? "microsoft" : (prefix as OAuthProvider);
+};
 
 export function nativeApprovalSummary(name: string, input: Input) {
   switch (name) {
@@ -238,6 +253,150 @@ async function microsoft(name: string, input: Input, token: string): Promise<str
   return `Event created${event.webLink ? `: ${event.webLink}` : "."}`;
 }
 
+// ---- QuickBooks and Xero (read-only by design: no payments, transfers or journal changes) ----
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const dateParam = (input: Input, key: string) => {
+  const v = str(input, key);
+  if (v && !DATE.test(v)) throw new ToolError(`${key} must be YYYY-MM-DD.`);
+  return v;
+};
+
+type QboRow = { ColData?: { value: string }[]; Header?: { ColData: { value: string }[] }; Rows?: { Row?: QboRow[] }; Summary?: { ColData: { value: string }[] }; type?: string };
+
+function flattenQbo(rows: QboRow[] | undefined, depth = 0): string[] {
+  const out: string[] = [];
+  for (const row of rows ?? []) {
+    const pad = "  ".repeat(depth);
+    if (row.Header) out.push(pad + row.Header.ColData.map((c) => c.value).filter(Boolean).join(" | "));
+    if (row.ColData) out.push(pad + row.ColData.map((c) => c.value).join(" | "));
+    if (row.Rows?.Row) out.push(...flattenQbo(row.Rows.Row, depth + 1));
+    if (row.Summary) out.push(pad + row.Summary.ColData.map((c) => c.value).join(" | "));
+  }
+  return out;
+}
+
+async function quickbooks(name: string, input: Input, token: string, config: Record<string, string>): Promise<string> {
+  const base = `${config.base ?? "https://quickbooks.api.intuit.com"}/v3/company/${config.realmId}`;
+  if (name === "quickbooks_report") {
+    const report = str(input, "report") || "ProfitAndLoss";
+    if (!/^(ProfitAndLoss|ProfitAndLossDetail|BalanceSheet|CashFlow|AgedReceivables|AgedPayables|CustomerSales|ItemSales|VendorExpenses|TrialBalance)$/.test(report)) {
+      throw new ToolError("Unknown report.");
+    }
+    const params = new URLSearchParams({ minorversion: "75" });
+    const start = dateParam(input, "start_date");
+    const end = dateParam(input, "end_date");
+    if (start) params.set("start_date", start);
+    if (end) params.set("end_date", end);
+    if (str(input, "summarize_by")) params.set("summarize_column_by", str(input, "summarize_by"));
+    const data = (await api(token, `${base}/reports/${report}?${params}`, { headers: { Accept: "application/json" } }, "quickbooks")) as {
+      Header?: { ReportName?: string; StartPeriod?: string; EndPeriod?: string; Currency?: string };
+      Columns?: { Column?: { ColTitle: string }[] };
+      Rows?: { Row?: QboRow[] };
+    };
+    const head = data.Header ?? {};
+    const cols = (data.Columns?.Column ?? []).map((c) => c.ColTitle || "").join(" | ");
+    return `${head.ReportName ?? report} ${head.StartPeriod ?? ""} to ${head.EndPeriod ?? ""} (${head.Currency ?? ""}) — figures as recorded in QuickBooks\n${cols}\n${flattenQbo(data.Rows?.Row).join("\n")}`;
+  }
+  // quickbooks_query: QuickBooks' query language is read-only (SELECT only)
+  const query = str(input, "query");
+  if (!/^select\s/i.test(query) || /;/.test(query)) throw new ToolError('Only one "SELECT … FROM …" query is allowed, e.g. SELECT * FROM Invoice WHERE Balance > \'0\' MAXRESULTS 50.');
+  const data = (await api(token, `${base}/query?minorversion=75&query=${encodeURIComponent(query)}`, { headers: { Accept: "application/json" } }, "quickbooks")) as { QueryResponse?: Record<string, unknown> };
+  return JSON.stringify(data.QueryResponse ?? {}, null, 1);
+}
+
+type XeroRow = { RowType: string; Title?: string; Cells?: { Value: string }[]; Rows?: XeroRow[] };
+function flattenXero(rows: XeroRow[] | undefined, depth = 0): string[] {
+  const out: string[] = [];
+  for (const row of rows ?? []) {
+    const pad = "  ".repeat(depth);
+    if (row.Title) out.push(pad + row.Title);
+    if (row.Cells) out.push(pad + row.Cells.map((c) => c.Value).join(" | "));
+    if (row.Rows) out.push(...flattenXero(row.Rows, depth + 1));
+  }
+  return out;
+}
+
+async function xero(name: string, input: Input, token: string, config: Record<string, string>): Promise<string> {
+  const headers = { "xero-tenant-id": config.tenantId, Accept: "application/json" };
+  if (name === "xero_report") {
+    const report = str(input, "report") || "ProfitAndLoss";
+    if (!/^(ProfitAndLoss|BalanceSheet|TrialBalance|BankSummary|ExecutiveSummary|BudgetSummary)$/.test(report)) throw new ToolError("Unknown report.");
+    const params = new URLSearchParams();
+    const from = dateParam(input, "from_date");
+    const to = dateParam(input, "to_date");
+    if (from) params.set(report === "BalanceSheet" || report === "TrialBalance" ? "date" : "fromDate", from);
+    if (to && report !== "BalanceSheet" && report !== "TrialBalance") params.set("toDate", to);
+    const data = (await api(token, `https://api.xero.com/api.xro/2.0/Reports/${report}?${params}`, { headers }, "xero")) as {
+      Reports?: { ReportName: string; ReportDate?: string; ReportTitles?: string[]; Rows?: XeroRow[] }[];
+    };
+    const r = data.Reports?.[0];
+    if (!r) return "No report.";
+    return `${(r.ReportTitles ?? [r.ReportName]).join(" — ")} — figures as recorded in Xero\n${flattenXero(r.Rows).join("\n")}`;
+  }
+  // xero_list
+  const type = str(input, "type") || "Invoices";
+  if (!/^(Invoices|Contacts|Accounts|BankTransactions|Payments|CreditNotes|Items)$/.test(type)) throw new ToolError("Unknown record type.");
+  const params = new URLSearchParams({ page: String(Math.max(1, Number(input.page) || 1)) });
+  if (str(input, "where")) params.set("where", str(input, "where"));
+  if (str(input, "order")) params.set("order", str(input, "order"));
+  const data = (await api(token, `https://api.xero.com/api.xro/2.0/${type}?${params}`, { headers }, "xero")) as Record<string, unknown>;
+  return JSON.stringify(data[type] ?? data, null, 1);
+}
+
+// ---- Shopify (read-only Admin GraphQL; fixed queries, no mutations) ----
+
+const SHOPIFY_QUERIES: Record<string, string> = {
+  orders: `query($first:Int!,$q:String){orders(first:$first,query:$q,sortKey:CREATED_AT,reverse:true){nodes{name createdAt displayFinancialStatus displayFulfillmentStatus totalPriceSet{shopMoney{amount currencyCode}} customer{displayName email} lineItems(first:10){nodes{title quantity}}}}}`,
+  products: `query($first:Int!,$q:String){products(first:$first,query:$q,sortKey:UPDATED_AT,reverse:true){nodes{title status totalInventory productType vendor priceRangeV2{minVariantPrice{amount currencyCode} maxVariantPrice{amount}}}}}`,
+  customers: `query($first:Int!,$q:String){customers(first:$first,query:$q,sortKey:UPDATED_AT,reverse:true){nodes{displayName email numberOfOrders amountSpent{amount currencyCode} createdAt}}}`,
+  inventory: `query($first:Int!,$q:String){productVariants(first:$first,query:$q){nodes{displayName sku inventoryQuantity product{title status}}}}`,
+};
+
+async function shopifyGraphql(token: string, shop: string, query: string, variables: Record<string, unknown>) {
+  const res = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: "POST",
+    headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" },
+    body: JSON.stringify({ query, variables }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { data?: Record<string, { nodes: unknown[] }>; errors?: { message: string }[] | string };
+  if (!res.ok || data.errors) throw new ToolError(`Shopify said: ${typeof data.errors === "string" ? data.errors : (data.errors?.[0]?.message ?? res.status)}`);
+  return data.data ?? {};
+}
+
+async function shopify(name: string, input: Input, token: string, config: Record<string, string>): Promise<string> {
+  if (name === "shopify_list") {
+    const resource = str(input, "resource") || "orders";
+    const query = SHOPIFY_QUERIES[resource];
+    if (!query) throw new ToolError("resource must be orders, products, customers or inventory.");
+    const data = await shopifyGraphql(token, config.shop, query, { first: Math.min(100, Number(input.first) || 25), q: str(input, "query") || null });
+    return JSON.stringify(Object.values(data)[0]?.nodes ?? [], null, 1);
+  }
+  // shopify_sales_summary: totals for the last N days (up to 250 orders per page, 4 pages)
+  const days = Math.min(365, Math.max(1, Number(input.days) || 30));
+  const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  let total = 0;
+  let count = 0;
+  let currency = "";
+  let cursor: string | null = null;
+  for (let page = 0; page < 4; page++) {
+    const data = (await shopifyGraphql(
+      token,
+      config.shop,
+      `query($c:String,$q:String){orders(first:250,after:$c,query:$q){pageInfo{hasNextPage endCursor} nodes{totalPriceSet{shopMoney{amount currencyCode}}}}}`,
+      { c: cursor, q: `created_at:>=${since} -status:cancelled` },
+    )) as unknown as { orders: { pageInfo: { hasNextPage: boolean; endCursor: string }; nodes: { totalPriceSet: { shopMoney: { amount: string; currencyCode: string } } }[] } };
+    for (const o of data.orders.nodes) {
+      total += Number(o.totalPriceSet.shopMoney.amount);
+      currency = o.totalPriceSet.shopMoney.currencyCode;
+      count++;
+    }
+    if (!data.orders.pageInfo.hasNextPage) break;
+    cursor = data.orders.pageInfo.endCursor;
+  }
+  return `Last ${days} days (since ${since}): ${count} orders, ${total.toFixed(2)} ${currency} total (order totals incl. tax and shipping, excluding cancelled)${count >= 1000 ? ". Only the latest 1,000 orders were counted." : "."}`;
+}
+
 export async function runNativeTool(name: string, input: Input, scope: { workspaceId: string }): Promise<Result> {
   const provider = providerOf(name);
   try {
@@ -248,8 +407,9 @@ export async function runNativeTool(name: string, input: Input, scope: { workspa
         isError: true,
       };
     }
-    const run = provider === "slack" ? slack : provider === "hubspot" ? hubspot : microsoft;
-    return { text: cut(`[${PROVIDERS[provider].name} account: ${auth.label}]\n${await run(name, input, auth.token)}`), isError: false };
+    const runners = { slack, hubspot, microsoft, quickbooks, xero, shopify } as const;
+    const output = await runners[provider](name, input, auth.token, auth.config);
+    return { text: cut(`[${PROVIDERS[provider].name} account: ${auth.label}]\n${output}`), isError: false };
   } catch (error) {
     return { text: error instanceof Error ? error.message : "That didn't work.", isError: true };
   }

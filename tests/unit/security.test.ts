@@ -118,3 +118,19 @@ test("website forms: placeholder swap, field limits and safe redirects", () => {
   assert.equal(safeNextPage("https://evil.example.com"), null, "no off-site redirects");
   assert.equal(safeNextPage("../../etc"), null);
 });
+
+import { cleanShop, verifyShopifyHmac } from "../../src/lib/integrations/oauth-apps";
+
+test("integrations: Shopify store addresses and callback signatures", () => {
+  assert.equal(cleanShop("Acme"), "acme.myshopify.com");
+  assert.equal(cleanShop("https://acme.myshopify.com/admin"), "acme.myshopify.com");
+  assert.equal(cleanShop("evil.com"), null);
+  assert.equal(cleanShop("a b"), null);
+  const secret = "shpss_test";
+  const params = new URLSearchParams({ code: "abc", shop: "acme.myshopify.com", state: "S", timestamp: "1700000000" });
+  const message = [...params.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join("&");
+  params.set("hmac", createHmac("sha256", secret).update(message).digest("hex"));
+  assert.equal(verifyShopifyHmac(params, secret), true);
+  params.set("shop", "evil.myshopify.com");
+  assert.equal(verifyShopifyHmac(params, secret), false, "a changed parameter breaks the signature");
+});

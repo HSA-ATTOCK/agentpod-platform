@@ -13,7 +13,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 
 export type NativeService = {
-  key: "slack" | "hubspot" | "microsoft";
+  key: "slack" | "hubspot" | "microsoft" | "quickbooks" | "xero" | "shopify";
   name: string;
   what: string;
   appClientId: string | null;
@@ -74,7 +74,7 @@ export function NativeIntegrations({ services, canManage, available }: { service
     <section className="space-y-3">
       {toast}
       <div>
-        <h2 className="text-base font-semibold text-foreground">Slack, HubSpot and Microsoft 365</h2>
+        <h2 className="text-base font-semibold text-foreground">Slack, HubSpot, Microsoft 365, QuickBooks, Xero and Shopify</h2>
         <p className="text-sm text-muted">Each workspace uses its own app for these services (one-time setup). Or just ask Baba &ldquo;connect my Slack&rdquo;.</p>
       </div>
       <div className="grid gap-3 lg:grid-cols-3">
@@ -111,6 +111,13 @@ export function NativeIntegrations({ services, canManage, available }: { service
                 {s.appClientId && (
                   <a
                     href={`/api/integrations/oauth/${s.key}/connect?return=/integrations`}
+                    onClick={(e) => {
+                      if (s.key !== "shopify") return;
+                      e.preventDefault();
+                      const shop = window.prompt("Your store address (e.g. your-store.myshopify.com):");
+                      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a server route that redirects to Shopify
+                      if (shop) window.location.assign(`/api/integrations/oauth/shopify/connect?return=/integrations&shop=${encodeURIComponent(shop.trim())}`);
+                    }}
                     className="inline-flex h-8 items-center gap-1.5 rounded-control bg-accent px-3 text-xs font-semibold text-accent-foreground hover:opacity-90"
                   >
                     <Plug aria-hidden="true" className="size-3.5" /> {s.accounts.length ? "Add account" : "Connect"}

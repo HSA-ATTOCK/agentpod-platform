@@ -3,7 +3,7 @@ import { routes } from "@/config/routes";
 import { safeNext } from "@/lib/auth/safe-next";
 import { canManage, getAppContext } from "@/lib/data/context";
 import { newNonce, signState } from "@/lib/integrations/google/oauth";
-import { isOAuthProvider, oauthAuthorizeUrl, oauthClientFor, PROVIDERS } from "@/lib/integrations/oauth-apps";
+import { cleanShop, isOAuthProvider, oauthAuthorizeUrl, oauthClientFor, PROVIDERS } from "@/lib/integrations/oauth-apps";
 import { publicOrigin, publicUrl } from "@/lib/origin";
 import { isAdminConfigured } from "@/lib/supabase/admin";
 import { popupResult } from "../../../google/popup-result";
@@ -28,9 +28,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
   const client = await oauthClientFor(ctx.workspace.id, provider);
   if (!client) return fail(`Set up this workspace's ${PROVIDERS[provider].name} app first (Integrations, or ask Baba).`);
 
+  // Shopify signs in per store
+  const shop = PROVIDERS[provider].perShop ? cleanShop(url.searchParams.get("shop") ?? "") : undefined;
+  if (PROVIDERS[provider].perShop && !shop) return fail("Enter your store address, e.g. your-store.myshopify.com.");
+
   const nonce = newNonce();
-  const state = signState({ workspaceId: ctx.workspace.id, userId: ctx.user.id, nonce, popup, returnTo, provider } as Parameters<typeof signState>[0]);
-  const response = NextResponse.redirect(oauthAuthorizeUrl(publicOrigin(request), provider, state, client));
+  const state = signState({ workspaceId: ctx.workspace.id, userId: ctx.user.id, nonce, popup, returnTo, provider, shop } as Parameters<typeof signState>[0]);
+  const response = NextResponse.redirect(oauthAuthorizeUrl(publicOrigin(request), provider, state, client, shop ?? undefined));
   response.cookies.set(`baba_${provider}_oauth`, nonce, { httpOnly: true, secure: true, sameSite: "lax", path: `/api/integrations/oauth/${provider}`, maxAge: 600 });
   return response;
 }

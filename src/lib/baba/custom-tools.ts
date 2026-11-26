@@ -182,7 +182,7 @@ export function createCustomToolHandler(scope: { workspaceId: string; conversati
 
     if (event.name === "request_connection") {
       if (str(input, "service") !== "google") {
-        await sendResult(sessionId, event.id, "Supported services: google, slack, hubspot, microsoft.", true);
+        await sendResult(sessionId, event.id, "Supported services: google, slack, hubspot, microsoft, quickbooks, xero, shopify.", true);
         return "handled";
       }
       if (!(await googleClientFor(scope.workspaceId))) {

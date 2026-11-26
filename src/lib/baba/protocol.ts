@@ -18,12 +18,12 @@ export type BabaStreamEvent =
   | { type: "files"; files: { id: string; name: string; sizeBytes: number }[] }
   | { type: "usage"; costCents: number; capCents: number | null }
   /** Baba asks the user to connect a service: show a Connect button in the chat. */
-  | { type: "connect_request"; id: string; service: "google" | "slack" | "hubspot" | "microsoft"; reason: string }
+  | { type: "connect_request"; id: string; service: "google" | "slack" | "hubspot" | "microsoft" | "quickbooks" | "xero" | "shopify"; reason: string }
   /** The workspace has no app for this service yet: secure setup card (Client ID + secret), then Connect. */
   | {
       type: "oauth_app_request";
       id: string;
-      service: "slack" | "hubspot" | "microsoft";
+      service: "slack" | "hubspot" | "microsoft" | "quickbooks" | "xero" | "shopify";
       serviceName: string;
       redirectUri: string;
       consoleUrl: string;

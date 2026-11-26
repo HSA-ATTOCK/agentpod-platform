@@ -93,7 +93,7 @@ export type ChatItem =
   | {
       id: string;
       type: "connect_request";
-      service: "google" | "slack" | "hubspot" | "microsoft";
+      service: "google" | "slack" | "hubspot" | "microsoft" | "quickbooks" | "xero" | "shopify";
       reason: string;
       status: "pending" | "connected";
       account?: string;
@@ -124,7 +124,7 @@ export type ChatItem =
   | {
       id: string;
       type: "oauth_app_request";
-      service: "slack" | "hubspot" | "microsoft";
+      service: "slack" | "hubspot" | "microsoft" | "quickbooks" | "xero" | "shopify";
       serviceName: string;
       redirectUri: string;
       consoleUrl: string;
