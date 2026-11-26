@@ -134,3 +134,11 @@ test("integrations: Shopify store addresses and callback signatures", () => {
   params.set("shop", "evil.myshopify.com");
   assert.equal(verifyShopifyHmac(params, secret), false, "a changed parameter breaks the signature");
 });
+
+import { cleanDomain, isValidDomain } from "../../src/lib/sites/production";
+
+test("websites: customers' own domains are cleaned and checked", () => {
+  assert.equal(cleanDomain(" https://WWW.Example.com/about "), "www.example.com");
+  assert.ok(isValidDomain("www.example.co.uk"));
+  for (const bad of ["localhost", "example", "-bad.example.com", "a..b.com", "exa mple.com"]) assert.equal(isValidDomain(bad), false, bad);
+});

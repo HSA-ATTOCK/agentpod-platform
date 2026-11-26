@@ -14,7 +14,7 @@ async function PageContent() {
   const now = new Date().toISOString();
   const { data } = await ctx.supabase
     .from("sites")
-    .select("id, name, slug, status, current_version, expires_at, conversation_id, production_url, production_version, published_at, custom_domain, site_versions (version, note, created_at, file_count)")
+    .select("id, name, slug, status, current_version, expires_at, conversation_id, production_url, production_version, published_at, custom_domain, domain_status, domain_records, site_versions (version, note, created_at, file_count)")
     .eq("workspace_id", ctx.workspace.id)
     .order("created_at", { ascending: false });
   const { data: submissions } = await ctx.supabase
@@ -35,6 +35,8 @@ async function PageContent() {
     productionUrl: s.production_url,
     productionVersion: s.production_version,
     customDomain: s.custom_domain,
+    domainStatus: s.domain_status,
+    domainRecords: (s.domain_records as { type: string; name: string; value: string; purpose: string }[] | null) ?? [],
     submissions: (submissions ?? [])
       .filter((f) => f.site_id === s.id)
       .map((f) => ({ id: f.id, form: f.form_name, data: f.data as Record<string, string>, createdAt: f.created_at })),

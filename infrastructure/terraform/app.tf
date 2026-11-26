@@ -140,6 +140,7 @@ resource "aws_ecs_task_definition" "app" {
       { name = "SITES_S3_BUCKET", value = aws_s3_bucket.sites.bucket },
       { name = "SITES_CLOUDFRONT_DISTRIBUTION_ID", value = aws_cloudfront_distribution.sites.id },
       { name = "SITES_PUBLIC_DOMAIN", value = var.sites_domain },
+      { name = "SITES_OAC_ID", value = aws_cloudfront_origin_access_control.sites.id },
     ]
     secrets = [for k in local.secret_keys : { name = k, valueFrom = "${aws_secretsmanager_secret.app.arn}:${k}::" }]
     logConfiguration = {

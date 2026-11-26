@@ -33,3 +33,8 @@ output "ecs_cluster" {
 output "sites_bucket" {
   value = aws_s3_bucket.sites.bucket
 }
+
+output "sites_oac_id" {
+  description = "SITES_OAC_ID for the app (customers' own domains), if you run the app outside this ECS setup"
+  value       = aws_cloudfront_origin_access_control.sites.id
+}

@@ -1,5 +1,5 @@
 import { canManage, getAppContext } from "@/lib/data/context";
-import { publishProduction, requestCustomDomain } from "@/lib/sites/production";
+import { checkCustomDomain, publishProduction, requestCustomDomain } from "@/lib/sites/production";
 import { deleteSite, restoreSiteVersion, setSiteStatus } from "@/lib/sites/sites";
 import { isAdminConfigured } from "@/lib/supabase/admin";
 
@@ -32,6 +32,8 @@ export async function POST(request: Request) {
         const live = await publishProduction(ctx, siteId, body.version ? Number(body.version) : undefined);
         return Response.json({ ok: true, url: live.url });
       }
+      case "domain_check":
+        return Response.json({ ok: true, message: await checkCustomDomain(ctx, siteId) });
       case "domain":
         return Response.json({ ok: true, message: await requestCustomDomain(ctx, siteId, String(body.domain ?? "")) });
       default:

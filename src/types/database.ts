@@ -974,6 +974,11 @@ export type Database = {
           production_url: string | null
           production_version: number | null
           published_at: string | null
+          domain_cert_arn: string | null
+          domain_distribution_id: string | null
+          domain_records: Json | null
+          domain_status: string | null
+          domain_target: string | null
         }
         Insert: {
           conversation_id?: string | null
@@ -991,6 +996,11 @@ export type Database = {
           production_url?: string | null
           production_version?: number | null
           published_at?: string | null
+          domain_cert_arn?: string | null
+          domain_distribution_id?: string | null
+          domain_records?: Json | null
+          domain_status?: string | null
+          domain_target?: string | null
         }
         Update: {
           conversation_id?: string | null
@@ -1008,6 +1018,11 @@ export type Database = {
           production_url?: string | null
           production_version?: number | null
           published_at?: string | null
+          domain_cert_arn?: string | null
+          domain_distribution_id?: string | null
+          domain_records?: Json | null
+          domain_status?: string | null
+          domain_target?: string | null
         }
         Relationships: []
       }

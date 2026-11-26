@@ -141,7 +141,8 @@ resource "aws_s3_bucket_policy" "sites" {
       Principal = { Service = "cloudfront.amazonaws.com" }
       Action    = "s3:GetObject"
       Resource  = "${aws_s3_bucket.sites.arn}/*"
-      Condition = { StringEquals = { "AWS:SourceArn" = aws_cloudfront_distribution.sites.arn } }
+      # The shared distribution and the per-domain ones the app creates for customers' own domains
+      Condition = { StringLike = { "AWS:SourceArn" = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*" } }
     }]
   })
 }
@@ -165,10 +166,21 @@ data "aws_iam_policy_document" "publish_sites" {
     resources = ["${aws_s3_bucket.sites.arn}/*"]
   }
   statement {
-    actions   = ["cloudfront:CreateInvalidation"]
-    resources = [aws_cloudfront_distribution.sites.arn]
+    actions   = ["cloudfront:CreateInvalidation", "cloudfront:GetDistribution"]
+    resources = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"]
+  }
+  # Customers' own domains: a certificate and a distribution per domain
+  statement {
+    actions   = ["cloudfront:CreateDistribution", "cloudfront:TagResource"]
+    resources = ["*"]
+  }
+  statement {
+    actions   = ["acm:RequestCertificate", "acm:DescribeCertificate", "acm:AddTagsToCertificate"]
+    resources = ["*"]
   }
 }
+
+data "aws_caller_identity" "current" {}
 
 resource "aws_iam_policy" "publish_sites" {
   name   = "baba-publish-sites-${var.environment}"

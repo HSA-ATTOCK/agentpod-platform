@@ -24,6 +24,8 @@ export type SiteRow = {
   productionUrl: string | null;
   productionVersion: number | null;
   customDomain: string | null;
+  domainStatus: string | null;
+  domainRecords: { type: string; name: string; value: string; purpose: string }[];
   submissions: { id: string; form: string; data: Record<string, string>; createdAt: string }[];
   versions: { version: number; note: string | null; createdAt: string; fileCount: number }[];
 };
@@ -100,8 +102,36 @@ export function SitesView({ sites, canManage, productionAvailable }: { sites: Si
                     <a href={s.productionUrl} target="_blank" rel="noopener noreferrer" className="underline">
                       {s.productionUrl}
                     </a>
-                    {s.customDomain && <span className="text-muted"> · domain requested: {s.customDomain}</span>}
                   </p>
+                )}
+                {s.customDomain && (
+                  <div className="mt-2 space-y-1 rounded-control border border-border p-2 text-xs">
+                    <p className="text-foreground">
+                      Your domain: <span className="font-medium">{s.customDomain}</span> —{" "}
+                      {s.domainStatus === "live" ? (
+                        <a href={`https://${s.customDomain}`} target="_blank" rel="noopener noreferrer" className="text-success underline">
+                          live
+                        </a>
+                      ) : s.domainStatus === "deploying" ? (
+                        <span className="text-info">setting up (add the record below)</span>
+                      ) : s.domainStatus === "failed" ? (
+                        <span className="text-danger">failed — add it again</span>
+                      ) : (
+                        <span className="text-warning">waiting for the DNS record below</span>
+                      )}
+                    </p>
+                    {s.domainStatus !== "live" &&
+                      s.domainRecords.map((r) => (
+                        <p key={r.name} className="break-all font-mono text-[11px] text-muted">
+                          {r.type} {r.name} → {r.value} <span className="font-sans text-subtle">({r.purpose})</span>
+                        </p>
+                      ))}
+                    {canManage && s.domainStatus !== "live" && (
+                      <Button size="sm" variant="secondary" loading={busy === `chk-${s.id}`} onClick={() => act(`chk-${s.id}`, { action: "domain_check", siteId: s.id }, "Checked.")}>
+                        Check domain
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
