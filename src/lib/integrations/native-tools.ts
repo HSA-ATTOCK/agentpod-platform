@@ -353,7 +353,7 @@ const SHOPIFY_QUERIES: Record<string, string> = {
   inventory: `query($first:Int!,$q:String){productVariants(first:$first,query:$q){nodes{displayName sku inventoryQuantity product{title status}}}}`,
 };
 
-async function shopifyGraphql(token: string, shop: string, query: string, variables: Record<string, unknown>) {
+export async function shopifyGraphql(token: string, shop: string, query: string, variables: Record<string, unknown>) {
   const res = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
     method: "POST",
     headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" },

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AskBaba } from "@/components/ask/ask-baba";
 import { canManage, requireAppContext } from "@/lib/data/context";
 import { listConversations } from "@/lib/data/conversations";
+import { getStartState } from "@/lib/data/getting-started";
 import { Suspense } from "react";
 import { AskSkeleton } from "@/components/ui/page-skeleton";
 
@@ -13,7 +14,7 @@ function one(value: string | string[] | undefined) {
 
 async function AskBabaPageContent({ searchParams }: PageProps<"/ask">) {
   const [ctx, params] = await Promise.all([requireAppContext(), searchParams]);
-  const conversations = await listConversations(ctx);
+  const [conversations, startState] = await Promise.all([listConversations(ctx), getStartState(ctx)]);
 
   return (
     // Fills the screen between the top bar and (on phones) the bottom tab bar
@@ -27,6 +28,7 @@ async function AskBabaPageContent({ searchParams }: PageProps<"/ask">) {
         initialActiveId={one(params.c)}
         initialPrompt={one(params.prompt)?.slice(0, 20000)}
         workflowId={one(params.workflow)}
+        startState={startState}
       />
     </main>
   );

@@ -250,6 +250,12 @@ export type Database = {
           },
         ]
       }
+      daily_briefings: {
+        Row: { user_id: string; workspace_id: string; enabled: boolean; send_hour: number; last_sent_on: string | null; updated_at: string }
+        Insert: { user_id: string; workspace_id: string; enabled?: boolean; send_hour?: number; last_sent_on?: string | null; updated_at?: string }
+        Update: { user_id?: string; workspace_id?: string; enabled?: boolean; send_hour?: number; last_sent_on?: string | null; updated_at?: string }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           prefs: Json

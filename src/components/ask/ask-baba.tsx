@@ -30,6 +30,7 @@ import { Composer } from "./composer";
 import { ConversationList } from "./conversation-list";
 import { MessageList } from "./message-list";
 import { NewChat } from "./new-chat";
+import type { StartState } from "@/lib/data/getting-started";
 import { TaskDetails } from "./task-details";
 
 // How many times to reconnect automatically if the connection drops mid-task
@@ -61,6 +62,8 @@ type AskBabaProps = {
   initialPrompt?: string;
   /** The workflow being run, so its task is linked to it. */
   workflowId?: string;
+  /** Connected tools and first steps, for the getting-started checklist and task ideas. */
+  startState?: StartState;
 };
 
 /**
@@ -77,6 +80,7 @@ export function AskBaba({
   initialActiveId,
   initialPrompt,
   workflowId,
+  startState,
 }: AskBabaProps) {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
@@ -657,11 +661,6 @@ export function AskBaba({
     else setTaskSheetOpen(true);
   }
 
-  function pickSuggestion(prompt: string) {
-    setDraft(prompt);
-    textareaRef.current?.focus();
-  }
-
   const composer = (size: "normal" | "large") => (
     <>
       {!canWrite ? (
@@ -739,7 +738,12 @@ export function AskBaba({
             </div>
           </>
         ) : (
-          <NewChat composer={composer("large")} onPickSuggestion={pickSuggestion} />
+          <NewChat
+            composer={composer("large")}
+            onSend={(prompt) => void send(prompt, [])}
+            startState={canWrite ? startState : undefined}
+            workspaceId={workspaceId}
+          />
         )}
       </section>
 

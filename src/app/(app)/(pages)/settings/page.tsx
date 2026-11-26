@@ -9,9 +9,9 @@ import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 export const metadata: Metadata = { title: "Settings" };
 
-async function SettingsPageContent() {
-  const ctx = await requireAppContext();
-  const [settings, members, invites, monthTasks, prefs, claims] = await Promise.all([
+async function SettingsPageContent({ searchParams }: PageProps<"/settings">) {
+  const [ctx, params] = await Promise.all([requireAppContext(), searchParams]);
+  const [settings, members, invites, monthTasks, prefs, claims, briefing, profile] = await Promise.all([
     getWorkspaceSettings(ctx),
     listMembers(ctx),
     listInvites(ctx),
@@ -23,6 +23,8 @@ async function SettingsPageContent() {
       .eq("workspace_id", ctx.workspace.id)
       .maybeSingle(),
     ctx.supabase.auth.getClaims(),
+    ctx.supabase.from("daily_briefings").select("enabled, send_hour").eq("user_id", ctx.user.id).eq("workspace_id", ctx.workspace.id).maybeSingle(),
+    ctx.supabase.from("profiles").select("timezone").eq("id", ctx.user.id).maybeSingle(),
   ]);
 
   const appMetadata = claims.data?.claims.app_metadata as { providers?: string[] } | undefined;
@@ -41,15 +43,18 @@ async function SettingsPageContent() {
       notificationPrefs={(prefs.data?.prefs as NotificationPrefs | null) ?? {}}
       signInMethods={appMetadata?.providers ?? ["email"]}
       emailConfigured={isEmailConfigured()}
+      briefing={{ enabled: briefing.data?.enabled ?? false, hour: briefing.data?.send_hour ?? 8 }}
+      myTimeZone={profile.data?.timezone ?? "UTC"}
+      initialTab={typeof params.tab === "string" ? params.tab : undefined}
     />
   );
 }
 
 /** Shows a placeholder straight away while this page's data loads. */
-export default function SettingsPage() {
+export default function SettingsPage(props: PageProps<"/settings">) {
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <SettingsPageContent />
+      <SettingsPageContent {...props} />
     </Suspense>
   );
 }

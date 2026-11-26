@@ -207,3 +207,23 @@ export function babaNoticeEmail(input: { to: string; title: string; message: str
     text: `${input.title}\n\n${input.message}\n\nOpen in Baba: ${input.url}`,
   };
 }
+
+/** The daily briefing: one heading per part, a short list under each. */
+export function briefingEmail(input: { to: string; heading: string; sections: { title: string; lines: string[] }[]; url: string }): Email {
+  const html = input.sections
+    .map(
+      (s) =>
+        `<strong style="color:#0a0a0a">${escape(s.title)}</strong><br>${s.lines.map((l) => `&bull; ${escape(l)}`).join("<br>")}`,
+    );
+  return {
+    to: input.to,
+    subject: input.heading.slice(0, 150),
+    html: layout({
+      heading: escape(input.heading),
+      paragraphs: html,
+      button: { label: "Open Baba", url: input.url },
+      footer: "You get this because the daily briefing is on. Turn it off in Baba → Settings → Notifications.",
+    }),
+    text: `${input.heading}\n\n${input.sections.map((s) => `${s.title}\n${s.lines.map((l) => `- ${l}`).join("\n")}`).join("\n\n")}\n\nOpen Baba: ${input.url}\n\nTurn this off in Settings → Notifications.`,
+  };
+}

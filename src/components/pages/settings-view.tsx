@@ -88,6 +88,12 @@ type SettingsViewProps = {
   signInMethods: string[];
   /** True when Gmail sending is set up on the server. */
   emailConfigured: boolean;
+  /** This person's daily briefing for this workspace. */
+  briefing: { enabled: boolean; hour: number };
+  /** The time zone from the person's profile (the briefing's hour uses it). */
+  myTimeZone: string;
+  /** Open this tab first (e.g. ?tab=notifications from the getting-started checklist). */
+  initialTab?: string;
 };
 
 export function SettingsView({
@@ -102,6 +108,9 @@ export function SettingsView({
   notificationPrefs,
   signInMethods,
   emailConfigured,
+  briefing,
+  myTimeZone,
+  initialTab,
 }: SettingsViewProps) {
   const router = useRouter();
   const supabase = getSupabaseBrowser();
@@ -109,7 +118,7 @@ export function SettingsView({
   const canManage = myRole === "owner" || myRole === "admin";
   const isOwner = myRole === "owner";
 
-  const [tab, setTab] = useState<TabId>("workspace");
+  const [tab, setTab] = useState<TabId>(() => (tabs.some((t) => t.id === initialTab) ? (initialTab as TabId) : "workspace"));
   const [busy, setBusy] = useState<string | null>(null);
 
   // Workspace
@@ -134,6 +143,37 @@ export function SettingsView({
   const [notify, setNotify] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(notificationEvents.map(({ key }) => [key, emailEnabled(notificationPrefs, key)])),
   );
+
+  // Daily briefing
+  const [brief, setBrief] = useState(briefing);
+
+  async function briefingRequest(body: Record<string, unknown>, key: string) {
+    setBusy(key);
+    try {
+      const response = await fetch("/api/briefing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = (await response.json().catch(() => ({}))) as { error?: string; sent?: boolean; emailed?: boolean };
+      if (!response.ok) throw new Error(data.error ?? "That didn't work.");
+      return data;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "That didn't work.");
+      return null;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function saveBriefing(next: { enabled: boolean; hour: number }) {
+    const previous = brief;
+    setBrief(next);
+    const ok = await briefingRequest({ action: "save", ...next }, "briefing");
+    if (!ok) setBrief(previous);
+    else showToast(next.enabled ? `Daily briefing on: every day at ${String(next.hour).padStart(2, "0")}:00.` : "Daily briefing off.");
+  }
+
+  async function sendBriefingNow() {
+    const data = await briefingRequest({ action: "send_now" }, "briefing-now");
+    if (data) showToast(data.emailed ? "Sent: check the bell menu and your email." : "Sent to the bell menu (email isn't set up on this server).");
+  }
 
   // Delete workspace
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -634,6 +674,52 @@ export function SettingsView({
               <div className="flex justify-end">
                 <Button onClick={saveNotifications} loading={busy === "notifications"} loadingText="Saving…">Save notifications</Button>
               </div>
+            </Section>
+          )}
+
+          {tab === "notifications" && (
+            <Section
+              title="Daily briefing"
+              description="A short summary each morning: today's calendar, new emails, overdue invoices, shop sales and what Baba did. Sent to the bell menu and by email."
+            >
+              {myRole === "viewer" ? (
+                <p className="text-sm text-muted">Viewers don&apos;t get the daily briefing in this workspace, because it shows the workspace&apos;s email and money details.</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-4 rounded-xl border border-border p-3.5">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Send me a daily briefing</p>
+                      <p className="text-xs text-muted">Off by default. Turn it off again any time.</p>
+                    </div>
+                    <Switch
+                      checked={brief.enabled}
+                      disabled={busy === "briefing"}
+                      onChange={(on) => void saveBriefing({ ...brief, enabled: on })}
+                      label="Send me a daily briefing"
+                    />
+                  </div>
+                  <Field id="briefing-hour" label="Time" hint={`Your time zone: ${myTimeZone} (change it on your Profile page).`}>
+                    <select
+                      id="briefing-hour"
+                      value={brief.hour}
+                      disabled={!brief.enabled || busy === "briefing"}
+                      onChange={(e) => void saveBriefing({ ...brief, hour: Number(e.target.value) })}
+                      className={selectClasses}
+                    >
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <option key={h} value={h}>
+                          {String(h).padStart(2, "0")}:00
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <div className="flex justify-end">
+                    <Button variant="secondary" onClick={sendBriefingNow} loading={busy === "briefing-now"} loadingText="Sending…">
+                      Send me one now
+                    </Button>
+                  </div>
+                </>
+              )}
             </Section>
           )}
 
