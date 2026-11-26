@@ -54,11 +54,16 @@ export async function saveApiKey(input: {
   const admin = getSupabaseAdmin();
   const { data: existing } = await admin
     .from("integrations")
-    .select("id")
+    .select("id, config")
     .eq("workspace_id", input.workspaceId)
     .eq("provider", API_KEY_PROVIDER)
     .ilike("label", likeExact(name))
     .maybeSingle();
+  // Never quietly send a key meant for one host to another: a different host needs a new name
+  const existingHost = (existing?.config as { host?: string } | null)?.host;
+  if (existingHost && existingHost !== host) {
+    throw new Error(`"${name}" is already connected to ${existingHost}. Remove it first, or use a different name for ${host}.`);
+  }
   const values = {
     workspace_id: input.workspaceId,
     provider: API_KEY_PROVIDER,
@@ -159,6 +164,21 @@ export async function listConnectionsText(workspaceId: string) {
 
 const MAX_RESPONSE = 30_000;
 
+/** Removes the key from text, including its common encoded forms (base64, URL-encoded, JSON-escaped). */
+export function hideKey(text: string, key: string) {
+  const forms = new Set([
+    key,
+    encodeURIComponent(key),
+    Buffer.from(key).toString("base64"),
+    Buffer.from(key).toString("base64url"),
+    Buffer.from(key).toString("base64").replace(/=+$/, ""),
+    JSON.stringify(key).slice(1, -1),
+  ]);
+  let out = text;
+  for (const form of [...forms].filter((f) => f.length >= 8).sort((a, b) => b.length - a.length)) out = out.split(form).join("[key hidden]");
+  return out;
+}
+
 /** Calls a service connected with an API key. The key is added here and never returned. */
 export async function apiRequest(workspaceId: string, input: Input): Promise<{ text: string; isError: boolean }> {
   const name = s(input, "service_name");
@@ -201,7 +221,7 @@ export async function apiRequest(workspaceId: string, input: Input): Promise<{ t
     const response = await fetch(url, { method, headers, body, redirect: "manual", signal: AbortSignal.timeout(30_000) });
     let text = await response.text();
     // Never echo the key back, even if the service does
-    text = text.split(key).join("[key hidden]");
+    text = hideKey(text, key);
     if (text.length > MAX_RESPONSE) text = `${text.slice(0, MAX_RESPONSE)}\n…[cut off]`;
     const shownUrl = service.config.queryParam ? `${url.origin}${url.pathname}` : url.toString();
     return { text: `${method} ${shownUrl} → ${response.status}\n${text}`, isError: response.status >= 400 };

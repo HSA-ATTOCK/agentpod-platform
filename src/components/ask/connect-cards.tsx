@@ -189,7 +189,10 @@ export function KeyRequestCard({ item, canManage, onUpdate, onSend, busy }: Shar
         <div className="min-w-0 flex-1 space-y-3">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Add your {item.serviceName} API key</h3>
-            <p className="text-xs text-muted">Used only for requests to {item.apiHost}.</p>
+          </div>
+          <div className="rounded-control border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
+            The key will be sent to <strong className="break-all font-mono">{item.apiHost}</strong> and nowhere else. Check that this is
+            the service&apos;s real address before you paste a key.
           </div>
           {item.instructions && (
             <div className="whitespace-pre-wrap rounded-control border border-border bg-surface p-3 text-sm leading-relaxed text-foreground">

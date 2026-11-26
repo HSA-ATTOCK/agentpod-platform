@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { readState } from "@/lib/integrations/google/oauth";
 import { cleanShop, completeOAuthConnection, isOAuthProvider, oauthClientFor, PROVIDERS, verifyShopifyHmac } from "@/lib/integrations/oauth-apps";
-import { getAppContext } from "@/lib/data/context";
+import { canManage, getAppContext } from "@/lib/data/context";
 import { publicOrigin, publicUrl } from "@/lib/origin";
 import { audit } from "@/lib/platform/account";
 import { popupResult } from "../../../google/popup-result";
@@ -35,11 +35,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
   if (!ctx || ctx.user.id !== state.userId || ctx.workspace.id !== state.workspaceId) {
     return back({ ok: false, error: "Please finish the sign-in in the same Baba account and workspace." });
   }
+  if (!canManage(ctx.workspace.role)) return back({ ok: false, error: "Only owners and admins can connect tools." });
   const denied = url.searchParams.get("error");
   const code = url.searchParams.get("code");
   if (denied || !code) return back({ ok: false, error: `${PROVIDERS[provider].name} sign-in was cancelled.` });
   const extra: Record<string, string> = {};
-  if (provider === "quickbooks") extra.realmId = url.searchParams.get("realmId") ?? "";
+  if (provider === "quickbooks") {
+    const realmId = url.searchParams.get("realmId") ?? "";
+    if (!/^\d{1,32}$/.test(realmId)) return back({ ok: false, error: "QuickBooks didn't say which company to connect. Please try again." });
+    extra.realmId = realmId;
+  }
   if (provider === "shopify") {
     // The store must be the one the sign-in started with, and Shopify's signature must match
     const shop = cleanShop(url.searchParams.get("shop") ?? "");

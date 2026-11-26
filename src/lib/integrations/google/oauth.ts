@@ -142,8 +142,11 @@ function stateKey() {
   return createHmac("sha256", "baba-oauth-state").update(secret).digest();
 }
 
+/** Sign-in links expire after 10 minutes (the nonce cookie lasts as long). */
+const STATE_MAX_AGE_MS = 10 * 60 * 1000;
+
 export function signState(state: OAuthState) {
-  const body = Buffer.from(JSON.stringify(state)).toString("base64url");
+  const body = Buffer.from(JSON.stringify({ ...state, iat: Date.now() })).toString("base64url");
   const sig = createHmac("sha256", stateKey()).update(body).digest("base64url");
   return `${body}.${sig}`;
 }
@@ -155,7 +158,9 @@ export function readState(value: string | null): OAuthState | null {
   const expected = createHmac("sha256", stateKey()).update(body).digest("base64url");
   if (expected.length !== sig.length || !timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) return null;
   try {
-    return JSON.parse(Buffer.from(body, "base64url").toString()) as OAuthState;
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString()) as OAuthState & { iat?: number };
+    if (typeof parsed.iat !== "number" || Date.now() - parsed.iat > STATE_MAX_AGE_MS || parsed.iat > Date.now() + 60_000) return null;
+    return parsed;
   } catch {
     return null;
   }

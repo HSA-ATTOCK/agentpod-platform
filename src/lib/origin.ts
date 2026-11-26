@@ -2,12 +2,17 @@
  * The address people actually use to reach the app (e.g. the Codespaces or live domain),
  * not the internal localhost:3000 the server listens on behind a proxy.
  * Order: NEXT_PUBLIC_SITE_URL → the proxy's x-forwarded-host → the request's own URL.
+ * In production the x-forwarded-host header is only trusted with TRUST_FORWARDED_HOST=1
+ * (anyone can send that header, and it ends up in sign-in and email links); otherwise
+ * serverOrigin() is used. Set NEXT_PUBLIC_SITE_URL for every real deployment.
  */
 export function publicOrigin(request: Request) {
   const configured = process.env.NEXT_PUBLIC_SITE_URL;
   if (configured) return configured.replace(/\/$/, "");
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0].trim();
-  if (forwardedHost) {
+  const trustForwarded = process.env.NODE_ENV !== "production" || process.env.TRUST_FORWARDED_HOST === "1";
+  if (!trustForwarded) return serverOrigin();
+  if (forwardedHost && /^[a-z0-9.-]+(:\d{1,5})?$/i.test(forwardedHost)) {
     const proto = request.headers.get("x-forwarded-proto")?.split(",")[0].trim() || "https";
     return `${proto}://${forwardedHost}`;
   }
