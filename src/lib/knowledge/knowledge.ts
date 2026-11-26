@@ -1,5 +1,7 @@
 import "server-only";
+import { embed, embeddingsProvider, toVector } from "@/lib/ai/embeddings";
 import type { AppContext } from "@/lib/data/context";
+import { getSupabaseAdmin, isAdminConfigured } from "@/lib/supabase/admin";
 
 /**
  * Business memory and knowledge base (PRD §13).
@@ -109,7 +111,23 @@ export async function addDocument(ctx: AppContext, input: { title: string; text:
       throw new Error(chunkError.message);
     }
   }
+  // Index for search by meaning (if configured); a failure here leaves keyword search working
+  await embedMissingChunks(ctx.workspace.id, 400).catch((error) => console.error("[knowledge] embeddings:", error instanceof Error ? error.message : error));
   return { id: doc.id, chunks: chunks.length };
+}
+
+/** Adds embeddings to passages that don't have one yet (new documents, or ones added before a provider was set). */
+export async function embedMissingChunks(workspaceId: string, limit = 200) {
+  if (!embeddingsProvider() || !isAdminConfigured()) return 0;
+  const db = getSupabaseAdmin();
+  const { data } = await db.from("knowledge_chunks").select("id, content").eq("workspace_id", workspaceId).is("embedding", null).order("id").limit(limit);
+  const rows = data ?? [];
+  for (let i = 0; i < rows.length; i += 64) {
+    const batch = rows.slice(i, i + 64);
+    const vectors = await embed(batch.map((r) => r.content), "document");
+    await Promise.all(batch.map((r, j) => db.from("knowledge_chunks").update({ embedding: toVector(vectors[j]) }).eq("id", r.id).eq("workspace_id", workspaceId)));
+  }
+  return rows.length;
 }
 
 export async function deleteDocument(ctx: AppContext, id: string) {
@@ -127,27 +145,61 @@ export async function listDocuments(ctx: AppContext) {
   return data ?? [];
 }
 
-/** The knowledge_search tool. */
+type Passage = { key: string; title: string; position: number; content: string };
+
+/** Search by meaning (when an embeddings provider is configured). */
+async function semanticPassages(ctx: AppContext, q: string, limit: number): Promise<Passage[]> {
+  if (!embeddingsProvider()) return [];
+  try {
+    await embedMissingChunks(ctx.workspace.id, 200);
+    const [vector] = await embed([q], "query");
+    const { data } = await ctx.supabase.rpc("match_knowledge_chunks", { ws: ctx.workspace.id, query_embedding: toVector(vector), match_count: limit });
+    const rows = (data ?? []).filter((r) => r.similarity > 0.25);
+    if (!rows.length) return [];
+    const { data: docs } = await ctx.supabase.from("knowledge_documents").select("id, title").in("id", [...new Set(rows.map((r) => r.document_id))]);
+    const title = new Map((docs ?? []).map((d) => [d.id, d.title]));
+    return rows.map((r) => ({ key: `${r.document_id}:${r.chunk_position}`, title: title.get(r.document_id) ?? "Document", position: r.chunk_position, content: r.content }));
+  } catch (error) {
+    console.error("[knowledge] semantic search:", error instanceof Error ? error.message : error);
+    return [];
+  }
+}
+
+/** The knowledge_search tool: meaning-based and keyword results combined. */
 export async function searchKnowledge(ctx: AppContext, query: string, limit = 8) {
   const q = query.trim().slice(0, 300);
   if (!q) return "Give a search query.";
+  const max = Math.min(20, Math.max(1, limit));
+  const semantic = await semanticPassages(ctx, q, max);
   const { data, error } = await ctx.supabase
     .from("knowledge_chunks")
     .select("content, position, document_id, knowledge_documents (title)")
     .eq("workspace_id", ctx.workspace.id)
     .textSearch("search", q, { type: "websearch", config: "simple" })
-    .limit(Math.min(20, Math.max(1, limit)));
-  if (error) return `Search failed: ${error.message}`;
-  if (!data?.length) {
+    .limit(max);
+  if (error && !semantic.length) return `Search failed: ${error.message}`;
+  const keyword: Passage[] = (data ?? []).map((c) => ({
+    key: `${c.document_id}:${c.position}`,
+    title: (c.knowledge_documents as { title?: string } | null)?.title ?? "Document",
+    position: c.position,
+    content: c.content,
+  }));
+  // Interleave both lists, without duplicates
+  const merged: Passage[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; merged.length < max && (i < semantic.length || i < keyword.length); i++) {
+    for (const p of [semantic[i], keyword[i]]) {
+      if (p && !seen.has(p.key) && merged.length < max) {
+        seen.add(p.key);
+        merged.push(p);
+      }
+    }
+  }
+  if (!merged.length) {
     const { count } = await ctx.supabase.from("knowledge_documents").select("id", { count: "exact", head: true }).eq("workspace_id", ctx.workspace.id);
     return count ? `No passages matched "${q}". Try other words (exact terms work best).` : "The knowledge base is empty. The user can add documents on the Memory page.";
   }
-  return data
-    .map((c) => {
-      const title = (c.knowledge_documents as { title?: string } | null)?.title ?? "Document";
-      return `### ${title} (part ${c.position + 1})\n${c.content}`;
-    })
-    .join("\n\n---\n\n");
+  return merged.map((p) => `### ${p.title} (part ${p.position + 1})\n${p.content}`).join("\n\n---\n\n");
 }
 
 /** Business memory, added to the first message of each conversation (confirmed facts and suggestions marked). */

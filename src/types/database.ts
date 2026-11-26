@@ -708,6 +708,7 @@ export type Database = {
           position: number
           search: unknown
           workspace_id: string
+          embedding: string | null
         }
         Insert: {
           content: string
@@ -716,6 +717,7 @@ export type Database = {
           position: number
           search?: unknown
           workspace_id: string
+          embedding?: string | null
         }
         Update: {
           content?: string
@@ -724,6 +726,7 @@ export type Database = {
           position?: number
           search?: unknown
           workspace_id?: string
+          embedding?: string | null
         }
         Relationships: []
       }
@@ -1268,6 +1271,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      match_knowledge_chunks: {
+        Args: { ws: string; query_embedding: string; match_count?: number }
+        Returns: { id: number; document_id: string; chunk_position: number; content: string; similarity: number }[]
+      }
       accept_invite: { Args: { invite_id: string }; Returns: string }
       ensure_workspace: { Args: Record<PropertyKey, never>; Returns: string }
       delete_my_account: { Args: Record<PropertyKey, never>; Returns: undefined }
