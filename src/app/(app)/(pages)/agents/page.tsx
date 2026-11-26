@@ -15,7 +15,7 @@ async function PageContent() {
     getWorkspaceSettings(ctx),
     ctx.supabase
       .from("custom_agents")
-      .select("id, name, description, instructions, model, web_access, max_cost_usd, enabled, runs, last_run_at")
+      .select("id, name, description, instructions, model, web_access, max_cost_usd, enabled, runs, last_run_at, tools")
       .eq("workspace_id", ctx.workspace.id)
       .order("name"),
   ]);
@@ -30,6 +30,7 @@ async function PageContent() {
     enabled: a.enabled,
     runs: a.runs,
     lastRunAt: a.last_run_at,
+    tools: a.tools,
   }));
 
   // Tasks this month per agent (Baba takes part in every task)

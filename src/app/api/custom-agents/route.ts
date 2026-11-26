@@ -22,6 +22,7 @@ export async function POST(request: Request) {
         webAccess: body.webAccess === true,
         maxCostUsd: Number(body.maxCostUsd),
         enabled: body.enabled !== false,
+        tools: Array.isArray(body.tools) ? body.tools.filter((t): t is string => typeof t === "string") : [],
       },
       typeof body.id === "string" && body.id ? body.id : undefined,
     );

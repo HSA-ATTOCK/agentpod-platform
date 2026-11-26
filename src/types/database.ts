@@ -1098,6 +1098,7 @@ export type Database = {
           updated_at: string
           web_access: boolean
           workspace_id: string
+          tools: string[]
         }
         Insert: {
           claude_agent_id?: string | null
@@ -1116,6 +1117,7 @@ export type Database = {
           updated_at?: string
           web_access?: boolean
           workspace_id: string
+          tools?: string[]
         }
         Update: {
           claude_agent_id?: string | null
@@ -1134,6 +1136,7 @@ export type Database = {
           updated_at?: string
           web_access?: boolean
           workspace_id?: string
+          tools?: string[]
         }
         Relationships: []
       }

@@ -25,7 +25,20 @@ export type CustomAgentRow = {
   enabled: boolean;
   runs: number;
   lastRunAt: string | null;
+  tools: string[];
 };
+
+/** Read-only connected tools a custom agent can be given (the server checks this list too). */
+const TOOL_CHOICES = [
+  ["knowledge_search", "Search your knowledge base"],
+  ["memory_list", "Read business memory"],
+  ["db_query", "Query connected databases (read-only)"],
+  ["drive_search", "Search Google Drive"],
+  ["drive_read", "Read Google Drive files"],
+  ["gmail_search", "Search Gmail"],
+  ["gmail_read", "Read emails"],
+  ["calendar_list_events", "See calendar events"],
+] as const;
 
 const MODELS = [
   ["claude-sonnet-5-5", "Claude Sonnet 5.5 — best quality"],
@@ -56,8 +69,8 @@ const TEMPLATES = [
   },
 ];
 
-type Draft = { id?: string; name: string; description: string; instructions: string; model: string; webAccess: boolean; maxCostUsd: string; enabled: boolean };
-const empty: Draft = { name: "", description: "", instructions: "", model: "claude-sonnet-5-5", webAccess: false, maxCostUsd: "0.50", enabled: true };
+type Draft = { id?: string; name: string; description: string; instructions: string; model: string; webAccess: boolean; maxCostUsd: string; enabled: boolean; tools: string[] };
+const empty: Draft = { name: "", description: "", instructions: "", model: "claude-sonnet-5-5", webAccess: false, maxCostUsd: "0.50", enabled: true, tools: [] };
 
 async function call(method: string, body: unknown) {
   const res = await fetch("/api/custom-agents", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -185,6 +198,7 @@ export function CustomAgents({ agents, canEdit }: { agents: CustomAgentRow[]; ca
                   </Badge>
                 )}
                 <Badge>Up to ${a.maxCostUsd.toFixed(2)} a run</Badge>
+                {a.tools.length > 0 && <Badge tone="accent">{a.tools.length} connected tool{a.tools.length === 1 ? "" : "s"}</Badge>}
                 {!a.enabled && <Badge tone="neutral">Off</Badge>}
               </div>
               <p className="text-xs text-subtle">
@@ -243,6 +257,22 @@ export function CustomAgents({ agents, canEdit }: { agents: CustomAgentRow[]; ca
               <input type="checkbox" checked={draft.webAccess} onChange={(e) => setDraft({ ...draft, webAccess: e.target.checked })} />
               Can search and read the web
             </label>
+            <fieldset className="space-y-2 rounded-control border border-border p-3">
+              <legend className="px-1 text-sm font-medium text-foreground">Connected tools (read-only)</legend>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {TOOL_CHOICES.map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 text-sm text-muted">
+                    <input
+                      type="checkbox"
+                      checked={draft.tools.includes(key)}
+                      onChange={(e) => setDraft({ ...draft, tools: e.target.checked ? [...draft.tools, key] : draft.tools.filter((t) => t !== key) })}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <p className="text-[11px] text-subtle">Custom agents can read but never send, change or delete anything.</p>
+            </fieldset>
             <div className="flex flex-wrap justify-between gap-2 border-t border-border pt-4">
               {draft.id ? (
                 <Button variant="ghost" className="text-danger" loading={busy === draft.id} onClick={() => void remove({ id: draft.id!, name: draft.name })}>
