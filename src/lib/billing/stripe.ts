@@ -68,8 +68,8 @@ async function customerFor(workspaceId: string, workspaceName: string, email: st
 
 export async function createCheckout(input: { workspaceId: string; workspaceName: string; email: string; planId: string; origin: string }) {
   const db = getSupabaseAdmin();
-  const { data: plan } = await db.from("subscription_plans").select("id, name, stripe_price_id, active").eq("id", input.planId).maybeSingle();
-  if (!plan?.active || !plan.stripe_price_id) throw new BillingError("That plan can't be bought online.");
+  const { data: plan } = await db.from("subscription_plans").select("id, name, stripe_price_id, active, is_public").eq("id", input.planId).maybeSingle();
+  if (!plan?.active || !plan.is_public || !plan.stripe_price_id) throw new BillingError("That plan can't be bought online.");
   const customer = await customerFor(input.workspaceId, input.workspaceName, input.email);
   const session = await stripe<{ url: string }>("POST", "/checkout/sessions", {
     mode: "subscription",
@@ -185,18 +185,32 @@ async function notifyManagers(workspaceId: string, title: string, body: string, 
   await notifyInApp((data ?? []).map((m) => ({ userId: m.user_id, workspaceId, kind, title, body, link: "/usage" })));
 }
 
-/** Handles one verified Stripe event. Returns false if it was already handled. */
+/**
+ * Handles one verified Stripe event. Returns false if it was already handled.
+ * The event is recorded only after it was applied (a failure makes Stripe retry), and
+ * subscriptions are always re-read from Stripe, so late or out-of-order events can't
+ * bring back an old state.
+ */
 export async function handleStripeEvent(event: { id: string; type: string; data: { object: Record<string, unknown> } }) {
   const db = getSupabaseAdmin();
-  const { error: dupe } = await db.from("stripe_events").insert({ id: event.id, type: event.type });
-  if (dupe) return false; // already processed
+  const { data: seen } = await db.from("stripe_events").select("id").eq("id", event.id).maybeSingle();
+  if (seen) return false;
   const object = event.data.object;
+  const latest = async (id: string) => {
+    try {
+      return { sub: await stripe<Subscription>("GET", `/subscriptions/${id}`), deleted: false };
+    } catch (error) {
+      // A deleted subscription can't be fetched any more: use the event's copy, marked as ended
+      if (error instanceof BillingError) return { sub: object as unknown as Subscription, deleted: true };
+      throw error;
+    }
+  };
   switch (event.type) {
     case "checkout.session.completed": {
       const subscriptionId = object.subscription as string | undefined;
       if (subscriptionId) {
-        const sub = await stripe<Subscription>("GET", `/subscriptions/${subscriptionId}`);
-        await applySubscription(sub);
+        const { sub, deleted } = await latest(subscriptionId);
+        await applySubscription(sub, deleted || sub.status === "canceled");
         const workspaceId = (object.metadata as Record<string, string> | undefined)?.workspace_id;
         if (workspaceId) await notifyManagers(workspaceId, "Subscription started", "Thanks! Your new plan and limits are active.", "success");
       }
@@ -204,11 +218,11 @@ export async function handleStripeEvent(event: { id: string; type: string; data:
     }
     case "customer.subscription.created":
     case "customer.subscription.updated":
-      await applySubscription(object as unknown as Subscription);
+    case "customer.subscription.deleted": {
+      const { sub, deleted } = await latest(String(object.id));
+      await applySubscription(sub, deleted || event.type === "customer.subscription.deleted" || sub.status === "canceled");
       break;
-    case "customer.subscription.deleted":
-      await applySubscription(object as unknown as Subscription, true);
-      break;
+    }
     case "invoice.payment_failed": {
       const { data } = await db.from("workspace_billing").select("workspace_id").eq("stripe_customer_id", object.customer as string).maybeSingle();
       if (data) await notifyManagers(data.workspace_id, "Payment failed", "Stripe couldn't take the payment for your plan. Update your card under Usage & billing → Manage billing.", "danger");
@@ -217,5 +231,7 @@ export async function handleStripeEvent(event: { id: string; type: string; data:
     default:
       break;
   }
-  return true;
+  // Only now: a crash above leaves it unrecorded, so Stripe's retry is processed
+  const { error: dupe } = await db.from("stripe_events").insert({ id: event.id, type: event.type });
+  return !dupe;
 }

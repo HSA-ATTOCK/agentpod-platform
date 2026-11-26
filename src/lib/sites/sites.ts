@@ -65,9 +65,25 @@ type SiteFile = { path: string; bytes: Uint8Array; type: string };
 
 export function unpack(zip: Uint8Array): SiteFile[] {
   let entries: Record<string, Uint8Array>;
+  // Limits are checked on the sizes the zip declares, BEFORE anything is decompressed (zip bombs);
+  // fflate never inflates an entry beyond its declared size
+  let declaredTotal = 0;
+  let declaredCount = 0;
   try {
-    entries = unzipSync(zip, { filter: (f) => !f.name.endsWith("/") && f.originalSize <= MAX_FILE_BYTES });
-  } catch {
+    entries = unzipSync(zip, {
+      filter: (f) => {
+        if (f.name.endsWith("/")) return false;
+        if (++declaredCount > MAX_FILES * 2) throw new Error("too many files");
+        if (f.originalSize > MAX_FILE_BYTES) return false;
+        declaredTotal += f.originalSize;
+        if (declaredTotal > MAX_TOTAL_BYTES) throw new Error("too large");
+        return true;
+      },
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (reason === "too large") throw new Error("The site is too large for a preview (max 25 MB).");
+    if (reason === "too many files") throw new Error(`The site has too many files (max ${MAX_FILES}).`);
     throw new Error("The zip file couldn't be opened.");
   }
   let files = Object.entries(entries)

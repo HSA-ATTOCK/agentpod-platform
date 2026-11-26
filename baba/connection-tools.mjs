@@ -46,7 +46,7 @@ export const connectionTools = [
     type: "custom",
     name: "api_request",
     description:
-      "Call the API of a service connected with an API key. The server adds the key; requests can only go to that service's host. GET requests run straight away; POST/PUT/PATCH/DELETE wait for the user's approval in Baba.",
+      "Call the API of a service connected with an API key. The server adds the key; requests can only go to that service's host. Every call waits for the user's approval in Baba (they see the method, address and body), so batch what you need into as few calls as possible.",
     input_schema: {
       type: "object",
       properties: {

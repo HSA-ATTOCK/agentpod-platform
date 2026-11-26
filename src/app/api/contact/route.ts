@@ -1,3 +1,4 @@
+import { clientIp } from "@/lib/rate-limit";
 import { isEmailConfigured, sendEmail } from "@/lib/email/mailer";
 import { contactEmail } from "@/lib/email/templates";
 import { isValidEmail } from "@/lib/validation";
@@ -26,13 +27,6 @@ function rateLimited(ip: string, now = Date.now()) {
   return false;
 }
 
-function clientIp(request: Request) {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-    request.headers.get("x-real-ip")?.trim() ||
-    "unknown"
-  );
-}
 
 /** One line of text: trims and collapses whitespace (no line breaks in names or email subjects). */
 const singleLine = (value: unknown) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");

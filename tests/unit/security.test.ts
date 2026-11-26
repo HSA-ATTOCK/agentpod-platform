@@ -142,3 +142,29 @@ test("websites: customers' own domains are cleaned and checked", () => {
   assert.ok(isValidDomain("www.example.co.uk"));
   for (const bad of ["localhost", "example", "-bad.example.com", "a..b.com", "exa mple.com"]) assert.equal(isValidDomain(bad), false, bad);
 });
+
+import { privateAddress } from "../../src/lib/integrations/databases";
+
+test("database: reviewer's bypasses are refused, normal queries still work", () => {
+  for (const sql of [
+    "SELECT 'x\\'' INTO OUTFILE '/tmp/f' #'",
+    "SELECT E'\\'', pg_read_file('/etc/passwd'), ''",
+    "SELECT pg_terminate_backend(123)",
+    "SELECT pg_sleep_for('1 min')",
+    "select name into new_table from t",
+    "select 'unclosed",
+    "select lo_import('/etc/passwd')",
+  ]) {
+    assert.throws(() => checkReadOnlySql(sql), Error, sql);
+  }
+  for (const sql of ["select $$a;b$$ as t", "select pg_size_pretty(pg_total_relation_size('orders'))", "select * from orders where note = 'it''s fine'"]) {
+    assert.doesNotThrow(() => checkReadOnlySql(sql), sql);
+  }
+});
+
+test("database: private and special addresses are refused", () => {
+  for (const ip of ["10.0.0.1", "127.0.0.1", "169.254.169.254", "172.16.0.1", "192.168.1.1", "100.64.0.1", "198.18.0.1", "::1", "fd00::1", "fec0::1", "64:ff9b::a00:1", "::ffff:10.0.0.1"]) {
+    assert.equal(privateAddress(ip), true, ip);
+  }
+  for (const ip of ["8.8.8.8", "52.95.110.1", "2a00:1450:4009::200e"]) assert.equal(privateAddress(ip), false, ip);
+});

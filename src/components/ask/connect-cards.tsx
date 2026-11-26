@@ -189,7 +189,10 @@ export function KeyRequestCard({ item, canManage, onUpdate, onSend, busy }: Shar
         <div className="min-w-0 flex-1 space-y-3">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Add your {item.serviceName} API key</h3>
-            <p className="text-xs text-muted">Used only for requests to {item.apiHost}.</p>
+          </div>
+          <div className="rounded-control border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
+            The key will be sent to <strong className="break-all font-mono">{item.apiHost}</strong> and nowhere else. Check that this is
+            the service&apos;s real address before you paste a key.
           </div>
           {item.instructions && (
             <div className="whitespace-pre-wrap rounded-control border border-border bg-surface p-3 text-sm leading-relaxed text-foreground">
@@ -387,6 +390,7 @@ export function DatabaseRequestCard({ item, canManage, onUpdate, onSend, busy }:
     user: "",
     password: "",
     ssl: true,
+    sslMode: "verify",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -455,15 +459,24 @@ export function DatabaseRequestCard({ item, canManage, onUpdate, onSend, busy }:
                 <Input id={`db-user-${item.id}`} label="Username" autoComplete="off" value={form.user} onChange={set("user")} />
               </div>
               <PasswordInput id={`db-pass-${item.id}`} label="Password" autoComplete="new-password" value={form.password} onChange={set("password")} />
-              <label className="flex items-center gap-2 text-sm text-muted">
-                <input type="checkbox" checked={form.ssl} onChange={(e) => setForm({ ...form, ssl: e.target.checked })} /> Use SSL (recommended)
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium text-foreground">Encryption</span>
+                <select
+                  className="h-10 w-full rounded-control border border-border bg-surface px-3 text-sm text-foreground"
+                  value={form.sslMode}
+                  onChange={(e) => setForm({ ...form, sslMode: e.target.value, ssl: e.target.value !== "off" })}
+                >
+                  <option value="verify">Encrypted, certificate checked (recommended)</option>
+                  <option value="require">Encrypted, certificate not checked (self-signed or private CA)</option>
+                  <option value="off">Not encrypted (not recommended)</option>
+                </select>
               </label>
               <Button type="submit" size="sm" loading={saving} loadingText="Testing connection…">
                 Test and save
               </Button>
               <p className="flex items-start gap-1.5 text-[11px] text-subtle">
-                <Lock aria-hidden="true" className="mt-0.5 size-3 shrink-0" /> Best practice: use a database user that can only read. Baba can only run read
-                queries anyway (read-only transaction, 15-second limit). The password is encrypted, never shown in the chat and never sent to the AI.
+                <Lock aria-hidden="true" className="mt-0.5 size-3 shrink-0" /> Use a database user that can only read the tables Baba needs (no file, superuser or admin rights). Baba can only run read
+                queries anyway (checked queries, read-only transaction, 15-second limit). The password is encrypted, never shown in the chat and never sent to the AI.
               </p>
             </form>
           ) : (

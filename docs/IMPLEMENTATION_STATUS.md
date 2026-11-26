@@ -110,13 +110,14 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 | Docker image (standalone server, non-root, health check) | PARTIAL: the standalone server was built and run and its health check passed; the full image build was blocked here by registry rate limits |
 | Terraform for AWS (ECS Fargate, ALB + HTTPS, ECR, Secrets Manager, S3 + CloudFront, IAM, alarms) | IMPLEMENTED (`terraform validate` passes) |
 | CI on every push; manual deploy workflow (OIDC, automatic rollback) | VERIFIED (CI); IMPLEMENTED (deploy) |
-| Unit tests (`npm test`: 20 tests); load test (`npm run test:load`) | VERIFIED |
+| Unit tests (`npm test`: 26 tests); load test (`npm run test:load`) | VERIFIED |
+| Internal security review (3 reviewers, 38 findings) | VERIFIED: all fixed except the optional separate preview domain; see `docs/SECURITY_GUIDELINES.md` |
 | Backup/restore runbook | IMPLEMENTED (`docs/BACKUP_AND_RECOVERY.md`); restores not rehearsed |
 | Independent security assessment / SOC 2 | NOT_STARTED (needs an outside auditor) |
 
 ## What's needed from you to switch everything on
 
-1. `npm run baba:setup` and `npm run admin:bootstrap -- your@email`.
+1. `npm run baba:setup` and `npm run admin:bootstrap -- your@email`. Run `npm run baba:setup` again even if you ran it before: it limits the agents' sandbox network and updates the tool descriptions.
 2. Optional keys, as you need them:
    - Stripe (payments)
    - OpenAI or Voyage (search by meaning)

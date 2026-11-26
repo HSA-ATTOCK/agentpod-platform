@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { bodyTooLarge } from "@/lib/rate-limit";
 import { runWorkflowFromWebhook } from "@/lib/workflows/runner";
 
 /**
@@ -17,6 +18,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   const now = Date.now();
   const recent = (hits.get(token) ?? []).filter((t) => now - t < WINDOW_MS);
   if (recent.length >= MAX_PER_WINDOW) return Response.json({ error: "Too many runs from this webhook. Try again later." }, { status: 429 });
+  // Count it straight away, before any await, so parallel requests can't all slip through
+  recent.push(now);
+  hits.set(token, recent);
+  if (hits.size > 5000) for (const [k, v] of hits) if (!v.some((t) => now - t < WINDOW_MS)) hits.delete(k);
+  if (bodyTooLarge(request, MAX_BODY)) return Response.json({ error: "Body too large (max 20 KB)." }, { status: 413 });
 
   const raw = await request.text().catch(() => "");
   if (raw.length > MAX_BODY) return Response.json({ error: "Body too large (max 20 KB)." }, { status: 413 });
@@ -29,8 +35,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
 
   const started = await runWorkflowFromWebhook(token, payload || "(empty body)");
   if (!started) return Response.json({ error: "Unknown or disabled webhook." }, { status: 404 });
-  recent.push(now);
-  hits.set(token, recent);
   after(() => started.run);
   return Response.json({ ok: true, status: "started" }, { status: 202 });
 }

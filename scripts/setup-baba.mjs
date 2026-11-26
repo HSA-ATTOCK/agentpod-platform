@@ -98,7 +98,9 @@ async function main() {
     saveLock();
     console.log(`Created environment: ${env.id}`);
   } else {
-    console.log(`Using environment: ${lock.environmentId}`);
+    // Keep its settings (e.g. the sandbox's network rules) in line with baba/team.mjs
+    await client.beta.environments.update(lock.environmentId, { config: environment.config });
+    console.log(`Updated environment: ${lock.environmentId}`);
   }
 
   // 2. Specialists first (Baba's roster refers to their IDs)

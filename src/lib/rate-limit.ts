@@ -25,3 +25,20 @@ export function tooManyRequests(waitSeconds: number) {
     { status: 429, headers: { "Retry-After": String(waitSeconds) } },
   );
 }
+
+/**
+ * The client's IP as seen by OUR proxy: the last X-Forwarded-For entry (the one the load balancer
+ * appended), not the first, which the client can set to anything. Prefer x-real-ip when the host sets it.
+ */
+export function clientIp(request: Request) {
+  const real = request.headers.get("x-real-ip")?.trim();
+  if (real) return real;
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",").map((s) => s.trim()).filter(Boolean);
+  return forwarded?.at(-1) ?? "unknown";
+}
+
+/** Rejects bodies over `max` bytes before reading them (when the client says how big they are). */
+export function bodyTooLarge(request: Request, max: number) {
+  const length = Number(request.headers.get("content-length") ?? "0");
+  return Number.isFinite(length) && length > max;
+}
