@@ -21,10 +21,13 @@ export type SiteRow = {
   expiresAt: string;
   expired: boolean;
   conversationId: string | null;
+  productionUrl: string | null;
+  productionVersion: number | null;
+  customDomain: string | null;
   versions: { version: number; note: string | null; createdAt: string; fileCount: number }[];
 };
 
-export function SitesView({ sites, canManage }: { sites: SiteRow[]; canManage: boolean }) {
+export function SitesView({ sites, canManage, productionAvailable }: { sites: SiteRow[]; canManage: boolean; productionAvailable: boolean }) {
   const router = useRouter();
   const { toast, showToast } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -35,8 +38,9 @@ export function SitesView({ sites, canManage }: { sites: SiteRow[]; canManage: b
     setError(null);
     try {
       const res = await fetch("/api/sites", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
       if (!res.ok) throw new Error(data.error ?? "That didn't work.");
+      if (data.message) window.alert(data.message);
       showToast(done);
       router.refresh();
     } catch (e) {
@@ -74,8 +78,17 @@ export function SitesView({ sites, canManage }: { sites: SiteRow[]; canManage: b
                 </div>
                 <p className="mt-1 break-all text-xs text-muted">{s.url}</p>
                 <p className="text-[11px] text-subtle">
-                  Preview link works until <LocalTime iso={s.expiresAt} format="date" /> (publishing again extends it). Production publishing on your own domain isn&apos;t available yet.
+                  Preview link works until <LocalTime iso={s.expiresAt} format="date" /> (publishing again extends it).
                 </p>
+                {s.productionUrl && (
+                  <p className="mt-1 text-xs text-success">
+                    Live (version {s.productionVersion}):{" "}
+                    <a href={s.productionUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                      {s.productionUrl}
+                    </a>
+                    {s.customDomain && <span className="text-muted"> · domain requested: {s.customDomain}</span>}
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {s.status !== "disabled" && !expired && (
@@ -87,6 +100,32 @@ export function SitesView({ sites, canManage }: { sites: SiteRow[]; canManage: b
                   <ButtonLink href={`${routes.ask}?c=${s.conversationId}`} size="sm" variant="secondary">
                     Request changes
                   </ButtonLink>
+                )}
+                {canManage && productionAvailable && s.currentVersion !== null && (
+                  <Button
+                    size="sm"
+                    loading={busy === `pub-${s.id}`}
+                    onClick={() => {
+                      if (window.confirm(`Publish version ${s.currentVersion} of "${s.name}" to its live address? Anyone on the internet will be able to see it.`)) {
+                        void act(`pub-${s.id}`, { action: "publish", siteId: s.id }, "Published live.");
+                      }
+                    }}
+                  >
+                    {s.productionUrl ? "Update live site" : "Publish live"}
+                  </Button>
+                )}
+                {canManage && productionAvailable && s.productionUrl && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    loading={busy === `dom-${s.id}`}
+                    onClick={() => {
+                      const domain = window.prompt("Your domain for this site (e.g. www.example.com):", s.customDomain ?? "");
+                      if (domain) void act(`dom-${s.id}`, { action: "domain", siteId: s.id, domain }, "Domain saved.");
+                    }}
+                  >
+                    Use my domain
+                  </Button>
                 )}
                 {canManage && (
                   <>

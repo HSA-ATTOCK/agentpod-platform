@@ -964,6 +964,10 @@ export type Database = {
           status: string
           updated_at: string
           workspace_id: string
+          custom_domain: string | null
+          production_url: string | null
+          production_version: number | null
+          published_at: string | null
         }
         Insert: {
           conversation_id?: string | null
@@ -977,6 +981,10 @@ export type Database = {
           status?: string
           updated_at?: string
           workspace_id: string
+          custom_domain?: string | null
+          production_url?: string | null
+          production_version?: number | null
+          published_at?: string | null
         }
         Update: {
           conversation_id?: string | null
@@ -990,6 +998,10 @@ export type Database = {
           status?: string
           updated_at?: string
           workspace_id?: string
+          custom_domain?: string | null
+          production_url?: string | null
+          production_version?: number | null
+          published_at?: string | null
         }
         Relationships: []
       }

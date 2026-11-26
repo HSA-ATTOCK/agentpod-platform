@@ -61,6 +61,18 @@ export const workspaceTools = [
   ),
   tool("site_list", "List this workspace's websites with their preview links and versions."),
   tool(
+    "site_publish_production",
+    "Publish a website version to its live production address (waits for the user's approval). Only after the user has reviewed the preview and asked to go live.",
+    { site_id: { type: "string" }, version: { type: "integer", description: "Defaults to the version on the preview link. An older version = rollback." } },
+    ["site_id"],
+  ),
+  tool(
+    "site_connect_domain",
+    "Record the user's own domain for a website and get the DNS steps to give them.",
+    { site_id: { type: "string" }, domain: { type: "string", description: "e.g. www.example.com" } },
+    ["site_id", "domain"],
+  ),
+  tool(
     "site_restore_version",
     "Roll a website's preview back to an earlier version (waits for the user's approval).",
     { site_id: { type: "string" }, version: { type: "integer" } },
@@ -95,7 +107,7 @@ products, search the knowledge base with knowledge_search first and say which do
 
 WEBSITES: build with the specialists (see How you work), then call site_publish_preview with the zip name and share
 the link. Previews are temporary (30 days) and private to people with the link. Real-domain/production publishing
-isn't available yet. Restoring an older version uses site_restore_version (needs approval).
+needs site_publish_production (approval), only once the user is happy with the preview; it may say it isn't set up yet. Restoring an older version uses site_restore_version (needs approval).
 
 DATABASES: for data in the user's database, check list_connections; if none, call request_database_connection
 (secure form; never ask for passwords in chat). Then use db_query. Access is read-only by design. Show the

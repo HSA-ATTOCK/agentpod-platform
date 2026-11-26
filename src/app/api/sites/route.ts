@@ -1,4 +1,5 @@
 import { canManage, getAppContext } from "@/lib/data/context";
+import { publishProduction, requestCustomDomain } from "@/lib/sites/production";
 import { deleteSite, restoreSiteVersion, setSiteStatus } from "@/lib/sites/sites";
 import { isAdminConfigured } from "@/lib/supabase/admin";
 
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
   if (!ctx) return Response.json({ error: "Please sign in again." }, { status: 401 });
   if (!canManage(ctx.workspace.role)) return Response.json({ error: "Only owners and admins can manage websites." }, { status: 403 });
   if (!isAdminConfigured()) return Response.json({ error: "Website previews aren't set up on this server." }, { status: 503 });
-  const body = (await request.json().catch(() => ({}))) as { action?: string; siteId?: string; version?: number };
+  const body = (await request.json().catch(() => ({}))) as { action?: string; siteId?: string; version?: number; domain?: string };
   const siteId = typeof body.siteId === "string" ? body.siteId : "";
   try {
     switch (body.action) {
@@ -27,6 +28,12 @@ export async function POST(request: Request) {
       case "delete":
         await deleteSite(ctx, siteId);
         break;
+      case "publish": {
+        const live = await publishProduction(ctx, siteId, body.version ? Number(body.version) : undefined);
+        return Response.json({ ok: true, url: live.url });
+      }
+      case "domain":
+        return Response.json({ ok: true, message: await requestCustomDomain(ctx, siteId, String(body.domain ?? "")) });
       default:
         return Response.json({ error: "Unknown action." }, { status: 400 });
     }
