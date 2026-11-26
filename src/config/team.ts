@@ -62,7 +62,7 @@ export const specialists: TeamMember[] = [
     icon: ChartColumn,
   },
   { id: "website_builder", name: "Website Builder", job: "Builds complete, responsive websites with a live preview link and version history.", status: "active", tools: ["Build files", "Run code", "Preview links"], icon: Globe },
-  { id: "mobile_app_builder", name: "Mobile App Builder", job: "Builds iOS and Android apps with a live preview.", status: "coming_soon", tools: [], icon: Smartphone },
+  { id: "mobile_app_builder", name: "Mobile App Builder", job: "Builds iOS and Android apps (React Native / Expo) with a web preview link and the full source code.", status: "active", tools: ["Build files", "Run code", "Preview links"], icon: Smartphone },
   { id: "designer", name: "UI/UX Designer", job: "Plans the look, layout, colours and journeys of websites and apps.", status: "active", tools: ["Design specs"], icon: LayoutTemplate },
   { id: "qa_reviewer", name: "QA Reviewer", job: "Independently tests websites, checks numbers and reviews documents before you get them.", status: "active", tools: ["Run code", "Test sites"], icon: CircleCheck },
   { id: "marketing", name: "Marketing & SEO", job: "SEO audits, keyword ideas, campaign plans, content calendars and ad copy.", status: "active", tools: ["Web search", "Read web pages"], icon: Target },
