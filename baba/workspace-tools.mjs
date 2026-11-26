@@ -11,6 +11,18 @@ const tool = (name, description, properties = {}, required = []) => ({
 });
 
 export const workspaceTools = [
+  tool(
+    "workflow_checkpoint",
+    "Pause for the user's approval before continuing (used by 'ask me first' workflow steps, or whenever you want an explicit go-ahead). Describe exactly what you're about to do. Continue only if it's approved.",
+    { summary: { type: "string", description: "What you'll do next, with the key details (recipients, amounts, items)." } },
+    ["summary"],
+  ),
+  tool(
+    "notify_me",
+    "Send the user a notification (in the app's bell menu and by email). Use it for 'notify me' workflow steps or when the user asks to be told about something.",
+    { title: { type: "string", description: "Short headline" }, message: { type: "string", description: "The details (plain text)" } },
+    ["title", "message"],
+  ),
   tool("list_custom_agents", "List the custom agents this business created (their own specialists), with what each is for."),
   tool(
     "run_custom_agent",

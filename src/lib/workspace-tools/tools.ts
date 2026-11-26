@@ -1,6 +1,11 @@
 import "server-only";
 import { listCustomAgentsText, runCustomAgent } from "@/lib/custom-agents/custom-agents";
+import { routes } from "@/config/routes";
 import type { AppContext } from "@/lib/data/context";
+import { sendEmail } from "@/lib/email/mailer";
+import { babaNoticeEmail } from "@/lib/email/templates";
+import { serverOrigin } from "@/lib/origin";
+import { notifyInApp } from "@/lib/platform/account";
 import { dbQuery } from "@/lib/integrations/databases";
 import { deleteMemory, memoryText, saveMemory, searchKnowledge } from "@/lib/knowledge/knowledge";
 import { listSitesText, publishSitePreview, restoreSiteVersion } from "@/lib/sites/sites";
@@ -15,6 +20,8 @@ type Result = { text: string; isError: boolean };
 const str = (input: Input, key: string) => (typeof input[key] === "string" ? (input[key] as string).trim() : "");
 
 export const WORKSPACE_TOOL_NAMES = new Set([
+  "workflow_checkpoint",
+  "notify_me",
   "list_custom_agents",
   "run_custom_agent",
   "memory_list",
@@ -29,12 +36,14 @@ export const WORKSPACE_TOOL_NAMES = new Set([
 ]);
 
 /** Changes a person must approve first. */
-export const WORKSPACE_NEEDS_APPROVAL = new Set(["memory_delete", "site_restore_version"]);
+export const WORKSPACE_NEEDS_APPROVAL = new Set(["memory_delete", "site_restore_version", "workflow_checkpoint"]);
 
 /** Actions only contributors (not viewers) may take; managers for site rollbacks. */
 const WRITE_TOOLS = new Set(["memory_save", "memory_delete", "site_publish_preview", "site_restore_version"]);
 
 export const WORKSPACE_LABELS: Record<string, string> = {
+  workflow_checkpoint: "Waiting for your go-ahead",
+  notify_me: "Sending you a notification",
   list_custom_agents: "Checking your custom agents",
   run_custom_agent: "Your custom agent is working on a sub-task",
   memory_save: "Saving to business memory",
@@ -48,6 +57,7 @@ export const WORKSPACE_LABELS: Record<string, string> = {
 };
 
 export function workspaceApprovalSummary(name: string, input: Input) {
+  if (name === "workflow_checkpoint") return str(input, "summary").slice(0, 2000) || "Continue with the next step";
   if (name === "memory_delete") return `Delete memory entry ${str(input, "id")}`;
   if (name === "site_restore_version") return `Make version ${String(input.version)} the live preview of site ${str(input, "site_id")}`;
   return name;
@@ -60,6 +70,17 @@ export async function runWorkspaceTool(name: string, input: Input, scope: { ctx:
   }
   try {
     switch (name) {
+      case "workflow_checkpoint":
+        // Only reached after a person approved it (it always needs approval)
+        return { text: "Approved. Continue with the next step.", isError: false };
+      case "notify_me": {
+        const title = str(input, "title").slice(0, 200) || "Update from Baba";
+        const message = str(input, "message").slice(0, 2000);
+        const link = `${routes.ask}?c=${scope.conversationId}`;
+        await notifyInApp([{ userId: ctx.user.id, workspaceId: ctx.workspace.id, kind: "info", title, body: message, link }]);
+        const sent = await sendEmail(babaNoticeEmail({ to: ctx.user.email, title, message, url: `${serverOrigin()}${link}` }));
+        return { text: sent ? "Notified (bell menu and email)." : "Notified in the bell menu (email isn't set up on this server).", isError: false };
+      }
       case "list_custom_agents":
         return { text: await listCustomAgentsText(ctx), isError: false };
       case "run_custom_agent":

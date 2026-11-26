@@ -446,6 +446,7 @@ export type Database = {
           updated_at: string
           webhook_token_hash: string | null
           workspace_id: string
+          steps: Json
         }
         Insert: {
           cap_usd?: number
@@ -462,6 +463,7 @@ export type Database = {
           updated_at?: string
           webhook_token_hash?: string | null
           workspace_id: string
+          steps?: Json
         }
         Update: {
           cap_usd?: number
@@ -478,6 +480,7 @@ export type Database = {
           updated_at?: string
           webhook_token_hash?: string | null
           workspace_id?: string
+          steps?: Json
         }
         Relationships: [
           {
@@ -1143,6 +1146,54 @@ export type Database = {
           web_access?: boolean
           workspace_id?: string
           tools?: string[]
+        }
+        Relationships: []
+      }
+      workflow_versions: {
+        Row: {
+          cap_usd: number
+          changed_by: string | null
+          created_at: string
+          day_of_week: number | null
+          frequency: string
+          id: number
+          instruction: string
+          name: string
+          steps: Json
+          time_of_day: string | null
+          version: number
+          workflow_id: string
+          workspace_id: string
+        }
+        Insert: {
+          cap_usd: number
+          changed_by?: string | null
+          created_at?: string
+          day_of_week?: number | null
+          frequency: string
+          id?: never
+          instruction: string
+          name: string
+          steps?: Json
+          time_of_day?: string | null
+          version: number
+          workflow_id: string
+          workspace_id: string
+        }
+        Update: {
+          cap_usd?: number
+          changed_by?: string | null
+          created_at?: string
+          day_of_week?: number | null
+          frequency?: string
+          id?: never
+          instruction?: string
+          name?: string
+          steps?: Json
+          time_of_day?: string | null
+          version?: number
+          workflow_id?: string
+          workspace_id?: string
         }
         Relationships: []
       }

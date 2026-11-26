@@ -193,3 +193,17 @@ export function spendAlertEmail(input: { to: string; workspaceName: string; perc
     text: `${input.workspaceName} has spent ${input.spent} of its ${input.limit} monthly limit.${full ? " New tasks are paused until next month unless the limit is raised." : ""}\n\nView usage: ${input.url}`,
   };
 }
+
+/** A notification Baba sends to the person it's working for (notify_me tool). */
+export function babaNoticeEmail(input: { to: string; title: string; message: string; url: string }): Email {
+  return {
+    to: input.to,
+    subject: input.title.slice(0, 150),
+    html: layout({
+      heading: escape(input.title),
+      paragraphs: [escape(input.message).replace(/\r?\n/g, "<br>")],
+      button: { label: "Open in Baba", url: input.url },
+    }),
+    text: `${input.title}\n\n${input.message}\n\nOpen in Baba: ${input.url}`,
+  };
+}

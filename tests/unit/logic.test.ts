@@ -26,3 +26,22 @@ test("schedule: daily slot in the workspace timezone (Karachi, UTC+5)", () => {
   assert.equal(new Date(lastSlot(schedule, "Asia/Karachi", now)!).toISOString(), "2026-11-23T08:27:00.000Z");
   assert.equal(new Date(nextSlot(schedule, "Asia/Karachi", now)!).toISOString(), "2026-11-24T08:27:00.000Z");
 });
+
+import { cleanSteps, workflowPrompt } from "../../src/lib/workflows/steps";
+
+test("workflows: steps are cleaned and turned into numbered instructions", () => {
+  const steps = cleanSteps([
+    { id: "a", type: "do", text: " Find unpaid invoices " },
+    { id: "b", type: "check", text: "at least one was found" },
+    { id: "c", type: "approve", text: "show me the emails" },
+    { id: "d", type: "bogus", text: "notify" },
+    { id: "e", type: "notify", text: "" },
+  ]);
+  assert.equal(steps.length, 4, "empty steps are dropped");
+  assert.equal(steps[3].type, "do", "unknown types become 'do'");
+  const prompt = workflowPrompt("Chase late payers.", steps);
+  assert.match(prompt, /1\. Find unpaid invoices/);
+  assert.match(prompt, /2\. CHECK: only continue if at least one was found/);
+  assert.match(prompt, /3\. ASK ME FIRST: .*workflow_checkpoint/);
+  assert.equal(workflowPrompt("Just this.", []), "Just this.");
+});

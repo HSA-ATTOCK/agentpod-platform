@@ -1,4 +1,5 @@
 import "server-only";
+import { cleanSteps } from "@/lib/workflows/steps";
 import { emailEnabled, notificationEvents, type NotificationPrefs } from "@/config/notifications";
 import { canManage, type AppContext, type WorkspaceRole } from "@/lib/data/context";
 import { getWorkspaceSettings, listFiles, listInvites, listMembers, listTasks, listWorkflows, monthStart } from "@/lib/data/pages";
@@ -232,6 +233,7 @@ async function createWorkflow(ctx: AppContext, input: Input) {
       day_of_week: frequency === "weekly" ? (num(input, "day_of_week") ?? 1) : null,
       time_of_day: frequency === "manual" ? null : time,
       cap_usd: num(input, "cap_usd") ?? 1,
+      steps: cleanSteps(input.steps),
       enabled: frequency !== "manual",
       last_run_slot: new Date().toISOString(),
     })
@@ -263,6 +265,7 @@ async function updateWorkflow(ctx: AppContext, input: Input) {
   if (frequency === "weekly") patch.day_of_week = num(input, "day_of_week") ?? current.day_of_week ?? 1;
   else patch.day_of_week = null;
   if (num(input, "cap_usd") !== undefined) patch.cap_usd = num(input, "cap_usd");
+  if (Array.isArray(input.steps)) patch.steps = cleanSteps(input.steps);
   const { error } = await ctx.supabase.from("workflows").update(patch as TablesUpdate<"workflows">).eq("id", id).eq("workspace_id", ctx.workspace.id);
   if (error) return fail(`Couldn't change the workflow: ${error.message}`);
   return ok("Workflow updated.");
