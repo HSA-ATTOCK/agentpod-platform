@@ -7,7 +7,14 @@
 - Provider-independent AI gateway: custom agents on OpenAI or Google Gemini, with admin-set prices and fallback models.
 - Visual workflow editor (drag and drop, flow diagram); voice dictation in the chat; five more custom agent templates.
 - Automated custom domains for live websites (certificate + CloudFront).
-- Internal security review and fixes.
+- Internal security review: 38 findings fixed. Highlights:
+  - Every API-key request now needs approval, and approval cards show the full message.
+  - Database connections have encryption modes (verify / require / off) and stricter query checks.
+  - The agents' sandbox network is limited to package registries. **Run `npm run baba:setup` again.**
+  - Stored secrets use a new encryption format; old values still work.
+  - Sign-in links to other services expire after 10 minutes.
+  - Website previews show a warning banner.
+  - `x-forwarded-host` is only trusted in production with `TRUST_FORWARDED_HOST=1`.
 
 ## 2026-11-26
 - Custom agents can use read-only connected tools (knowledge, memory, databases, Drive, Gmail, Calendar).
