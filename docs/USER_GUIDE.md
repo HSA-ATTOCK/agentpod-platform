@@ -17,7 +17,8 @@ You can switch chats or pages while Baba works; tasks keep running.
 - **Marketing & SEO**: website audits, plans, content and ad copy.
 - **Websites**: design, build and test a site, with a preview link; publish it live when you approve.
 - **Mobile apps**: an Expo app with a web preview and the full source code.
-- **Your tools**: Gmail, Drive, Calendar, Slack, HubSpot, Outlook, any service with an API key, and read-only PostgreSQL/MySQL.
+- **Your tools**: Gmail, Drive, Calendar, Slack, HubSpot, Outlook, QuickBooks, Xero, Shopify (the last three read-only), any service with an API key, and read-only PostgreSQL/MySQL.
+- **Voice**: click the microphone in the chat box to dictate.
 
 ## Pages
 
@@ -25,11 +26,11 @@ You can switch chats or pages while Baba works; tasks keep running.
 |---|---|
 | Ask Baba | Chats. Use the search bar at the top to find any chat, message, task, file or workflow. Edit your last message with the pencil. |
 | Dashboard / Activity | What Baba did, cost and results. |
-| AI Agents | Baba's specialists, and **your own agents**: create a specialist with your instructions, model, web access, connected tools (read-only) and cost limit. |
-| Workflows | Saved tasks: run on demand, on a schedule (your workspace's time zone) or from a webhook link. Add steps: *Do*, *Only continue if*, *Ask me first*, *Notify me*. Every change is kept as a version. |
-| Websites | Preview links, version history, restore, publish live, your own domain. |
-| Memory | Facts Baba remembers about your business, and a knowledge base of documents it searches. |
-| Integrations | Connect Google, Slack, HubSpot, Microsoft 365, API keys and databases. |
+| AI Agents | Baba's specialists, and **your own agents**: create a specialist (or start from a template) with your instructions, model (Claude, or OpenAI/Gemini if your platform allows them), web access, connected tools (read-only) and cost limit. |
+| Workflows | Saved tasks: run on demand, on a schedule (your workspace's time zone) or from a webhook link. Add steps: *Do*, *Only continue if*, *Ask me first*, *Notify me*; drag them into order and see the flow diagram. Every change is kept as a version. |
+| Websites | Preview links, version history, restore, publish live, your own domain (follow the DNS steps shown, then Check domain), form messages from your site with CSV download. |
+| Memory | Facts Baba remembers about your business, and a knowledge base (PDF, Word, text files or pasted text) it searches. |
+| Integrations | Connect Google, Slack, HubSpot, Microsoft 365, QuickBooks, Xero, Shopify, API keys and databases. |
 | Usage & billing | Spend against your limits, plan allowances, plans, invoices. |
 | Settings / Profile | Workspace, team and roles, notifications, two-step verification, download your data, delete your account. |
 

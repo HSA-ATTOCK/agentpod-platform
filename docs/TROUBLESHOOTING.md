@@ -19,6 +19,10 @@
 | Database connection fails | Host not public, firewall, wrong SSL setting | Allow the server's IP, use the public host name, try with/without SSL. Private addresses are refused by design. |
 | Website "Publish live" button missing | AWS settings not configured | See DEPLOYMENT_GUIDE part C. Preview links work without it. |
 | Upgrade buttons missing | Stripe not configured, or plan has no Price ID | Add Stripe keys; put Price IDs in Admin → Plans. |
+| A PDF upload says it has no text | Scanned PDF | Attach it in Ask Baba instead (Baba reads scanned pages), or run it through OCR first. |
+| Custom domain stuck on "waiting for the DNS record" | Record missing or wrong | Copy the CNAME exactly as shown (some providers add your domain to the name automatically: then enter only the first part). Click Check domain again after a few minutes. |
+| Microphone button missing | Browser without speech recognition (e.g. Firefox) | Use Chrome, Edge or Safari. |
+| A custom agent's OpenAI/Gemini model disappeared | Its API key was removed or the admin removed the model | Admin → Settings → Other AI models, and the server's API keys. |
 | Knowledge search misses obvious matches | Keyword search only | Add `OPENAI_API_KEY` or `VOYAGE_API_KEY` for search by meaning. |
 | Long document cut off | Older chat before part-reading | Ask again; Baba reads Google Docs in parts until the end. |
 

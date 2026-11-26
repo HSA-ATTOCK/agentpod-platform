@@ -17,7 +17,7 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 | Python FastAPI backend | Next.js 16 route handlers (TypeScript) | One codebase; a modular monolith, as the PRD recommends. |
 | LangGraph orchestration | Claude Managed Agents (multi-agent sessions) | Hosted, sandboxed execution per conversation with spending caps; no agent servers to run. |
 | Postgres on RDS + custom auth | Supabase (Postgres, Auth, Storage, pgvector) | Row Level Security on every table, MFA, email verification. |
-| Provider-independent model gateway | Claude for agents; OpenAI or Voyage for embeddings | **PARTIAL.** Managed Agents run Claude models only (Opus, Sonnet or Haiku, chosen per agent in Admin). Embeddings sit behind a provider-independent interface. |
+| Provider-independent model gateway | `src/lib/ai/gateway.ts`: Anthropic, OpenAI, Google Gemini (retries, backoff, fallback models, admin-set prices) | Baba and its built-in specialists run on Claude Managed Agents (Claude models only: Opus/Sonnet/Haiku per agent). Custom agents can run on any allowed provider. Embeddings: OpenAI or Voyage. |
 | Celery/Redis queues | The workflow scheduler claims each slot in the database; Claude runs the work | Never runs a slot twice; no separate queue to operate. No dead-letter queue. |
 | AWS (ECS, S3, CloudFront, Secrets Manager, CloudWatch) | Terraform in `infrastructure/terraform` | Validated with `terraform validate`; not applied (no AWS account here). |
 
@@ -41,7 +41,8 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 | Plan first for complex work, QA before delivery | IMPLEMENTED (Baba's instructions) |
 | Search inside messages; edit and retry the last message | VERIFIED |
 | Task statuses, cost per task, Activity | VERIFIED |
-| Voice input/output | NOT_STARTED (PRD: future release) |
+| Voice input (dictation in the chat box) | VERIFIED |
+| Voice output | NOT_STARTED (PRD: future release) |
 
 ### Agents (PRD §5, §6, §28)
 | Feature | Status |
@@ -49,8 +50,9 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 | Baba plus 9 specialists: Research Analyst, Writer, Data Analyst, QA Reviewer, Website Builder, Mobile App Builder, UI/UX Designer, Marketing & SEO, Finance Analyst | IMPLEMENTED |
 | Agent registry; on/off and model per agent from Admin | IMPLEMENTED |
 | Per-workspace allowed agents (a disallowed specialist stops the task) | IMPLEMENTED |
-| Custom agent builder (instructions, model, web, read-only connected tools, cost limit, templates) | IMPLEMENTED (screens and validation VERIFIED) |
-| CRM/Sales, Support, Scheduling, Operations and Social Media as separate specialists | NOT_STARTED. Baba covers these with the connected tools, and businesses can create them as custom agents. |
+| Custom agent builder (instructions, model, web, read-only connected tools, cost limit, 8 templates) | IMPLEMENTED (screens, templates and validation VERIFIED) |
+| Custom agents on OpenAI / Gemini through the gateway, with fallback models | IMPLEMENTED (gateway unit-tested against a fake provider) |
+| CRM/Sales, Support, Scheduling, Operations and Social Media agents | IMPLEMENTED as ready-made custom agent templates (with suitable connected tools); Baba also covers these directly with its tools. |
 
 ### Integrations (PRD §7)
 | Feature | Status |
@@ -60,7 +62,8 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 | Any REST API via an encrypted, host-locked API key | IMPLEMENTED |
 | PostgreSQL / MySQL, read-only | IMPLEMENTED (SQL safety unit-tested) |
 | Revocation, reconnect state, audit of connections and every tool call | IMPLEMENTED |
-| QuickBooks, Xero, Shopify, Notion, Teams, Search Console, Google Ads, Salesforce | NOT_STARTED as native integrations; usable through API keys where the service offers them |
+| QuickBooks, Xero (reports and records), Shopify (orders, products, customers, inventory, sales totals) — read-only | IMPLEMENTED (Shopify signature check and store addresses unit-tested) |
+| Notion, Teams, Search Console, Google Ads, Salesforce | NOT_STARTED as native integrations; usable through API keys where the service offers them |
 | MCP servers | NOT_STARTED |
 
 ### Websites and apps (PRD §9, §10)
@@ -68,10 +71,11 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 |---|---|
 | Build → QA → preview link, versions, rollback, sandboxed previews | IMPLEMENTED (unpacking safety VERIFIED) |
 | Publish live on AWS (S3 + CloudFront, `https://<site>.<domain>`), with approval; rollback by republishing | IMPLEMENTED |
-| Custom domains | PARTIAL: recorded, and the customer gets DNS steps; the admin adds the certificate and alias (ADMIN_GUIDE) |
+| Custom domains: certificate request, DNS records shown, CloudFront distribution created when issued, live status | IMPLEMENTED (Terraform permissions validated) |
 | Mobile apps (Expo source + web preview) | IMPLEMENTED |
 | App Store / Play Store publishing | NOT_STARTED (needs the customer's developer accounts; never automatic) |
-| Websites with their own backend or database | NOT_STARTED |
+| Forms on generated websites (stored, emailed, CSV export, spam protection) | IMPLEMENTED (unit-tested) |
+| Websites with their own custom server code or database | NOT_STARTED (sites are static plus Baba's form backend) |
 
 ### Data, memory and knowledge (PRD §11, §13)
 | Feature | Status |
@@ -79,7 +83,7 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 | Business memory (Baba's suggestions marked until confirmed) | VERIFIED |
 | Knowledge base: keyword search | VERIFIED |
 | Knowledge base: search by meaning (pgvector) | IMPLEMENTED (database function and access rules VERIFIED) |
-| PDF/Word upload into the knowledge base | PARTIAL: paste the text, or attach the file in chat |
+| PDF and Word (.docx) upload into the knowledge base | VERIFIED (text extraction tested; scanned PDFs get a clear message) |
 
 ### Workflows (PRD §12, §27)
 | Feature | Status |
@@ -87,7 +91,7 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 | Schedules (workspace time zone), run now, results, webhooks | VERIFIED |
 | Steps: do / only continue if / ask me first (approval checkpoint) / notify me; version history and restore | VERIFIED |
 | Created and edited from chat | VERIFIED |
-| Drag-and-drop canvas editor | NOT_STARTED (the step list covers the same building blocks) |
+| Visual editor: drag-and-drop steps with a flow diagram | VERIFIED |
 
 ### Billing (PRD §15.4, §16)
 | Feature | Status |
@@ -106,7 +110,7 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 | Docker image (standalone server, non-root, health check) | PARTIAL: the standalone server was built and run and its health check passed; the full image build was blocked here by registry rate limits |
 | Terraform for AWS (ECS Fargate, ALB + HTTPS, ECR, Secrets Manager, S3 + CloudFront, IAM, alarms) | IMPLEMENTED (`terraform validate` passes) |
 | CI on every push; manual deploy workflow (OIDC, automatic rollback) | VERIFIED (CI); IMPLEMENTED (deploy) |
-| Unit tests (`npm test`: 13 tests); load test (`npm run test:load`) | VERIFIED |
+| Unit tests (`npm test`: 20 tests); load test (`npm run test:load`) | VERIFIED |
 | Backup/restore runbook | IMPLEMENTED (`docs/BACKUP_AND_RECOVERY.md`); restores not rehearsed |
 | Independent security assessment / SOC 2 | NOT_STARTED (needs an outside auditor) |
 

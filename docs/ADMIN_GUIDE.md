@@ -23,7 +23,7 @@ Run it on the server (it needs `SUPABASE_SECRET_KEY`), after signing up with tha
 | **Usage & costs** | Spend by user, workspace and agent. |
 | **Audit log** | Every important action (append-only). Filter by action prefix, e.g. `account.`, `tool.`, `billing.`. |
 | **System health** | Database, Claude, email, encryption key, Google, scheduler, public access, recent failed tasks. |
-| **Settings** | Approval on/off, maintenance mode (only admins can use the app), announcement banner, default limits. |
+| **Settings** | Approval on/off, maintenance mode (only admins can use the app), announcement banner, default limits, and **Other AI models**: allow OpenAI/Gemini (or Claude via the Messages API) models for custom agents with their prices per million tokens and an optional fallback. Prices drive spending limits, so keep them current. |
 
 ## How limits work
 
@@ -42,7 +42,7 @@ Put each plan's Stripe Price ID in Plans. Customers pick a plan on **Usage & bil
 
 ## Custom domains for live websites
 
-When a customer asks for their own domain, it's recorded on the site (audit: `site.custom_domain_requested`). To finish: request an ACM certificate in us-east-1 for that domain, add the domain as an alternate name on the sites CloudFront distribution, and add a small routing rule (or a dedicated distribution) mapping the domain to the site's folder. The customer has already been told which CNAME to create.
+Automatic once the AWS setup is in place (Terraform passes `SITES_OAC_ID` and the permissions): the customer adds a domain, Baba requests the certificate and shows the DNS record; when the certificate is issued, **Check domain** creates a CloudFront distribution for that domain and shows the final CNAME. Each step is in the audit log (`site.custom_domain_*`). Each domain is a separate CloudFront distribution (AWS's default limit is 200 per account; ask AWS to raise it if needed).
 
 ## Agent changes
 

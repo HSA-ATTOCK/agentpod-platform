@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-26 (later)
+- Knowledge base accepts PDF and Word files.
+- Forms on Baba-built websites: stored, emailed to owners, CSV download, spam protection.
+- QuickBooks, Xero and Shopify connections (read-only).
+- Provider-independent AI gateway: custom agents on OpenAI or Google Gemini, with admin-set prices and fallback models.
+- Visual workflow editor (drag and drop, flow diagram); voice dictation in the chat; five more custom agent templates.
+- Automated custom domains for live websites (certificate + CloudFront).
+- Internal security review and fixes.
+
 ## 2026-11-26
 - Custom agents can use read-only connected tools (knowledge, memory, databases, Drive, Gmail, Calendar).
 - Admin chooses each agent's model and effort.
