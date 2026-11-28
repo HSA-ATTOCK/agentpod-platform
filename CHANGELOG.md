@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-28
+- Getting-started checklist on the Ask screen (ticks off steps by itself; can be hidden).
+- One-click task ideas that match the workspace's connected tools.
+- Daily briefing: calendar, unread email, overdue invoices, shop orders and Baba's activity, in the bell menu and by email. Switch it on or off and pick the hour in Settings → Notifications.
+- Profile: no password form for accounts that sign in only with Google.
+
 ## 2026-11-26 (later)
 - Knowledge base accepts PDF and Word files.
 - Forms on Baba-built websites: stored, emailed to owners, CSV download, spam protection.

@@ -94,6 +94,8 @@ the workspace's monthly limit, and emails the person who created the workflow if
 
 When the app is hosted (e.g. Vercel), call `GET /api/cron/workflows` every minute with
 `Authorization: Bearer <CRON_SECRET>` from a scheduler, and set `BABA_SCHEDULER=off`.
+Also call `GET /api/cron/briefings` (same header) every 5–15 minutes for the daily briefings;
+the built-in timer checks them every 5 minutes.
 
 ## Everything from the chat
 

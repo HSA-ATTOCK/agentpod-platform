@@ -8,6 +8,12 @@
 
 You can switch chats or pages while Baba works; tasks keep running.
 
+**Getting-started checklist.** A new chat shows a short checklist: tell Baba about your business, connect email and calendar, add a document, give a first task, turn on the daily briefing and invite a teammate. Steps tick off by themselves. Hide it with the ✕; it disappears when everything is done.
+
+**Task ideas.** Under the message box are one-click ideas. They match what your workspace has connected (for example "Catch up on email" once Gmail or Outlook is connected). Clicking one sends it straight to Baba, which asks for any details it needs.
+
+**Daily briefing.** Settings → Notifications → Daily briefing. Off by default. When on, you get a short summary at the hour you choose, in your time zone from your Profile: today's calendar, unread emails from the last 24 hours, overdue invoices (QuickBooks or Xero), shop orders (Shopify), and what Baba did (finished and failed tasks, approvals waiting, workflow runs, website form replies). It arrives in the bell menu and by email. "Send me one now" sends one straight away. Viewers can't turn it on, because it shows the workspace's email and money details. The briefing reads your connected tools directly and uses no AI, so it costs nothing.
+
 ## What Baba can do
 
 - **Research** markets, competitors and any topic, with a source for every fact.

@@ -42,6 +42,8 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 | Search inside messages; edit and retry the last message | VERIFIED |
 | Task statuses, cost per task, Activity | VERIFIED |
 | Voice input (dictation in the chat box) | VERIFIED |
+| Getting-started checklist; one-click task ideas matched to connected tools | VERIFIED (browser-tested) |
+| Daily briefing (on/off and hour in Settings; bell + email) | PARTIAL: settings screen, scheduling and time-zone logic tested; sending needs SUPABASE_SECRET_KEY, not tried here |
 | Voice output | NOT_STARTED (PRD: future release) |
 
 ### Agents (PRD §5, §6, §28)
@@ -110,7 +112,7 @@ Everything marked IMPLEMENTED turns on when its settings are added (see `.env.ex
 | Docker image (standalone server, non-root, health check) | PARTIAL: the standalone server was built and run and its health check passed; the full image build was blocked here by registry rate limits |
 | Terraform for AWS (ECS Fargate, ALB + HTTPS, ECR, Secrets Manager, S3 + CloudFront, IAM, alarms) | IMPLEMENTED (`terraform validate` passes) |
 | CI on every push; manual deploy workflow (OIDC, automatic rollback) | VERIFIED (CI); IMPLEMENTED (deploy) |
-| Unit tests (`npm test`: 26 tests); load test (`npm run test:load`) | VERIFIED |
+| Unit tests (`npm test`: 30 tests); load test (`npm run test:load`) | VERIFIED |
 | Internal security review (3 reviewers, 38 findings) | VERIFIED: all fixed except the optional separate preview domain; see `docs/SECURITY_GUIDELINES.md` |
 | Backup/restore runbook | IMPLEMENTED (`docs/BACKUP_AND_RECOVERY.md`); restores not rehearsed |
 | Independent security assessment / SOC 2 | NOT_STARTED (needs an outside auditor) |
