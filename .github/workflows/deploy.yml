@@ -4,8 +4,9 @@ name: Deploy to AWS
 # One-time setup (see docs/DEPLOYMENT_GUIDE.md):
 #   - repository variables: AWS_REGION, ECR_REPOSITORY_URL, ECS_CLUSTER, APP_URL,
 #     NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-#   - repository secret:   AWS_DEPLOY_ROLE_ARN (an IAM role GitHub can assume through OIDC;
-#     allowed to push to ECR and update the ECS service). No AWS keys are stored in GitHub.
+#   - repository secret:   AWS_DEPLOY_ROLE_ARN (the github_deploy_role_arn Terraform output: a role
+#     GitHub assumes through OIDC, allowed only to push to ECR and update the ECS service).
+#     No AWS keys are stored in GitHub.
 on:
   workflow_dispatch:
     inputs:

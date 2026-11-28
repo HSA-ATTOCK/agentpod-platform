@@ -47,8 +47,10 @@ resource "aws_secretsmanager_secret" "app" {
 }
 
 locals {
-  # Server settings read from the secret (add any optional ones you use)
-  secret_keys = [
+  # Server settings read from the secret. Every key listed here MUST exist in the secret's
+  # JSON, or the container won't start. Optional ones go in var.optional_secret_keys only
+  # once you've added them to the secret.
+  required_secret_keys = [
     "SUPABASE_SECRET_KEY",
     "ANTHROPIC_API_KEY",
     "BABA_AGENT_ID",
@@ -56,13 +58,8 @@ locals {
     "INTEGRATIONS_ENCRYPTION_KEY",
     "GMAIL_USER",
     "GMAIL_APP_PASSWORD",
-    "CRON_SECRET",
-    "STRIPE_SECRET_KEY",
-    "STRIPE_WEBHOOK_SECRET",
-    "OPENAI_API_KEY",
-    "VOYAGE_API_KEY",
-    "ALERT_WEBHOOK_URL",
   ]
+  secret_keys = distinct(concat(local.required_secret_keys, var.optional_secret_keys))
 }
 
 resource "aws_ecs_cluster" "main" {

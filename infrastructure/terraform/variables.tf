@@ -46,3 +46,21 @@ variable "memory" {
   type    = number
   default = 2048
 }
+
+variable "optional_secret_keys" {
+  description = "Optional server settings you've added to the app secret, e.g. [\"BABA_PROFILE\", \"GOOGLE_CLIENT_ID\", \"GOOGLE_CLIENT_SECRET\", \"STRIPE_SECRET_KEY\", \"STRIPE_WEBHOOK_SECRET\", \"OPENAI_API_KEY\", \"GEMINI_API_KEY\", \"VOYAGE_API_KEY\", \"ALERT_WEBHOOK_URL\", \"CRON_SECRET\"]. Only list keys that exist in the secret."
+  type        = list(string)
+  default     = []
+}
+
+variable "github_repository" {
+  description = "GitHub repository (owner/name) allowed to deploy through the 'Deploy to AWS' workflow"
+  type        = string
+  default     = "HSA-ATTOCK/agentpod-platform"
+}
+
+variable "create_github_oidc_provider" {
+  description = "Create the account's GitHub sign-in provider. Set false if this AWS account already has one for token.actions.githubusercontent.com."
+  type        = bool
+  default     = true
+}

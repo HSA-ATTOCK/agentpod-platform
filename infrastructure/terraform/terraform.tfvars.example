@@ -1,7 +1,13 @@
 # Copy to terraform.tfvars (not committed) and fill in.
-region          = "eu-west-2"
+region          = "us-east-1"
 environment     = "production"
-app_domain      = "app.example.com"
-sites_domain    = "sites.example.com"
-route53_zone_id = "" # e.g. Z0123456789ABC if your domain is in Route 53
+app_domain      = "app.example.com"   # where people use Baba
+sites_domain    = "sites.example.com" # live customer websites become <name>.sites.example.com
+route53_zone_id = ""                  # Route 53 → Hosted zones → your domain → Hosted zone ID (e.g. Z0123456789ABC)
 desired_count   = 1
+
+# Optional settings you've added to the app secret (each must exist there, or the app won't start)
+optional_secret_keys = []
+
+github_repository = "HSA-ATTOCK/agentpod-platform"
+# create_github_oidc_provider = false  # only if this AWS account already has GitHub's OIDC provider

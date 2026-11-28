@@ -6,12 +6,12 @@ terraform {
       version = "~> 5.80"
     }
   }
-  # Recommended: keep state in S3 (create the bucket once, then uncomment)
-  # backend "s3" {
-  #   bucket = "your-terraform-state-bucket"
-  #   key    = "baba/production.tfstate"
-  #   region = "eu-west-2"
-  # }
+  # State lives in an S3 bucket you create once (see docs/DEPLOYMENT_GUIDE.md, C1), so it
+  # isn't lost with a Codespace or laptop. Pass the bucket when initialising:
+  #   terraform init -backend-config="bucket=<state-bucket>" -backend-config="key=baba/production.tfstate" -backend-config="region=us-east-1"
+  backend "s3" {
+    encrypt = true
+  }
 }
 
 provider "aws" {

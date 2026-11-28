@@ -38,3 +38,18 @@ output "sites_oac_id" {
   description = "SITES_OAC_ID for the app (customers' own domains), if you run the app outside this ECS setup"
   value       = aws_cloudfront_origin_access_control.sites.id
 }
+
+output "github_deploy_role_arn" {
+  description = "Save as the GitHub repository secret AWS_DEPLOY_ROLE_ARN"
+  value       = aws_iam_role.github_deploy.arn
+}
+
+output "github_variables" {
+  description = "Add these as GitHub repository variables (Settings → Secrets and variables → Actions → Variables)"
+  value = {
+    AWS_REGION         = var.region
+    ECR_REPOSITORY_URL = aws_ecr_repository.app.repository_url
+    ECS_CLUSTER        = aws_ecs_cluster.main.name
+    APP_URL            = "https://${var.app_domain}"
+  }
+}
